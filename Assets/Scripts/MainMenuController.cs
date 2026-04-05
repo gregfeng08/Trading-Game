@@ -60,7 +60,7 @@ public class MainMenuController : MonoBehaviour
                     playButton.interactable = true;
                     playButton.onClick.AddListener(() =>
                     {
-                        SceneManager.LoadScene("Street");
+                        SceneManager.LoadScene("City Scene");
                     });
                     playButtonText.text = "Play";
                     yield break;
