@@ -22,8 +22,14 @@ namespace Game.API
             => APIClient.PostAsync<EntityDTO, EntityRegistrationResponse>("register_entity", entity);
 
         //Function to get the daily data along with the SMA as a parameter for all tickers
-        public static Task<DailyDataRetrievalResponse> GetDailyData()
-            => APIClient.GetAsync<DailyDataRetrievalResponse>("get_daily_data");
+        public static Task<DailyDataRetrievalResponse> GetDailyData(string ticker = null, int? limit = null)
+        {
+            var path = "get_daily_data";
+            var sep = '?';
+            if (ticker != null) { path += $"{sep}ticker={ticker}"; sep = '&'; }
+            if (limit.HasValue) { path += $"{sep}limit={limit.Value}"; }
+            return APIClient.GetAsync<DailyDataRetrievalResponse>(path);
+        }
     }
 }
 

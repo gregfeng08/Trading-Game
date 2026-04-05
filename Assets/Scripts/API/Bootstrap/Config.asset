@@ -19,6 +19,7 @@ MonoBehaviour:
   initDb: 1
   loadTickers: 1
   registerEntity: 1
+  newGame: 0
   entity_id: player_001
   entity_type: player
   display_name: Player

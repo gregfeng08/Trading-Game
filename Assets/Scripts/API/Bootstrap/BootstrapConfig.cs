@@ -15,6 +15,7 @@ public class BootstrapConfig : ScriptableObject
     public bool initDb = true;
     public bool loadTickers = true;
     public bool registerEntity = true;
+    public bool newGame = false;
 
     [Header("Entity")]
     public string entity_id = "player_001";

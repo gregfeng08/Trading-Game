@@ -91,7 +91,8 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        HandleMoveAndJump();
+        if (PlayerStateController.Inst == null || PlayerStateController.Inst.CanMove)
+            HandleMoveAndJump();
     }
 
     void LateUpdate()
