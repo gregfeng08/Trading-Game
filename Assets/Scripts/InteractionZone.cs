@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 
 public class InteractionZone : MonoBehaviour
 {
@@ -25,5 +26,10 @@ public class InteractionZone : MonoBehaviour
     {
         if (other.CompareTag("Player") && InteractionsController.Inst != null)
             InteractionsController.Inst.ClearActiveZone(this);
+    }
+
+    public void LoadScene(string sceneName)
+    {
+        SceneManager.LoadScene(sceneName);
     }
 }
