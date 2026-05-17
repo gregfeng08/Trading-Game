@@ -6,6 +6,7 @@ public class InteractionZone : MonoBehaviour
 {
     [SerializeField] private InteractionType interactionType;
     [SerializeField] private string interactionName;
+    [SerializeField] private string spawnPointName;
     [SerializeField] private UnityEvent onInteract;
 
     public InteractionType Type => interactionType;
@@ -30,6 +31,9 @@ public class InteractionZone : MonoBehaviour
 
     public void LoadScene(string sceneName)
     {
-        SceneManager.LoadScene(sceneName);
+        if (SceneTransitionManager.Inst != null)
+            SceneTransitionManager.Inst.LoadScene(sceneName, spawnPointName);
+        else
+            SceneManager.LoadScene(sceneName);
     }
 }

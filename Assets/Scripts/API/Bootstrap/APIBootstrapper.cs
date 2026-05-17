@@ -79,8 +79,17 @@ namespace Game.API
             }
         }
 
+        private void EnsureKnowledgeGraphManager()
+        {
+            if (KnowledgeGraphManager.Inst != null) return;
+            var go = new GameObject("KnowledgeGraphManager");
+            go.AddComponent<KnowledgeGraphManager>();
+        }
+
         private async Task RunBootstrapAsync()
         {
+            EnsureKnowledgeGraphManager();
+
             Log($"Pinging API at {APIClient.BaseUrl} ...");
             var ping = await HealthAPI.PingAsync();
             Log($"Ping OK. status={ping.status} server_time={ping.server_time}");
@@ -123,6 +132,13 @@ namespace Game.API
                 EntityDbId = reg.entity_db_id;
                 EntityExternalId = config.entity_id;
                 Log($"Register entity: {reg.status} entity_db_id={reg.entity_db_id}");
+
+                if (KnowledgeGraphManager.Inst != null)
+                {
+                    Log("Initializing knowledge graph ...");
+                    await KnowledgeGraphManager.Inst.InitializeAsync();
+                    Log("Knowledge graph ready.");
+                }
             }
         }
 

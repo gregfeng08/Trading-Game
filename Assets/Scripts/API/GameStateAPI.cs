@@ -8,6 +8,12 @@ namespace Game.API
         public static Task<GameDateResponse> GetGameDate()
             => APIClient.GetAsync<GameDateResponse>("get_game_date");
 
+        public static Task<GamePhaseResponse> GetGamePhase()
+            => APIClient.GetAsync<GamePhaseResponse>("get_game_phase");
+
+        public static Task<AdvancePhaseResponse> AdvancePhase()
+            => APIClient.PostAsync<object, AdvancePhaseResponse>("advance_phase", new { });
+
         public static Task<AdvanceDayResponse> AdvanceDay()
             => APIClient.PostAsync<object, AdvanceDayResponse>("advance_day", new { });
 

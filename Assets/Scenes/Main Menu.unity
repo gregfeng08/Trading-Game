@@ -256,41 +256,51 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
---- !u!1 &643881012 stripped
+--- !u!1 &547688212
 GameObject:
-  m_CorrespondingSourceObject: {fileID: 8549242808619007539, guid: 2f0110f85e0e1c64983138f349dc000b, type: 3}
-  m_PrefabInstance: {fileID: 759379993}
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &643881017
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 547688214}
+  - component: {fileID: 547688213}
+  m_Layer: 0
+  m_Name: GameStateManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &547688213
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 643881012}
+  m_GameObject: {fileID: 547688212}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e5fc42e7a512525408cc3355b94de051, type: 3}
+  m_Script: {fileID: 11500000, guid: a95b47b02e4ba11478b79b151ed0ac31, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Game.API.APIBootstrapper
-  config: {fileID: 11400000, guid: 8e926983648d3dd4f9c3dddac9b4714b, type: 2}
-  dontDestroyOnLoad: 0
-  verboseLogs: 1
---- !u!114 &643881018
-MonoBehaviour:
+  m_EditorClassIdentifier: Assembly-CSharp::GamePhaseManager
+  dayDurationSeconds: 360
+--- !u!4 &547688214
+Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 643881012}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: dbc628c13159f4a4d818847ba884d0d4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MainMenuController
-  statusText: {fileID: 759379994}
-  playButtonObj: {fileID: 1486414856}
-  bootstrapper: {fileID: 643881017}
+  m_GameObject: {fileID: 547688212}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &759379993
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -414,25 +424,52 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8549242808619007539, guid: 2f0110f85e0e1c64983138f349dc000b, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 643881017}
-    - targetCorrespondingSourceObject: {fileID: 8549242808619007539, guid: 2f0110f85e0e1c64983138f349dc000b, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 643881018}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 2f0110f85e0e1c64983138f349dc000b, type: 3}
---- !u!114 &759379994 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 197892115119873770, guid: 2f0110f85e0e1c64983138f349dc000b, type: 3}
-  m_PrefabInstance: {fileID: 759379993}
+--- !u!1 &1119193810
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1119193812}
+  - component: {fileID: 1119193811}
+  m_Layer: 0
+  m_Name: SceneTransitionManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1119193811
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1119193810}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Script: {fileID: 11500000, guid: fac8f95e81d0c4b469ac7685ac9d230d, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
+  m_EditorClassIdentifier: Assembly-CSharp::SceneTransitionManager
+--- !u!4 &1119193812
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1119193810}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 207.16356, y: 0, z: -22.16867}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1486414856 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 2891997694255631380, guid: 2f0110f85e0e1c64983138f349dc000b, type: 3}
@@ -652,3 +689,5 @@ SceneRoots:
   - {fileID: 1499370994}
   - {fileID: 1803807017}
   - {fileID: 759379993}
+  - {fileID: 1119193812}
+  - {fileID: 547688214}

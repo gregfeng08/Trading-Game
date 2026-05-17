@@ -100,6 +100,13 @@ public class PlayerMovement : MonoBehaviour
         HandleCamera();
     }
 
+    /// <summary>Snap camera to current pivot position, clearing all smooth-follow lag.</summary>
+    public void SnapCamera()
+    {
+        pivotFollowPos = cameraPivot.position;
+        pivotFollowVel = Vector3.zero;
+    }
+
     /// <summary>Call from scene triggers/scripts to lock or unlock the orbit.</summary>
     public void SetOrbitLocked(bool locked, float newYaw = 0f, float newPitch = 25f, float newDist = 8f)
     {

@@ -202510,6 +202510,10 @@ PrefabInstance:
       value: Interactable Area
       objectReference: {fileID: 0}
     - target: {fileID: 9009623080919049080, guid: fe6350c6523c506479828fc08798398d, type: 3}
+      propertyPath: spawnPointName
+      value: door
+      objectReference: {fileID: 0}
+    - target: {fileID: 9009623080919049080, guid: fe6350c6523c506479828fc08798398d, type: 3}
       propertyPath: interactionName
       value: enter apartment.
       objectReference: {fileID: 0}
@@ -202548,19 +202552,40 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8049858837433196708, guid: fe6350c6523c506479828fc08798398d, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1487604793}
   m_SourcePrefab: {fileID: 100100000, guid: fe6350c6523c506479828fc08798398d, type: 3}
 --- !u!114 &1487604791 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 9009623080919049080, guid: fe6350c6523c506479828fc08798398d, type: 3}
   m_PrefabInstance: {fileID: 1487604790}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1487604792}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: aca469fd4828d9c478d10b70d0d9ec6d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractionZone
+--- !u!1 &1487604792 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8049858837433196708, guid: fe6350c6523c506479828fc08798398d, type: 3}
+  m_PrefabInstance: {fileID: 1487604790}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1487604793
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1487604792}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 099271beabd99a84598c81a8c925f972, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SpawnPoint
+  spawnPointName: apartment
 --- !u!1001 &1488161879
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -272634,6 +272659,38 @@ PrefabInstance:
     - target: {fileID: 5372898674174082764, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
       propertyPath: m_Name
       value: == Player ==
+      objectReference: {fileID: 0}
+    - target: {fileID: 6487260420552919386, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6487260420552919386, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6487260420552919386, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6487260420552919386, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7774769214690106138, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7774769214690106138, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7774769214690106138, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7774769214690106138, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

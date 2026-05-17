@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs wc:*)"
+      "Bash(xargs wc:*)",
+      "Bash(dotnet build:*)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\" -Recurse -Directory)",
+      "Bash(Select-Object -First 30)",
+      "Bash(Format-Table FullName)",
+      "Bash(Get-ChildItem -Path . -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(timeout 8 dotnet run)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(New-Item *)",
+      "PowerShell(dotnet build *)",
+      "PowerShell(Stop-Process *)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(head *)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-List FullName)"
     ]
   }
 }

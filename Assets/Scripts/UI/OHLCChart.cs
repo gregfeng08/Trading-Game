@@ -1,11 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using Game.API.DTO;
+using System.Collections.Generic;
 
-/// <summary>
-/// Custom UI Graphic that draws OHLC candlestick bars.
-/// Add to a GameObject with a RectTransform — candles fill the rect automatically.
-/// </summary>
 [RequireComponent(typeof(CanvasRenderer))]
 public class OHLCChart : MaskableGraphic
 {
@@ -23,7 +21,24 @@ public class OHLCChart : MaskableGraphic
     [SerializeField] private Color gridColor = new Color(1f, 1f, 1f, 0.08f);
     [SerializeField] private float gridLineWidth = 0.5f;
 
+    [Header("Axes")]
+    [SerializeField] private float leftMargin = 55f;
+    [SerializeField] private float rightMargin = 10f;
+    [SerializeField] private float topMargin = 10f;
+    [SerializeField] private float bottomMargin = 22f;
+    [SerializeField] private Color axisLineColor = new Color(1f, 1f, 1f, 0.2f);
+    [SerializeField] private float axisLineWidth = 1f;
+    [SerializeField] private float tickLength = 4f;
+    [SerializeField] private Color labelColor = new Color(1f, 1f, 1f, 0.5f);
+    [SerializeField] private float labelFontSize = 10f;
+    [SerializeField] private int dateTickInterval = 20;
+    [SerializeField] private TMP_FontAsset labelFont;
+
     private PriceRowDTO[] data;
+    private readonly List<TMP_Text> priceLabelPool = new List<TMP_Text>();
+    private readonly List<TMP_Text> dateLabelPool = new List<TMP_Text>();
+    private int activePriceLabels;
+    private int activeDateLabels;
 
     public float MinPrice { get; private set; }
     public float MaxPrice { get; private set; }
@@ -33,12 +48,14 @@ public class OHLCChart : MaskableGraphic
         data = priceData;
         ComputeRange();
         SetVerticesDirty();
+        UpdateLabels();
     }
 
     public void Clear()
     {
         data = null;
         SetVerticesDirty();
+        HideAllLabels();
     }
 
     private void ComputeRange()
@@ -60,34 +77,60 @@ public class OHLCChart : MaskableGraphic
         MaxPrice += pad;
     }
 
+    private void GetChartArea(out float cx0, out float cy0, out float cw, out float ch)
+    {
+        Rect rect = GetPixelAdjustedRect();
+        cx0 = rect.xMin + leftMargin;
+        cy0 = rect.yMin + bottomMargin;
+        cw = rect.width - leftMargin - rightMargin;
+        ch = rect.height - bottomMargin - topMargin;
+    }
+
     protected override void OnPopulateMesh(VertexHelper vh)
     {
         vh.Clear();
 
         if (data == null || data.Length == 0) return;
 
-        Rect rect = GetPixelAdjustedRect();
-        float w = rect.width;
-        float h = rect.height;
-        float x0 = rect.xMin;
-        float y0 = rect.yMin;
+        GetChartArea(out float cx0, out float cy0, out float cw, out float ch);
         float range = MaxPrice - MinPrice;
-        if (range < 0.01f) return;
+        if (range < 0.01f || cw <= 0 || ch <= 0) return;
 
-        // Grid lines
+        Rect rect = GetPixelAdjustedRect();
+
+        // Axis lines (L-shape along left and bottom of chart area)
+        float halfAxis = axisLineWidth * 0.5f;
+        AddQuad(vh,
+            new Vector2(cx0 - halfAxis, cy0),
+            new Vector2(cx0 + halfAxis, cy0 + ch), axisLineColor);
+        AddQuad(vh,
+            new Vector2(cx0, cy0 - halfAxis),
+            new Vector2(cx0 + cw, cy0 + halfAxis), axisLineColor);
+
+        // Grid lines + price tick marks
         if (drawGrid)
         {
-            for (int i = 1; i < gridRows; i++)
+            for (int i = 0; i <= gridRows; i++)
             {
                 float t = (float)i / gridRows;
-                float y = y0 + t * h;
-                AddQuad(vh, new Vector2(x0, y - gridLineWidth * 0.5f),
-                            new Vector2(x0 + w, y + gridLineWidth * 0.5f), gridColor);
+                float y = cy0 + t * ch;
+
+                if (i > 0 && i < gridRows)
+                {
+                    AddQuad(vh,
+                        new Vector2(cx0, y - gridLineWidth * 0.5f),
+                        new Vector2(cx0 + cw, y + gridLineWidth * 0.5f), gridColor);
+                }
+
+                AddQuad(vh,
+                    new Vector2(cx0 - tickLength, y - halfAxis),
+                    new Vector2(cx0, y + halfAxis), axisLineColor);
             }
         }
 
+        // Candles
         int count = data.Length;
-        float slotW = w / count;
+        float slotW = cw / count;
         float bodyW = slotW * bodyWidthRatio;
         float halfBody = bodyW * 0.5f;
         float halfWick = wickWidth * 0.5f;
@@ -95,27 +138,143 @@ public class OHLCChart : MaskableGraphic
         for (int i = 0; i < count; i++)
         {
             var c = data[i];
-            float cx = x0 + (i + 0.5f) * slotW;
+            float cx = cx0 + (i + 0.5f) * slotW;
 
-            float yOpen  = y0 + ((c.open_price  - MinPrice) / range) * h;
-            float yClose = y0 + ((c.close_price - MinPrice) / range) * h;
-            float yHigh  = y0 + ((c.high_price  - MinPrice) / range) * h;
-            float yLow   = y0 + ((c.low_price   - MinPrice) / range) * h;
+            float yOpen  = cy0 + ((c.open_price  - MinPrice) / range) * ch;
+            float yClose = cy0 + ((c.close_price - MinPrice) / range) * ch;
+            float yHigh  = cy0 + ((c.high_price  - MinPrice) / range) * ch;
+            float yLow   = cy0 + ((c.low_price   - MinPrice) / range) * ch;
 
             bool bull = c.close_price >= c.open_price;
             Color col = bull ? bullColor : bearColor;
 
-            // Wick
             AddQuad(vh, new Vector2(cx - halfWick, yLow),
                         new Vector2(cx + halfWick, yHigh), col);
 
-            // Body
             float bTop = Mathf.Max(yOpen, yClose);
             float bBot = Mathf.Min(yOpen, yClose);
             if (bTop - bBot < 1f) bTop = bBot + 1f;
             AddQuad(vh, new Vector2(cx - halfBody, bBot),
                         new Vector2(cx + halfBody, bTop), col);
         }
+
+        // Date tick marks — match the label spacing
+        float minSpacing = 55f;
+        int tickInterval = Mathf.Max(dateTickInterval, Mathf.CeilToInt(minSpacing / slotW));
+        for (int i = 0; i < count; i += tickInterval)
+        {
+            float cx = cx0 + (i + 0.5f) * slotW;
+            AddQuad(vh,
+                new Vector2(cx - halfAxis, cy0 - tickLength),
+                new Vector2(cx + halfAxis, cy0), axisLineColor);
+        }
+    }
+
+    // ── Label Management ──
+
+    private void UpdateLabels()
+    {
+        if (data == null || data.Length == 0) { HideAllLabels(); return; }
+
+        GetChartArea(out float cx0, out float cy0, out float cw, out float ch);
+        float range = MaxPrice - MinPrice;
+        if (range < 0.01f || cw <= 0 || ch <= 0) return;
+
+        // Price labels along left axis
+        int priceCount = gridRows + 1;
+        EnsurePool(priceLabelPool, priceCount);
+        activePriceLabels = priceCount;
+
+        for (int i = 0; i <= gridRows; i++)
+        {
+            float t = (float)i / gridRows;
+            float price = MinPrice + t * range;
+            float y = cy0 + t * ch;
+
+            var label = priceLabelPool[i];
+            label.gameObject.SetActive(true);
+            label.text = FormatPrice(price);
+            label.alignment = TextAlignmentOptions.MidlineRight;
+            label.rectTransform.anchoredPosition = new Vector2(cx0 - tickLength - 3f, y);
+        }
+
+        // Date labels along bottom axis — auto-space to avoid overlap
+        int count = data.Length;
+        float slotW = cw / count;
+        float minDateSpacing = 55f;
+        int effectiveInterval = Mathf.Max(dateTickInterval, Mathf.CeilToInt(minDateSpacing / slotW));
+        int dateCount = 0;
+        for (int i = 0; i < count; i += effectiveInterval) dateCount++;
+
+        EnsurePool(dateLabelPool, dateCount);
+        activeDateLabels = dateCount;
+
+        int labelIdx = 0;
+        for (int i = 0; i < count; i += effectiveInterval)
+        {
+            float cx = cx0 + (i + 0.5f) * slotW;
+
+            var label = dateLabelPool[labelIdx];
+            label.gameObject.SetActive(true);
+            label.text = FormatDate(data[i].date);
+            label.alignment = TextAlignmentOptions.Top;
+            label.rectTransform.anchoredPosition = new Vector2(cx, cy0 - tickLength - 2f);
+            labelIdx++;
+        }
+
+        // Hide unused labels
+        for (int i = activePriceLabels; i < priceLabelPool.Count; i++)
+            priceLabelPool[i].gameObject.SetActive(false);
+        for (int i = activeDateLabels; i < dateLabelPool.Count; i++)
+            dateLabelPool[i].gameObject.SetActive(false);
+    }
+
+    private void HideAllLabels()
+    {
+        foreach (var l in priceLabelPool) if (l != null) l.gameObject.SetActive(false);
+        foreach (var l in dateLabelPool) if (l != null) l.gameObject.SetActive(false);
+        activePriceLabels = 0;
+        activeDateLabels = 0;
+    }
+
+    private void EnsurePool(List<TMP_Text> pool, int needed)
+    {
+        while (pool.Count < needed)
+            pool.Add(CreateLabel());
+    }
+
+    private TMP_Text CreateLabel()
+    {
+        var go = new GameObject("AxisLabel", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        go.transform.SetParent(transform, false);
+
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(50f, 16f);
+
+        var tmp = go.GetComponent<TextMeshProUGUI>();
+        tmp.fontSize = labelFontSize;
+        tmp.color = labelColor;
+        tmp.enableWordWrapping = false;
+        tmp.overflowMode = TextOverflowModes.Overflow;
+        tmp.raycastTarget = false;
+        if (labelFont != null) tmp.font = labelFont;
+
+        return tmp;
+    }
+
+    private string FormatPrice(float price)
+    {
+        if (price >= 1000f) return $"${price:F0}";
+        return $"${price:F2}";
+    }
+
+    private string FormatDate(string isoDate)
+    {
+        if (System.DateTime.TryParse(isoDate, out var dt))
+            return dt.ToString("M/dd");
+        return isoDate;
     }
 
     private void AddQuad(VertexHelper vh, Vector2 bl, Vector2 tr, Color c)

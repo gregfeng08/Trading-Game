@@ -10,5 +10,7 @@ namespace Game.API.DTO
     {
         public string status;
         public string message;
+        public float filled_price;
+        public string order_type;
     }
 }

@@ -26,6 +26,7 @@ public class TradingUIController : MonoBehaviour
     [SerializeField] private Button buyButton;
     [SerializeField] private Button sellButton;
     [SerializeField] private Button advanceDayButton;
+    [SerializeField] private TMP_Text advanceButtonText;
 
     [Header("Player Info")]
     [SerializeField] private TMP_Text cashText;
@@ -37,6 +38,8 @@ public class TradingUIController : MonoBehaviour
     private TickerDTO[] tickers;
     private string selectedTicker;
     private string currentGameDate;
+    private GamePhase currentPhase;
+    private PortfolioTotalDTO[] cachedHoldings;
 
     void OnEnable()
     {
@@ -52,27 +55,21 @@ public class TradingUIController : MonoBehaviour
 
     private void OnPlayerStateChanged(PlayerState oldState, PlayerState newState)
     {
-        // React to leaving TRADING (triggered by Escape in PlayerStateController)
         if (oldState == PlayerState.TRADING && tradingPanel.activeSelf)
             ClosePanel();
     }
 
-    /// <summary>Call from InteractionZone or other trigger to open the terminal.</summary>
     public void Open()
     {
         tradingPanel.SetActive(true);
         PlayerStateController.Inst.SetState(PlayerState.TRADING);
 
         closeButton.onClick.AddListener(Close);
-        buyButton.onClick.AddListener(OnBuy);
-        sellButton.onClick.AddListener(OnSell);
-        advanceDayButton.onClick.AddListener(OnAdvanceDay);
         tickerDropdown.onValueChanged.AddListener(OnTickerChanged);
 
         _ = LoadInitialData();
     }
 
-    /// <summary>Called by the close button — triggers state change, which triggers ClosePanel via event.</summary>
     public void Close()
     {
         if (PlayerStateController.Inst != null)
@@ -90,12 +87,11 @@ public class TradingUIController : MonoBehaviour
         tradingPanel.SetActive(false);
     }
 
-    // ---- Data Loading ----
+    // ── Data Loading ──
 
     private async Task EnsureEntityDbId()
     {
         if (APIBootstrapper.EntityDbId >= 0) return;
-
         var resp = await TradeAPI.ResolveEntity(APIBootstrapper.EntityExternalId);
         APIBootstrapper.EntityDbId = resp.entity_db_id;
     }
@@ -105,7 +101,7 @@ public class TradingUIController : MonoBehaviour
         SetStatus("Loading...");
         try
         {
-            await RefreshGameDate();
+            await SyncPhase();
             await LoadTickers();
         }
         catch (System.Exception ex)
@@ -124,7 +120,25 @@ public class TradingUIController : MonoBehaviour
             Debug.LogWarning($"[TradingUI] Portfolio unavailable: {ex.Message}");
         }
 
+        ApplyPhaseUI();
         SetStatus("Ready");
+    }
+
+    private async Task SyncPhase()
+    {
+        if (GamePhaseManager.Inst != null)
+        {
+            await GamePhaseManager.Inst.SyncWithServer();
+            currentGameDate = GamePhaseManager.Inst.CurrentDate;
+            currentPhase = GamePhaseManager.Inst.CurrentPhase;
+        }
+        else
+        {
+            var resp = await GameStateAPI.GetGameDate();
+            currentGameDate = resp.current_date;
+            currentPhase = GamePhase.PreMarket;
+        }
+        dateText.text = FormatDateHeader();
     }
 
     private async Task LoadTickers()
@@ -155,14 +169,295 @@ public class TradingUIController : MonoBehaviour
         _ = RefreshPrice();
     }
 
-    // ---- Refresh Helpers ----
+    // ── Phase-Aware UI ──
 
-    private async Task RefreshGameDate()
+    private void ApplyPhaseUI()
     {
-        var resp = await GameStateAPI.GetGameDate();
-        currentGameDate = resp.current_date;
-        dateText.text = currentGameDate ?? "No active game";
+        buyButton.onClick.RemoveAllListeners();
+        sellButton.onClick.RemoveAllListeners();
+        advanceDayButton.onClick.RemoveAllListeners();
+
+        switch (currentPhase)
+        {
+            case GamePhase.PreMarket:
+                ApplyPreMarketUI();
+                break;
+            case GamePhase.Day:
+                ApplyDayUI();
+                break;
+            case GamePhase.PostMarket:
+                ApplyPostMarketUI();
+                break;
+        }
     }
+
+    private void ApplyPreMarketUI()
+    {
+        buyButton.gameObject.SetActive(true);
+        sellButton.gameObject.SetActive(true);
+        quantityInput.gameObject.SetActive(true);
+        tickerDropdown.gameObject.SetActive(true);
+        advanceDayButton.interactable = true;
+
+        buyButton.onClick.AddListener(OnQueueBuy);
+        sellButton.onClick.AddListener(OnQueueSell);
+        advanceDayButton.onClick.AddListener(OnOpenMarkets);
+        SetAdvanceButtonText("Open Markets");
+
+        RebuildHoldingsDisplay();
+    }
+
+    private void ApplyDayUI()
+    {
+        buyButton.gameObject.SetActive(false);
+        sellButton.gameObject.SetActive(false);
+        quantityInput.gameObject.SetActive(false);
+        tickerDropdown.gameObject.SetActive(true);
+        advanceDayButton.interactable = true;
+
+        advanceDayButton.onClick.AddListener(OnCloseMarkets);
+        SetAdvanceButtonText("Close Markets");
+
+        RebuildHoldingsDisplay();
+    }
+
+    private void ApplyPostMarketUI()
+    {
+        buyButton.gameObject.SetActive(false);
+        sellButton.gameObject.SetActive(false);
+        quantityInput.gameObject.SetActive(false);
+        tickerDropdown.gameObject.SetActive(true);
+        advanceDayButton.interactable = true;
+
+        advanceDayButton.onClick.AddListener(OnNextDay);
+        SetAdvanceButtonText("Go to Sleep");
+
+        RebuildHoldingsDisplay();
+    }
+
+    // ── Pre-Market: Queue Orders ──
+
+    private void OnQueueBuy() => QueueOrder("buy");
+    private void OnQueueSell() => QueueOrder("sell");
+
+    private void QueueOrder(string side)
+    {
+        if (GamePhaseManager.Inst == null) return;
+
+        if (string.IsNullOrEmpty(selectedTicker))
+        {
+            SetStatus("Select a ticker first.");
+            return;
+        }
+        if (!int.TryParse(quantityInput.text, out int qty) || qty <= 0)
+        {
+            SetStatus("Enter a valid quantity.");
+            return;
+        }
+
+        GamePhaseManager.Inst.QueueOrder(selectedTicker, side, qty);
+        SetStatus($"Queued: {side.ToUpper()} {qty} {selectedTicker}");
+        RebuildHoldingsDisplay();
+    }
+
+    // ── Holdings Display (adapts per phase) ──
+
+    private void RebuildHoldingsDisplay()
+    {
+        var sb = new System.Text.StringBuilder();
+
+        switch (currentPhase)
+        {
+            case GamePhase.PreMarket:
+                BuildPendingOrdersSection(sb);
+                break;
+            case GamePhase.Day:
+                BuildFilledOrdersSection(sb);
+                break;
+            case GamePhase.PostMarket:
+                BuildPostMarketSection(sb);
+                break;
+        }
+
+        BuildHoldingsSection(sb);
+        holdingsText.text = sb.ToString().TrimEnd();
+    }
+
+    private void BuildPendingOrdersSection(System.Text.StringBuilder sb)
+    {
+        if (GamePhaseManager.Inst == null) return;
+        var orders = GamePhaseManager.Inst.PendingOrders;
+        if (orders.Count == 0) return;
+
+        sb.AppendLine("<b>--- Pending Orders ---</b>");
+        foreach (var o in orders)
+            sb.AppendLine($"  {o.side.ToUpper()} {o.quantity} {o.ticker}");
+        sb.AppendLine();
+    }
+
+    private void BuildFilledOrdersSection(System.Text.StringBuilder sb)
+    {
+        if (GamePhaseManager.Inst == null) return;
+        var results = GamePhaseManager.Inst.TodayResults;
+
+        if (results.Count == 0)
+        {
+            sb.AppendLine("No trades placed today.");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine("<b>--- Today's Fills ---</b>");
+        foreach (var r in results)
+        {
+            if (r.status == "ok")
+                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} @ ${r.fillPrice:F2}");
+            else
+                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} - FAILED");
+        }
+        sb.AppendLine();
+    }
+
+    private void BuildPostMarketSection(System.Text.StringBuilder sb)
+    {
+        if (GamePhaseManager.Inst == null) return;
+        var results = GamePhaseManager.Inst.TodayResults;
+
+        if (results.Count == 0)
+        {
+            sb.AppendLine("No trades were placed today.");
+            sb.AppendLine();
+            return;
+        }
+
+        sb.AppendLine("<b>--- Trade Results ---</b>");
+        float totalPnl = 0f;
+
+        foreach (var r in results)
+        {
+            if (r.status != "ok")
+            {
+                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} - FAILED");
+                continue;
+            }
+
+            string pnlColor = r.pnl >= 0 ? "#26BF59" : "#D93838";
+            string pnlSign = r.pnl >= 0 ? "+" : "-";
+            string pnlStr = $"<color={pnlColor}>{pnlSign}${Mathf.Abs(r.pnl):F2}</color>";
+
+            sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker}");
+            sb.AppendLine($"    Open: ${r.fillPrice:F2}  Close: ${r.closePrice:F2}  {pnlStr}");
+            totalPnl += r.pnl;
+        }
+
+        sb.AppendLine();
+        string totalColor = totalPnl >= 0 ? "#26BF59" : "#D93838";
+        string totalSign = totalPnl >= 0 ? "+" : "-";
+        sb.AppendLine($"<b>Day P&L: <color={totalColor}>{totalSign}${Mathf.Abs(totalPnl):F2}</color></b>");
+        sb.AppendLine();
+    }
+
+    private void BuildHoldingsSection(System.Text.StringBuilder sb)
+    {
+        if (cachedHoldings != null && cachedHoldings.Length > 0)
+        {
+            sb.AppendLine("<b>--- Holdings ---</b>");
+            foreach (var t in cachedHoldings)
+                sb.AppendLine($"  {t.ticker_id}: {t.shares_held:F0} shares");
+        }
+        else
+        {
+            sb.AppendLine("No holdings");
+        }
+    }
+
+    // ── Phase Transitions ──
+
+    private async void OnOpenMarkets()
+    {
+        if (GamePhaseManager.Inst == null) return;
+
+        SetStatus("Opening markets...");
+        advanceDayButton.interactable = false;
+
+        var results = await GamePhaseManager.Inst.OpenMarkets();
+        if (results == null)
+        {
+            SetStatus("Cannot open markets right now.");
+            advanceDayButton.interactable = true;
+            return;
+        }
+
+        int filled = 0, failed = 0;
+        foreach (var r in results)
+        {
+            if (r.status == "ok") filled++;
+            else failed++;
+        }
+
+        string msg = filled > 0 ? $"{filled} order(s) filled at open." : "Markets open — no orders.";
+        if (failed > 0) msg += $" {failed} order(s) failed.";
+        SetStatus(msg);
+
+        if (KnowledgeGraphManager.Inst != null)
+            _ = KnowledgeGraphManager.Inst.CheckTriggersAsync();
+
+        currentPhase = GamePhase.Day;
+        dateText.text = FormatDateHeader();
+        await RefreshPrice();
+        await RefreshPortfolio();
+        ApplyPhaseUI();
+
+        Close();
+    }
+
+    private async void OnCloseMarkets()
+    {
+        if (GamePhaseManager.Inst == null) return;
+
+        SetStatus("Closing markets...");
+        advanceDayButton.interactable = false;
+
+        await GamePhaseManager.Inst.CloseMarkets();
+
+        currentPhase = GamePhase.PostMarket;
+        dateText.text = FormatDateHeader();
+        await RefreshPrice();
+        await RefreshPortfolio();
+        ApplyPhaseUI();
+
+        SetStatus("Markets closed. Review your results.");
+    }
+
+    private async void OnNextDay()
+    {
+        if (GamePhaseManager.Inst == null) return;
+
+        SetStatus("Advancing to next day...");
+        advanceDayButton.interactable = false;
+
+        bool success = await GamePhaseManager.Inst.AdvanceToNextDay();
+        if (!success)
+        {
+            SetStatus("Game over — no more trading days.");
+            return;
+        }
+
+        currentGameDate = GamePhaseManager.Inst.CurrentDate;
+        currentPhase = GamePhase.PreMarket;
+        dateText.text = FormatDateHeader();
+
+        await RefreshPrice();
+        await RefreshPortfolio();
+        ApplyPhaseUI();
+
+        if (KnowledgeGraphManager.Inst != null)
+            _ = KnowledgeGraphManager.Inst.CheckTriggersAsync();
+
+        SetStatus($"New day: {currentGameDate}");
+    }
+
+    // ── Refresh Helpers ──
 
     private async Task RefreshPrice()
     {
@@ -175,21 +470,65 @@ public class TradingUIController : MonoBehaviour
 
         try
         {
-            // Fetch a window of history ending at the current game date (no future data)
+            // During Day phase, don't show today's candle (outcome unknown)
+            string chartEndDate = currentGameDate;
+            if (currentPhase == GamePhase.Day)
+            {
+                if (System.DateTime.TryParse(currentGameDate, out var dt))
+                    chartEndDate = dt.AddDays(-1).ToString("yyyy-MM-dd");
+            }
+
             string startDate = null;
-            if (System.DateTime.TryParse(currentGameDate, out var endDt))
+            if (System.DateTime.TryParse(chartEndDate, out var endDt))
                 startDate = endDt.AddDays(-chartLookbackDays).ToString("yyyy-MM-dd");
 
-            var resp = await MarketAPI.GetPrices(selectedTicker, startDate, currentGameDate);
-
+            var resp = await MarketAPI.GetPrices(selectedTicker, startDate, chartEndDate);
             if (resp.rows != null && resp.rows.Length > 0)
             {
-                // Feed full history to the chart
                 if (ohlcChart != null) ohlcChart.SetData(resp.rows);
 
-                // Show today's values as text
-                var p = resp.rows[resp.rows.Length - 1];
-                priceText.text = $"O: {p.open_price:F2}   H: {p.high_price:F2}   L: {p.low_price:F2}   C: {p.close_price:F2}";
+                var latest = resp.rows[resp.rows.Length - 1];
+
+                switch (currentPhase)
+                {
+                    case GamePhase.PreMarket:
+                        var todayResp = await MarketAPI.GetPrices(selectedTicker, currentGameDate, currentGameDate);
+                        if (todayResp.rows != null && todayResp.rows.Length > 0)
+                        {
+                            var today = todayResp.rows[0];
+                            priceText.text = $"Today's Open: ${today.open_price:F2}   (Prev Close: ${latest.close_price:F2})";
+                        }
+                        else
+                        {
+                            priceText.text = $"Prev Close: ${latest.close_price:F2}";
+                        }
+                        break;
+
+                    case GamePhase.Day:
+                        priceText.text = $"Prev Close: ${latest.close_price:F2}   (Markets open)";
+                        break;
+
+                    case GamePhase.PostMarket:
+                        var pmResp = await MarketAPI.GetPrices(selectedTicker, currentGameDate, currentGameDate);
+                        if (pmResp.rows != null && pmResp.rows.Length > 0)
+                        {
+                            var p = pmResp.rows[0];
+                            priceText.text = $"O: ${p.open_price:F2}   H: ${p.high_price:F2}   L: ${p.low_price:F2}   C: ${p.close_price:F2}";
+
+                            // Add today's candle to the chart
+                            if (ohlcChart != null)
+                            {
+                                var fullResp = await MarketAPI.GetPrices(selectedTicker, startDate, currentGameDate);
+                                if (fullResp.rows != null && fullResp.rows.Length > 0)
+                                    ohlcChart.SetData(fullResp.rows);
+                            }
+                        }
+                        else
+                        {
+                            priceText.text = $"Close: ${latest.close_price:F2}";
+                        }
+                        break;
+                }
             }
             else
             {
@@ -208,107 +547,54 @@ public class TradingUIController : MonoBehaviour
         try
         {
             var resp = await TradeAPI.GetPortfolio(APIBootstrapper.EntityDbId);
-
             cashText.text = $"Cash: ${resp.entity.available_cash:N2}";
-
-            if (resp.totals != null && resp.totals.Length > 0)
-            {
-                var sb = new System.Text.StringBuilder();
-                foreach (var t in resp.totals)
-                    sb.AppendLine($"{t.ticker_id}: {t.shares_held:F0} shares");
-                holdingsText.text = sb.ToString().TrimEnd();
-            }
-            else
-            {
-                holdingsText.text = "No holdings";
-            }
+            cachedHoldings = resp.totals;
         }
         catch
         {
             cashText.text = "Cash: ---";
-            holdingsText.text = "---";
+            cachedHoldings = null;
         }
     }
 
-    // ---- Trade Execution ----
-
-    private async void OnBuy() => await ExecuteTrade("buy");
-    private async void OnSell() => await ExecuteTrade("sell");
-
-    private async Task ExecuteTrade(string side)
-    {
-        if (string.IsNullOrEmpty(selectedTicker))
-        {
-            SetStatus("Select a ticker first.");
-            return;
-        }
-
-        if (!int.TryParse(quantityInput.text, out int qty) || qty <= 0)
-        {
-            SetStatus("Enter a valid quantity.");
-            return;
-        }
-
-        SetStatus($"Placing {side} order...");
-
-        var req = new TradeRequestDTO
-        {
-            entity_id = APIBootstrapper.EntityExternalId,
-            ticker = selectedTicker,
-            side = side,
-            quantity = qty,
-            order_type = "market"
-        };
-
-        try
-        {
-            var resp = await TradeAPI.PostTrade(req);
-            if (resp.status == "ok")
-                SetStatus($"{side.ToUpper()} {qty} {selectedTicker} - Success!");
-            else
-                SetStatus($"Error: {resp.message ?? resp.status}");
-
-            await RefreshPortfolio();
-            await RefreshPrice();
-        }
-        catch (System.Exception ex)
-        {
-            SetStatus($"Trade failed: {ex.Message}");
-        }
-    }
-
-    // ---- Game Day ----
-
-    private async void OnAdvanceDay()
-    {
-        SetStatus("Advancing day...");
-        try
-        {
-            var resp = await GameStateAPI.AdvanceDay();
-            if (resp.game_over)
-            {
-                SetStatus("Game over - no more trading days.");
-                return;
-            }
-
-            currentGameDate = resp.current_date;
-            dateText.text = currentGameDate;
-            SetStatus($"Advanced to {currentGameDate}");
-
-            await RefreshPrice();
-            await RefreshPortfolio();
-        }
-        catch (System.Exception ex)
-        {
-            SetStatus($"Failed: {ex.Message}");
-        }
-    }
-
-    // ---- UI Helpers ----
+    // ── UI Helpers ──
 
     private void SetStatus(string msg)
     {
         if (statusText != null)
             statusText.text = msg;
+    }
+
+    private void SetAdvanceButtonText(string text)
+    {
+        if (advanceButtonText != null)
+        {
+            advanceButtonText.text = text;
+            return;
+        }
+        var tmp = advanceDayButton.GetComponentInChildren<TMP_Text>();
+        if (tmp != null) tmp.text = text;
+    }
+
+    private string FormatDateHeader()
+    {
+        string phaseLabel = currentPhase switch
+        {
+            GamePhase.PreMarket => "PRE-MARKET",
+            GamePhase.Day => "MARKETS OPEN",
+            GamePhase.PostMarket => "POST-MARKET",
+            _ => ""
+        };
+
+        string timeStr = "";
+        if (currentPhase == GamePhase.Day && GamePhaseManager.Inst != null && GamePhaseManager.Inst.DayTimerActive)
+        {
+            float t = GamePhaseManager.Inst.DayTimeRemaining;
+            int min = Mathf.FloorToInt(t / 60f);
+            int sec = Mathf.FloorToInt(t % 60f);
+            timeStr = $" | {min}:{sec:D2}";
+        }
+
+        return $"{currentGameDate ?? "---"} | {phaseLabel}{timeStr}";
     }
 }
