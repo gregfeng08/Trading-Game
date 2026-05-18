@@ -134,7 +134,7 @@ namespace Game.API
             if (config.newGame)
             {
                 Log("Creating New Game");
-                var createGameResp = await GameStateAPI.NewGame(config.startDate);
+                var createGameResp = await GameStateAPI.NewGame(config.gameStartDate);
             }
 
             if (config.registerEntity)

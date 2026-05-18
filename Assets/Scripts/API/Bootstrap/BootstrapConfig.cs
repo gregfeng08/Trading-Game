@@ -7,9 +7,12 @@ public class BootstrapConfig : ScriptableObject
     public string baseUrl = "http://127.0.0.1:5000";
 
     [Header("Market Data")]
-    public string startDate = "2010-01-01";   // YYYY-MM-DD
-    public string endDate = "2012-12-31";   // YYYY-MM-DD
+    public string startDate = "2005-01-01";   // YYYY-MM-DD  (data download start, includes chart lookback)
+    public string endDate = "2010-12-31";   // YYYY-MM-DD
     public int topN = 50;
+
+    [Header("Game")]
+    public string gameStartDate = "2007-04-02"; // first playable trading day
 
     [Header("Bootstrap Steps")]
     public bool initDb = true;

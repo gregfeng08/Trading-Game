@@ -37,6 +37,9 @@ public class NPCWalker : MonoBehaviour
     private int leylineIndex;
     private Vector2Int currentTile;
     private bool waitingForPath;
+    private bool inCornerTransition;
+    private Vector2Int? forcedDestination;
+    private bool headingToExit;
 
     private static readonly int IsWalkingHash = Animator.StringToHash("IsWalking");
 
@@ -53,6 +56,13 @@ public class NPCWalker : MonoBehaviour
         despawn = shouldDespawn;
     }
 
+    public void InitLeyline(Vector2Int destination, bool shouldDespawn = false)
+    {
+        useLeyline = true;
+        despawn = shouldDespawn;
+        forcedDestination = destination;
+    }
+
     void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
@@ -65,7 +75,7 @@ public class NPCWalker : MonoBehaviour
         agent.angularSpeed = 180f;
         agent.acceleration = 6f;
         agent.stoppingDistance = 0.5f;
-        agent.autoBraking = true;
+        agent.autoBraking = false;
     }
 
     void Start()
@@ -143,7 +153,17 @@ public class NPCWalker : MonoBehaviour
         var graph = LeylineGraph.Instance;
         if (graph == null) return;
 
-        Vector2Int destination = graph.GetRandomTileAtDistance(currentTile, minWanderDistance, maxWanderDistance);
+        Vector2Int destination;
+        if (forcedDestination.HasValue)
+        {
+            destination = forcedDestination.Value;
+            forcedDestination = null;
+        }
+        else
+        {
+            destination = graph.GetRandomTileAtDistance(currentTile, minWanderDistance, maxWanderDistance);
+        }
+
         leylinePath = graph.FindPath(currentTile, destination);
 
         if (leylinePath == null || leylinePath.Count < 2)
@@ -161,7 +181,38 @@ public class NPCWalker : MonoBehaviour
         var graph = LeylineGraph.Instance;
         Vector2Int from = leylinePath[leylineIndex - 1];
         Vector2Int to = leylinePath[leylineIndex];
+
+        // Only insert a corner waypoint at L-shaped bends (exactly 2 neighbors).
+        // At T-junctions (3) and crossroads (4) there's enough room to transition directly.
+        if (leylineIndex >= 2 && !inCornerTransition)
+        {
+            Vector2Int prevFrom = leylinePath[leylineIndex - 2];
+            Vector2Int prevDir = from - prevFrom;
+            Vector2Int nextDir = to - from;
+
+            if (prevDir != nextDir && graph.GetNeighbors(from).Count == 2)
+            {
+                // Direction changed — insert corner waypoint at current tile
+                // offset for the outgoing direction
+                Vector3 cornerTarget = graph.GetLanePosition(from, to);
+                Vector3 currentCenter = graph.GridToWorld(from);
+                Vector3 outDir = (graph.GridToWorld(to) - currentCenter).normalized;
+                Vector3 right = Vector3.Cross(Vector3.up, outDir);
+                Vector3 cornerPoint = currentCenter + right * graph.LaneOffset;
+
+                if (NavMesh.SamplePosition(cornerPoint, out NavMeshHit hit, graph.LaneOffset + 1f, NavMesh.AllAreas))
+                    cornerPoint = hit.position;
+
+                inCornerTransition = true;
+                agent.SetDestination(cornerPoint);
+                waitingForPath = true;
+                return;
+            }
+        }
+
         Vector3 target = graph.GetLanePosition(from, to);
+        inCornerTransition = false;
+        agent.autoBraking = (leylineIndex >= leylinePath.Count - 1);
         agent.SetDestination(target);
         waitingForPath = true;
     }
@@ -170,15 +221,48 @@ public class NPCWalker : MonoBehaviour
     {
         if (leylinePath == null) return;
 
+        // If we just finished a corner transition, now proceed to the actual segment target
+        if (inCornerTransition)
+        {
+            inCornerTransition = false;
+            var graph = LeylineGraph.Instance;
+            Vector2Int from = leylinePath[leylineIndex - 1];
+            Vector2Int to = leylinePath[leylineIndex];
+            Vector3 target = graph.GetLanePosition(from, to);
+            agent.SetDestination(target);
+            waitingForPath = true;
+            return;
+        }
+
         currentTile = leylinePath[leylineIndex];
 
         if (leylineIndex >= leylinePath.Count - 1)
         {
             if (despawn)
             {
+                if (headingToExit)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+
+                var graph = LeylineGraph.Instance;
+                if (graph != null)
+                {
+                    Vector2Int exitTile = graph.GetNearestEdgeTile(currentTile);
+                    if (exitTile != currentTile)
+                    {
+                        headingToExit = true;
+                        forcedDestination = exitTile;
+                        PickNewLeylineDestination();
+                        return;
+                    }
+                }
+
                 Destroy(gameObject);
                 return;
             }
+            agent.autoBraking = true;
             StartIdle();
             return;
         }

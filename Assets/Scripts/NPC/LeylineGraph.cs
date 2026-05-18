@@ -17,6 +17,10 @@ public class LeylineGraph : MonoBehaviour
     private List<Vector2Int> tileList;
     private int walkableLayer;
 
+    private float[] cumulativeWeights;
+    private Vector2Int[] weightedTiles;
+    private List<Vector2Int> edgeTiles;
+
     public static LeylineGraph Instance { get; private set; }
     public float LaneOffset => laneOffset;
 
@@ -89,6 +93,8 @@ public class LeylineGraph : MonoBehaviour
         }
 
         Debug.Log($"LeylineGraph: {tiles.Count} tiles, {CountEdges()} edges. Dead ends: {deadEnds}, Isolated: {isolated}");
+
+        ComputeSpawnWeights();
     }
 
     private void RegisterCell(Vector3 samplePoint, float y)
@@ -175,6 +181,68 @@ public class LeylineGraph : MonoBehaviour
         return tileList[Random.Range(0, tileList.Count)];
     }
 
+    public Vector2Int GetWeightedRandomTile()
+    {
+        if (cumulativeWeights == null || cumulativeWeights.Length == 0)
+            return GetRandomTile();
+
+        float roll = Random.Range(0f, cumulativeWeights[cumulativeWeights.Length - 1]);
+        int index = System.Array.BinarySearch(cumulativeWeights, roll);
+        if (index < 0) index = ~index;
+        index = Mathf.Clamp(index, 0, weightedTiles.Length - 1);
+        return weightedTiles[index];
+    }
+
+    public List<Vector2Int> GetEdgeTiles() => edgeTiles;
+
+    public Vector2Int GetRandomEdgeTile()
+    {
+        if (edgeTiles == null || edgeTiles.Count == 0)
+            return GetRandomTile();
+        return edgeTiles[Random.Range(0, edgeTiles.Count)];
+    }
+
+    public Vector2Int GetRandomEdgeTileFarFrom(Vector2Int from, int minDistance = 5)
+    {
+        if (edgeTiles == null || edgeTiles.Count < 2)
+            return GetRandomEdgeTile();
+
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            var candidate = edgeTiles[Random.Range(0, edgeTiles.Count)];
+            int dist = Mathf.Abs(candidate.x - from.x) + Mathf.Abs(candidate.y - from.y);
+            if (dist >= minDistance)
+                return candidate;
+        }
+        return edgeTiles[Random.Range(0, edgeTiles.Count)];
+    }
+
+    public Vector2Int GetNearestEdgeTile(Vector2Int from)
+    {
+        if (edgeTiles == null || edgeTiles.Count == 0)
+            return from;
+
+        int bestDist = int.MaxValue;
+        Vector2Int best = from;
+        foreach (var edge in edgeTiles)
+        {
+            int dist = Mathf.Abs(edge.x - from.x) + Mathf.Abs(edge.y - from.y);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best = edge;
+            }
+        }
+        return best;
+    }
+
+    public int GetNeighborCount(Vector2Int tile)
+    {
+        if (adjacency.TryGetValue(tile, out var neighbors))
+            return neighbors.Count;
+        return 0;
+    }
+
     public Vector2Int GetRandomTileAtDistance(Vector2Int from, int minDist, int maxDist)
     {
         for (int attempt = 0; attempt < 20; attempt++)
@@ -250,6 +318,58 @@ public class LeylineGraph : MonoBehaviour
         }
         path.Reverse();
         return path;
+    }
+
+    private void ComputeSpawnWeights()
+    {
+        var zones = FindObjectsByType<SpawnZone>(FindObjectsSortMode.None);
+        edgeTiles = new List<Vector2Int>();
+
+        var validTiles = new List<Vector2Int>();
+        var weights = new List<float>();
+
+        foreach (var tile in tileList)
+        {
+            int neighbors = adjacency.ContainsKey(tile) ? adjacency[tile].Count : 0;
+            if (neighbors == 0) continue;
+
+            if (neighbors == 1)
+                edgeTiles.Add(tile);
+
+            float weight = neighbors switch
+            {
+                1 => 0.5f,
+                2 => 1.0f,
+                3 => 2.0f,
+                4 => 3.0f,
+                _ => 1.0f
+            };
+
+            Vector3 worldPos = GridToWorld(tile);
+            foreach (var zone in zones)
+            {
+                float dist = Vector3.Distance(worldPos, zone.transform.position);
+                if (dist <= zone.Radius)
+                {
+                    float falloff = 1f - (dist / zone.Radius);
+                    weight *= Mathf.Lerp(1f, zone.WeightMultiplier, falloff);
+                }
+            }
+
+            validTiles.Add(tile);
+            weights.Add(weight);
+        }
+
+        weightedTiles = validTiles.ToArray();
+        cumulativeWeights = new float[weights.Count];
+        float cumulative = 0f;
+        for (int i = 0; i < weights.Count; i++)
+        {
+            cumulative += weights[i];
+            cumulativeWeights[i] = cumulative;
+        }
+
+        Debug.Log($"LeylineGraph: {weightedTiles.Length} weighted spawn tiles, {edgeTiles.Count} edge tiles. Total weight: {cumulative:F1}");
     }
 
     void OnDrawGizmos()

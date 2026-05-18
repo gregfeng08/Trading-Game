@@ -112,7 +112,7 @@ public class MainMenuController : MonoBehaviour
         statusText.text = "Creating new game...";
 
         var config = bootstrapper.GetConfig();
-        var startDate = config != null ? config.startDate : "2020-01-01";
+        var startDate = config != null ? config.gameStartDate : "2007-04-02";
 
         var task = GameStateAPI.NewGame(startDate);
         yield return new WaitUntil(() => task.IsCompleted);
@@ -155,9 +155,10 @@ public class MainMenuController : MonoBehaviour
         {
             var syncTask = GamePhaseManager.Inst.SyncWithServer();
             yield return new WaitUntil(() => syncTask.IsCompleted);
+            GamePhaseManager.Inst.PendingArcIntro = true;
         }
 
-        LoadRoom();
+        LoadOnboarding();
     }
 
     private void LoadRoom()
@@ -166,5 +167,13 @@ public class MainMenuController : MonoBehaviour
             SceneTransitionManager.Inst.LoadScene("Room", "bed");
         else
             SceneManager.LoadScene("Room");
+    }
+
+    private void LoadOnboarding()
+    {
+        if (SceneTransitionManager.Inst != null)
+            SceneTransitionManager.Inst.LoadScene("Onboarding");
+        else
+            SceneManager.LoadScene("Onboarding");
     }
 }

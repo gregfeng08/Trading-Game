@@ -18,6 +18,7 @@ public class TradingUIController : MonoBehaviour
     [Header("Market Info")]
     [SerializeField] private TMP_Text dateText;
     [SerializeField] private TMP_Text priceText;
+    [SerializeField] private TMP_Text companyNameText;
     [SerializeField] private OHLCChart ohlcChart;
 
     [Header("Chart Timeframe")]
@@ -43,7 +44,10 @@ public class TradingUIController : MonoBehaviour
 
     [Header("Portfolio Chart")]
     [SerializeField] private Button portfolioChartButton;
+    [SerializeField] private Button tickerChartButton;
     [SerializeField] private PortfolioLineChart portfolioChart;
+    [SerializeField] private Color chartTabActiveColor = new Color(1f, 1f, 1f, 1f);
+    [SerializeField] private Color chartTabInactiveColor = new Color(1f, 1f, 1f, 0.4f);
 
     [Header("Feedback")]
     [SerializeField] private TMP_Text statusText;
@@ -84,7 +88,9 @@ public class TradingUIController : MonoBehaviour
         BindTimeframeButtons();
 
         if (portfolioChartButton != null)
-            portfolioChartButton.onClick.AddListener(TogglePortfolioChart);
+            portfolioChartButton.onClick.AddListener(ShowPortfolioChart);
+        if (tickerChartButton != null)
+            tickerChartButton.onClick.AddListener(ShowTickerChart);
 
         showingPortfolioChart = false;
         SetChartVisibility();
@@ -109,6 +115,8 @@ public class TradingUIController : MonoBehaviour
 
         if (portfolioChartButton != null)
             portfolioChartButton.onClick.RemoveAllListeners();
+        if (tickerChartButton != null)
+            tickerChartButton.onClick.RemoveAllListeners();
 
         tradingPanel.SetActive(false);
     }
@@ -169,13 +177,14 @@ public class TradingUIController : MonoBehaviour
         if (tickers != null)
         {
             foreach (var t in tickers)
-                options.Add($"{t.ticker_id} - {t.company_name}");
+                options.Add(t.ticker_id);
         }
         tickerDropdown.AddOptions(options);
 
         if (tickers != null && tickers.Length > 0)
         {
             selectedTicker = tickers[0].ticker_id;
+            UpdateCompanyName(0);
             await RefreshPrice();
         }
     }
@@ -184,7 +193,17 @@ public class TradingUIController : MonoBehaviour
     {
         if (tickers == null || index >= tickers.Length) return;
         selectedTicker = tickers[index].ticker_id;
+        UpdateCompanyName(index);
         _ = RefreshPrice();
+    }
+
+    private void UpdateCompanyName(int index)
+    {
+        if (companyNameText == null) return;
+        if (tickers != null && index < tickers.Length)
+            companyNameText.text = tickers[index].company_name ?? "";
+        else
+            companyNameText.text = "";
     }
 
     // ── Phase-Aware UI ──
@@ -301,111 +320,103 @@ public class TradingUIController : MonoBehaviour
 
     private async Task RebuildHoldingsDisplayAsync()
     {
+        if (holdingsText == null) return;
+
         var sb = new System.Text.StringBuilder();
 
-        switch (currentPhase)
-        {
-            case GamePhase.PreMarket:
-                await BuildPendingOrdersSection(sb);
-                break;
-            case GamePhase.Day:
-                BuildFilledOrdersSection(sb);
-                break;
-            case GamePhase.PostMarket:
-                BuildPostMarketSection(sb);
-                break;
-        }
-
-        BuildHoldingsSection(sb);
-        holdingsText.text = sb.ToString().TrimEnd();
-    }
-
-    private async Task BuildPendingOrdersSection(System.Text.StringBuilder sb)
-    {
-        if (GamePhaseManager.Inst == null) return;
-        var orders = await GamePhaseManager.Inst.GetPendingOrders();
-        if (orders == null || orders.Length == 0) return;
-
-        sb.AppendLine("<b>--- Pending Orders ---</b>");
-        foreach (var o in orders)
-            sb.AppendLine($"  {o.side.ToUpper()} {o.quantity} {o.ticker_id}");
-        sb.AppendLine();
-    }
-
-    private void BuildFilledOrdersSection(System.Text.StringBuilder sb)
-    {
-        if (GamePhaseManager.Inst == null) return;
-        var results = GamePhaseManager.Inst.TodayResults;
-
-        if (results.Count == 0)
-        {
-            sb.AppendLine("No trades placed today.");
-            sb.AppendLine();
-            return;
-        }
-
-        sb.AppendLine("<b>--- Today's Fills ---</b>");
-        foreach (var r in results)
-        {
-            if (r.status == "ok")
-                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} @ ${r.fillPrice:F2}");
-            else
-                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} - FAILED");
-        }
-        sb.AppendLine();
-    }
-
-    private void BuildPostMarketSection(System.Text.StringBuilder sb)
-    {
-        if (GamePhaseManager.Inst == null) return;
-        var results = GamePhaseManager.Inst.TodayResults;
-
-        if (results.Count == 0)
-        {
-            sb.AppendLine("No trades were placed today.");
-            sb.AppendLine();
-            return;
-        }
-
-        sb.AppendLine("<b>--- Trade Results ---</b>");
-        double totalPnl = 0;
-
-        foreach (var r in results)
-        {
-            if (r.status != "ok")
-            {
-                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} - FAILED");
-                continue;
-            }
-
-            string pnlColor = r.pnl >= 0 ? "#26BF59" : "#D93838";
-            string pnlSign = r.pnl >= 0 ? "+" : "-";
-            string pnlStr = $"<color={pnlColor}>{pnlSign}${System.Math.Abs(r.pnl):F2}</color>";
-
-            sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker}");
-            sb.AppendLine($"    Open: ${r.fillPrice:F2}  Close: ${r.closePrice:F2}  {pnlStr}");
-            totalPnl += r.pnl;
-        }
-
-        sb.AppendLine();
-        string totalColor = totalPnl >= 0 ? "#26BF59" : "#D93838";
-        string totalSign = totalPnl >= 0 ? "+" : "-";
-        sb.AppendLine($"<b>Day P&L: <color={totalColor}>{totalSign}${System.Math.Abs(totalPnl):F2}</color></b>");
-        sb.AppendLine();
-    }
-
-    private void BuildHoldingsSection(System.Text.StringBuilder sb)
-    {
+        // Holdings
         if (cachedHoldings != null && cachedHoldings.Length > 0)
         {
-            sb.AppendLine("<b>--- Holdings ---</b>");
+            sb.AppendLine("<b>Holdings</b>");
             foreach (var t in cachedHoldings)
                 sb.AppendLine($"  {t.ticker_id}: {t.shares_held:F0} shares");
         }
         else
         {
-            sb.AppendLine("No holdings");
+            sb.AppendLine("<b>Holdings</b>");
+            sb.AppendLine("  <color=#888888>None</color>");
         }
+
+        sb.AppendLine();
+
+        // Orders / results (phase-dependent)
+        switch (currentPhase)
+        {
+            case GamePhase.PreMarket:
+                if (GamePhaseManager.Inst != null)
+                {
+                    var orders = await GamePhaseManager.Inst.GetPendingOrders();
+                    sb.AppendLine("<b>Pending Orders</b>");
+                    if (orders != null && orders.Length > 0)
+                    {
+                        foreach (var o in orders)
+                            sb.AppendLine($"  {o.side.ToUpper()} {o.quantity} {o.ticker_id}");
+                    }
+                    else
+                    {
+                        sb.AppendLine("  <color=#888888>None</color>");
+                    }
+                }
+                break;
+
+            case GamePhase.Day:
+                if (GamePhaseManager.Inst != null)
+                {
+                    var results = GamePhaseManager.Inst.TodayResults;
+                    sb.AppendLine("<b>Today's Fills</b>");
+                    if (results.Count > 0)
+                    {
+                        foreach (var r in results)
+                        {
+                            if (r.status == "ok")
+                                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} @ ${r.fillPrice:F2}");
+                            else
+                                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} - FAILED");
+                        }
+                    }
+                    else
+                    {
+                        sb.AppendLine("  <color=#888888>None</color>");
+                    }
+                }
+                break;
+
+            case GamePhase.PostMarket:
+                if (GamePhaseManager.Inst != null)
+                {
+                    var results = GamePhaseManager.Inst.TodayResults;
+                    sb.AppendLine("<b>Trade Results</b>");
+                    if (results.Count > 0)
+                    {
+                        double totalPnl = 0;
+                        foreach (var r in results)
+                        {
+                            if (r.status != "ok")
+                            {
+                                sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker} - FAILED");
+                                continue;
+                            }
+                            string pnlColor = r.pnl >= 0 ? "#26BF59" : "#D93838";
+                            string pnlSign = r.pnl >= 0 ? "+" : "-";
+                            string pnlStr = $"<color={pnlColor}>{pnlSign}${System.Math.Abs(r.pnl):F2}</color>";
+                            sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker}");
+                            sb.AppendLine($"    Open: ${r.fillPrice:F2}  Close: ${r.closePrice:F2}  {pnlStr}");
+                            totalPnl += r.pnl;
+                        }
+                        sb.AppendLine();
+                        string totalColor = totalPnl >= 0 ? "#26BF59" : "#D93838";
+                        string totalSign = totalPnl >= 0 ? "+" : "-";
+                        sb.AppendLine($"<b>Day P&L: <color={totalColor}>{totalSign}${System.Math.Abs(totalPnl):F2}</color></b>");
+                    }
+                    else
+                    {
+                        sb.AppendLine("  <color=#888888>None</color>");
+                    }
+                }
+                break;
+        }
+
+        holdingsText.text = sb.ToString().TrimEnd();
     }
 
     // ── Phase Transitions ──
@@ -506,17 +517,22 @@ public class TradingUIController : MonoBehaviour
         }
     }
 
-    // ── Portfolio Chart Toggle ──
+    // ── Chart Tab Switching ──
 
-    private void TogglePortfolioChart()
+    private void ShowPortfolioChart()
     {
-        showingPortfolioChart = !showingPortfolioChart;
+        if (showingPortfolioChart) return;
+        showingPortfolioChart = true;
         SetChartVisibility();
+        _ = LoadPortfolioChart();
+    }
 
-        if (showingPortfolioChart)
-            _ = LoadPortfolioChart();
-        else
-            _ = RefreshPrice();
+    private void ShowTickerChart()
+    {
+        if (!showingPortfolioChart) return;
+        showingPortfolioChart = false;
+        SetChartVisibility();
+        _ = RefreshPrice();
     }
 
     private void SetChartVisibility()
@@ -526,12 +542,15 @@ public class TradingUIController : MonoBehaviour
         if (portfolioChart != null)
             portfolioChart.gameObject.SetActive(showingPortfolioChart);
 
-        if (portfolioChartButton != null)
-        {
-            var tmp = portfolioChartButton.GetComponentInChildren<TMP_Text>();
-            if (tmp != null)
-                tmp.text = showingPortfolioChart ? "Ticker Chart" : "Portfolio";
-        }
+        SetTabHighlight(tickerChartButton, !showingPortfolioChart);
+        SetTabHighlight(portfolioChartButton, showingPortfolioChart);
+    }
+
+    private void SetTabHighlight(Button btn, bool active)
+    {
+        if (btn == null) return;
+        var tmp = btn.GetComponentInChildren<TMP_Text>();
+        if (tmp != null) tmp.color = active ? chartTabActiveColor : chartTabInactiveColor;
     }
 
     private async Task LoadPortfolioChart()
@@ -642,7 +661,7 @@ public class TradingUIController : MonoBehaviour
                 var chartData = CandleAggregator.Aggregate(resp.rows, selectedTimeframe);
                 if (ohlcChart != null && !showingPortfolioChart) ohlcChart.SetData(chartData);
 
-                var latest = resp.rows[resp.rows.Length - 1];
+                var prevClose = resp.rows[resp.rows.Length - 1];
 
                 switch (currentPhase)
                 {
@@ -650,19 +669,18 @@ public class TradingUIController : MonoBehaviour
                         var todayResp = await MarketAPI.GetPrices(selectedTicker, currentGameDate, currentGameDate);
                         if (todayResp.rows != null && todayResp.rows.Length > 0)
                         {
-                            var today = todayResp.rows[0];
-                            priceText.text = $"Today's Open: ${today.open_price:F2}   (Prev Close: ${latest.close_price:F2})";
+                            priceText.text = $"${prevClose.close_price:F2}";
                             SetTickerTradable(true);
                         }
                         else
                         {
-                            priceText.text = $"Prev Close: ${latest.close_price:F2}   <color=#FF8800>(No data today — halted/delisted)</color>";
+                            priceText.text = $"${prevClose.close_price:F2}   <color=#FF8800>(No data today — halted/delisted)</color>";
                             SetTickerTradable(false);
                         }
                         break;
 
                     case GamePhase.Day:
-                        priceText.text = $"Prev Close: ${latest.close_price:F2}   (Markets open)";
+                        priceText.text = $"${prevClose.close_price:F2}";
                         SetTickerTradable(true);
                         break;
 
@@ -670,8 +688,13 @@ public class TradingUIController : MonoBehaviour
                         var pmResp = await MarketAPI.GetPrices(selectedTicker, currentGameDate, currentGameDate);
                         if (pmResp.rows != null && pmResp.rows.Length > 0)
                         {
-                            var p = pmResp.rows[0];
-                            priceText.text = $"O: ${p.open_price:F2}   H: ${p.high_price:F2}   L: ${p.low_price:F2}   C: ${p.close_price:F2}";
+                            var today = pmResp.rows[0];
+                            double change = today.close_price - prevClose.close_price;
+                            double changePct = prevClose.close_price > 0
+                                ? change / prevClose.close_price * 100.0 : 0;
+                            string sign = change >= 0 ? "+" : "";
+                            string color = change >= 0 ? "#26BF59" : "#D93838";
+                            priceText.text = $"${today.close_price:F2}   <color={color}>{sign}{change:F2} ({sign}{changePct:F1}%)</color>";
 
                             if (ohlcChart != null && !showingPortfolioChart)
                             {
@@ -691,7 +714,7 @@ public class TradingUIController : MonoBehaviour
                         }
                         else
                         {
-                            priceText.text = $"Close: ${latest.close_price:F2}   <color=#FF8800>(No data today)</color>";
+                            priceText.text = $"${prevClose.close_price:F2}   <color=#FF8800>(No data today)</color>";
                         }
                         SetTickerTradable(true);
                         break;

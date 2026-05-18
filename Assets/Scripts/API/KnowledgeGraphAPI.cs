@@ -19,5 +19,8 @@ namespace Game.API
         public static Task<KnowledgeGraphInitResponse> Initialize(int entityId)
             => APIClient.PostAsync<object, KnowledgeGraphInitResponse>(
                 $"knowledge_graph/init?entityId={entityId}", null);
+
+        public static Task<UnlockedMechanicsResponse> GetUnlocks(int entityId)
+            => APIClient.GetAsync<UnlockedMechanicsResponse>($"knowledge_graph/unlocks?entityId={entityId}");
     }
 }

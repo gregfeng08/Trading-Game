@@ -24,6 +24,7 @@ namespace Game.API.DTO
         public string status;
         public string unlocked_at;
         public string completed_at;
+        public string reward_mechanic;
     }
 
     [Serializable]
@@ -78,6 +79,14 @@ namespace Game.API.DTO
         public string new_status;
         public string message;
         public string[] newly_unlocked;
+        public string reward_mechanic;
+    }
+
+    [Serializable]
+    public class UnlockedMechanicsResponse
+    {
+        public string status;
+        public string[] mechanics;
     }
 
     [Serializable]

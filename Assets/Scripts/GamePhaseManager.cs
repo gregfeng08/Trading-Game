@@ -41,6 +41,8 @@ public class GamePhaseManager : MonoBehaviour
     public double ArcReturnPct { get; private set; }
     public string ArcProjectedGrade { get; private set; }
     public ArcTransitionDTO LastArcTransition { get; private set; }
+    public ArcDefinitionDTO CurrentArcDefinition { get; private set; }
+    public bool PendingArcIntro { get; set; }
 
     // Forced liquidations from last day advance
     public ForcedLiquidationDTO[] LastForcedLiquidations { get; private set; }
@@ -59,6 +61,22 @@ public class GamePhaseManager : MonoBehaviour
         if (Inst != null && Inst != this) { Destroy(gameObject); return; }
         Inst = this;
         DontDestroyOnLoad(gameObject);
+
+        if (ArcTransitionOverlay.Inst == null)
+        {
+            var go = new GameObject("ArcTransitionOverlay");
+            go.AddComponent<ArcTransitionOverlay>();
+        }
+        if (DialoguePlayer.Inst == null)
+        {
+            var go = new GameObject("DialoguePlayer");
+            go.AddComponent<DialoguePlayer>();
+        }
+        if (OnboardingController.Inst == null)
+        {
+            var go = new GameObject("OnboardingController");
+            go.AddComponent<OnboardingController>();
+        }
     }
 
     void Update()
@@ -305,6 +323,7 @@ public class GamePhaseManager : MonoBehaviour
             if (arcResp.arc != null)
             {
                 ArcName = arcResp.arc.name;
+                CurrentArcDefinition = arcResp.arc;
                 ArcDaysRemaining = arcResp.trading_days_remaining;
                 ArcReturnPct = arcResp.current_return_pct;
                 ArcProjectedGrade = arcResp.projected_grade;
@@ -327,8 +346,10 @@ public class GamePhaseManager : MonoBehaviour
         try
         {
             var resp = await ArcAPI.Advance(APIBootstrapper.EntityExternalId);
-            LastArcTransition = resp.transition;
-            if (resp.transition != null)
+            bool hasTransition = resp.transition != null
+                && !string.IsNullOrEmpty(resp.transition.completed_arc?.arc_id);
+            LastArcTransition = hasTransition ? resp.transition : null;
+            if (hasTransition)
             {
                 Debug.Log($"[GamePhaseManager] Arc completed: {resp.transition.completed_arc.arc_name} " +
                           $"Grade={resp.transition.completed_arc.grade} " +

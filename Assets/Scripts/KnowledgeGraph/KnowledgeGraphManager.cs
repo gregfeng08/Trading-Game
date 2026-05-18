@@ -11,12 +11,14 @@ public class KnowledgeGraphManager : MonoBehaviour
 
     public event Action<UnlockedNodeDTO> OnHighPriorityUnlock;
     public event Action<int> OnPendingCountChanged;
+    public event Action<string> OnMechanicUnlocked;
 
     public KnowledgeNodeStateDTO[] Nodes { get; private set; }
     public int PendingUnlockedCount { get; private set; }
     public bool IsInitialized { get; private set; }
 
     private Queue<UnlockedNodeDTO> pendingPopups = new();
+    private HashSet<string> unlockedMechanics = new();
 
     void Awake()
     {
@@ -33,6 +35,7 @@ public class KnowledgeGraphManager : MonoBehaviour
         {
             await KnowledgeGraphAPI.Initialize(APIBootstrapper.EntityDbId);
             await RefreshGraphAsync();
+            await RefreshUnlocksAsync();
             IsInitialized = true;
         }
         catch (Exception ex)
@@ -93,12 +96,39 @@ public class KnowledgeGraphManager : MonoBehaviour
 
         try
         {
-            await KnowledgeGraphAPI.CompleteNode(APIBootstrapper.EntityDbId, nodeId);
+            var resp = await KnowledgeGraphAPI.CompleteNode(APIBootstrapper.EntityDbId, nodeId);
+            if (!string.IsNullOrEmpty(resp.reward_mechanic))
+            {
+                unlockedMechanics.Add(resp.reward_mechanic);
+                OnMechanicUnlocked?.Invoke(resp.reward_mechanic);
+            }
             await RefreshGraphAsync();
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"[KnowledgeGraph] Complete node failed: {ex.Message}");
+        }
+    }
+
+    public bool HasMechanic(string mechanic) => unlockedMechanics.Contains(mechanic);
+
+    public IReadOnlyCollection<string> UnlockedMechanics => unlockedMechanics;
+
+    public async Task RefreshUnlocksAsync()
+    {
+        if (APIBootstrapper.EntityDbId < 0) return;
+
+        try
+        {
+            var resp = await KnowledgeGraphAPI.GetUnlocks(APIBootstrapper.EntityDbId);
+            if (resp.status == "ok" && resp.mechanics != null)
+            {
+                unlockedMechanics = new HashSet<string>(resp.mechanics);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[KnowledgeGraph] Unlocks refresh failed: {ex.Message}");
         }
     }
 

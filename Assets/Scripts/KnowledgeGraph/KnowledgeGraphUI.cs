@@ -67,7 +67,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         if (closeButton != null)
             closeButton.onClick.AddListener(Close);
         if (completeButton != null)
-            completeButton.onClick.AddListener(OnCompleteClicked);
+            completeButton.onClick.AddListener(DismissDetail);
     }
 
     void Update()
@@ -176,9 +176,8 @@ public class KnowledgeGraphUI : MonoBehaviour
 
     public void Close()
     {
+        DismissDetail();
         graphPanel.SetActive(false);
-        if (detailPanel != null)
-            detailPanel.SetActive(false);
         isDragging = false;
 
         if (PlayerStateController.Inst != null)
@@ -293,6 +292,7 @@ public class KnowledgeGraphUI : MonoBehaviour
     private void OnNodeClicked(KnowledgeNodeStateDTO node)
     {
         if (node.status == "locked") return;
+        DismissDetail();
         ShowDetail(node);
     }
 
@@ -303,36 +303,54 @@ public class KnowledgeGraphUI : MonoBehaviour
 
         detailPanel.SetActive(true);
         detailTitle.text = node.title;
-        detailContent.text = node.content ?? node.description;
 
-        if (node.type == "adaptive")
-        {
-            detailStatus.text = node.status switch
+        detailContent.enableWordWrapping = true;
+        detailContent.overflowMode = TextOverflowModes.Ellipsis;
+
+        string body = node.content ?? node.description;
+        if (!string.IsNullOrEmpty(node.reward_mechanic))
+            body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(node.reward_mechanic)}</color>";
+        detailContent.text = body;
+
+        string statusLabel = node.type == "adaptive"
+            ? node.status switch
             {
                 "completed" => "Completed",
-                "unlocked" => "Insight unlocked — read below",
-                _ => "Waiting for trigger event..."
-            };
-        }
-        else
-        {
-            detailStatus.text = node.status switch
+                "unlocked" => "Triggered by your trading behavior",
+                _ => "Waiting for trigger..."
+            }
+            : node.status switch
             {
                 "completed" => "Completed",
                 "unlocked" => "Ready to learn",
                 _ => "Locked"
             };
-        }
 
-        completeButton.gameObject.SetActive(
-            node.status == "unlocked" && node.type == "knowledge");
+        string catLabel = !string.IsNullOrEmpty(node.category)
+            ? node.category.Replace('_', ' ').ToUpper()
+            : "";
+        detailStatus.text = !string.IsNullOrEmpty(catLabel)
+            ? $"{catLabel}  ·  {statusLabel}"
+            : statusLabel;
+
+        completeButton.gameObject.SetActive(true);
     }
 
-    private async void OnCompleteClicked()
+    private static string FormatMechanic(string mechanic)
     {
-        if (selectedNode == null) return;
-        await KnowledgeGraphManager.Inst.CompleteNodeAsync(selectedNode.id);
-        RenderGraph();
+        return mechanic.Replace('_', ' ')
+            .Replace("limit orders", "Limit Orders")
+            .Replace("stop loss", "Stop-Loss Orders");
+    }
+
+    private async void DismissDetail()
+    {
+        if (selectedNode != null && selectedNode.status == "unlocked")
+        {
+            await KnowledgeGraphManager.Inst.CompleteNodeAsync(selectedNode.id);
+            RenderGraph();
+        }
+        selectedNode = null;
 
         if (detailPanel != null)
             detailPanel.SetActive(false);

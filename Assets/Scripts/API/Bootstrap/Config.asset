@@ -13,9 +13,10 @@ MonoBehaviour:
   m_Name: Config
   m_EditorClassIdentifier: Assembly-CSharp::BootstrapConfig
   baseUrl: http://127.0.0.1:5000
-  startDate: 2007-01-01
-  endDate: 2008-12-31
+  startDate: 2005-01-01
+  endDate: 2010-12-31
   topN: 50
+  gameStartDate: 2007-04-02
   initDb: 1
   loadTickers: 1
   registerEntity: 1

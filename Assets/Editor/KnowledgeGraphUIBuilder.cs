@@ -48,51 +48,54 @@ public static class KnowledgeGraphUIBuilder
         gcRT.offsetMax = new Vector2(-20, -80);
         gcRT.pivot = new Vector2(0.5f, 0.5f);
 
-        // ── Detail Panel (right sidebar) ──
+        // ── Detail Panel (centered article popup) ──
         var detailPanel = CreatePanel("DetailPanel", graphPanel, PanelBg);
         var dpRT = detailPanel.GetComponent<RectTransform>();
-        dpRT.anchorMin = new Vector2(1, 0);
-        dpRT.anchorMax = new Vector2(1, 1);
-        dpRT.pivot = new Vector2(1, 0.5f);
+        dpRT.anchorMin = new Vector2(0.5f, 0.5f);
+        dpRT.anchorMax = new Vector2(0.5f, 0.5f);
+        dpRT.pivot = new Vector2(0.5f, 0.5f);
         dpRT.anchoredPosition = Vector2.zero;
-        dpRT.sizeDelta = new Vector2(300, 0);
-        dpRT.offsetMin = new Vector2(-300, 20);
-        dpRT.offsetMax = new Vector2(-10, -20);
+        dpRT.sizeDelta = new Vector2(520, 400);
         detailPanel.gameObject.SetActive(false);
 
         var detailTitle = CreateTMP("DetailTitle", dpRT, "Node Title",
-            fontSize: 22, alignment: TextAlignmentOptions.TopLeft);
+            fontSize: 24, alignment: TextAlignmentOptions.Center);
         var dtRT = detailTitle.GetComponent<RectTransform>();
         dtRT.anchorMin = new Vector2(0, 1);
         dtRT.anchorMax = new Vector2(1, 1);
         dtRT.pivot = new Vector2(0.5f, 1);
-        dtRT.anchoredPosition = new Vector2(0, -15);
-        dtRT.sizeDelta = new Vector2(-30, 40);
+        dtRT.anchoredPosition = new Vector2(0, -20);
+        dtRT.sizeDelta = new Vector2(-40, 40);
+
+        var detailStatus = CreateTMP("DetailStatus", dpRT, "",
+            fontSize: 13, alignment: TextAlignmentOptions.Center);
+        detailStatus.fontStyle = FontStyles.Italic;
+        var dsRT = detailStatus.GetComponent<RectTransform>();
+        dsRT.anchorMin = new Vector2(0, 1);
+        dsRT.anchorMax = new Vector2(1, 1);
+        dsRT.pivot = new Vector2(0.5f, 1);
+        dsRT.anchoredPosition = new Vector2(0, -60);
+        dsRT.sizeDelta = new Vector2(-40, 22);
 
         var detailContent = CreateTMP("DetailContent", dpRT, "Node description goes here.",
             fontSize: 16, alignment: TextAlignmentOptions.TopLeft);
+        detailContent.enableWordWrapping = true;
+        detailContent.overflowMode = TextOverflowModes.Ellipsis;
         var dcRT = detailContent.GetComponent<RectTransform>();
-        dcRT.anchorMin = new Vector2(0, 0.3f);
-        dcRT.anchorMax = new Vector2(1, 0.85f);
-        dcRT.pivot = new Vector2(0.5f, 0.5f);
-        dcRT.anchoredPosition = Vector2.zero;
-        dcRT.sizeDelta = new Vector2(-30, 0);
+        dcRT.anchorMin = new Vector2(0, 0.15f);
+        dcRT.anchorMax = new Vector2(1, 1);
+        dcRT.pivot = new Vector2(0.5f, 1);
+        dcRT.anchoredPosition = new Vector2(0, -90);
+        dcRT.sizeDelta = new Vector2(-40, 0);
+        dcRT.offsetMin = new Vector2(20, dcRT.offsetMin.y);
+        dcRT.offsetMax = new Vector2(-20, dcRT.offsetMax.y);
 
-        var detailStatus = CreateTMP("DetailStatus", dpRT, "Status: Unlocked",
-            fontSize: 14, alignment: TextAlignmentOptions.TopLeft);
-        var dsRT = detailStatus.GetComponent<RectTransform>();
-        dsRT.anchorMin = new Vector2(0, 0.2f);
-        dsRT.anchorMax = new Vector2(1, 0.3f);
-        dsRT.pivot = new Vector2(0.5f, 0.5f);
-        dsRT.anchoredPosition = Vector2.zero;
-        dsRT.sizeDelta = new Vector2(-30, 0);
-
-        var completeBtn = CreateButton("CompleteButton", dpRT, "Complete Lesson", BtnGreen, 200, 40);
+        var completeBtn = CreateButton("DismissButton", dpRT, "Close", BtnColor, 140, 36);
         var cbRT = completeBtn.GetComponent<RectTransform>();
         cbRT.anchorMin = new Vector2(0.5f, 0);
         cbRT.anchorMax = new Vector2(0.5f, 0);
         cbRT.pivot = new Vector2(0.5f, 0);
-        cbRT.anchoredPosition = new Vector2(0, 20);
+        cbRT.anchoredPosition = new Vector2(0, 16);
 
         // ── Attach KnowledgeGraphUI component and wire fields ──
         var ui = canvasGO.AddComponent<KnowledgeGraphUI>();

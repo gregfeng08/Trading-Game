@@ -25,7 +25,16 @@
       "Bash(Select-Object -Last 20)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\" -Force)",
       "Bash(Select-Object Name, PSIsContainer)",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\" -Recurse -Directory | Where-Object { $_.Name -eq \"Scripts\" -or $_.Parent.Name -eq \"Scripts\" } | Select-Object FullName)"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\" -Recurse -Directory | Where-Object { $_.Name -eq \"Scripts\" -or $_.Parent.Name -eq \"Scripts\" } | Select-Object FullName)",
+      "Bash(dotnet add *)",
+      "Bash(Start-Process *)",
+      "PowerShell(Start-Process \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\Data\\\\test_newspaper.html\")",
+      "PowerShell(Start-Process \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\Data\\\\test_newspaper.png\")",
+      "Bash(sqlite3 database.db \"SELECT COUNT\\(*\\) as total_prices FROM ticker_prices;\")",
+      "Bash(sqlite3 database.db \"SELECT COUNT\\(DISTINCT ticker_id\\) as distinct_tickers FROM ticker_prices;\")",
+      "Bash(sqlite3 database.db \"SELECT MIN\\(date\\), MAX\\(date\\) FROM ticker_prices;\")",
+      "Bash(sqlite3 database.db \"SELECT ticker_id, date, open_price, high_price, low_price, close_price FROM ticker_prices WHERE date = '2010-01-04' ORDER BY ticker_id LIMIT 20;\")",
+      "Bash(curl *)"
     ]
   }
 }
