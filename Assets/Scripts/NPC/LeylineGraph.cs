@@ -43,11 +43,29 @@ public class LeylineGraph : MonoBehaviour
         {
             if (r.gameObject.layer != walkableLayer) continue;
 
-            Vector3 boundsCenter = r.bounds.center;
-            Vector2Int gridPos = WorldToGrid(boundsCenter);
-            tiles.TryAdd(gridPos, new Vector3(boundsCenter.x, boundsCenter.y, boundsCenter.z));
+            Vector3 center = r.bounds.center;
+            Vector3 size = r.bounds.size;
+            float y = center.y;
+
+            bool wideX = size.x / tileSize > 1.5f;
+            bool wideZ = size.z / tileSize > 1.5f;
+
+            if (wideX || wideZ)
+            {
+                float halfStep = tileSize * 0.5f;
+                Vector3 offsetA = wideX ? new Vector3(-halfStep, 0f, 0f) : new Vector3(0f, 0f, -halfStep);
+                Vector3 offsetB = wideX ? new Vector3(halfStep, 0f, 0f) : new Vector3(0f, 0f, halfStep);
+
+                RegisterCell(center + offsetA, y);
+                RegisterCell(center + offsetB, y);
+            }
+            else
+            {
+                RegisterCell(center, y);
+            }
         }
 
+        Debug.Log($"LeylineGraph: Scanned {tiles.Count} cells from renderers on '{walkableLayerName}' layer.");
         tileList = new List<Vector2Int>(tiles.Keys);
 
         Vector2Int[] directions = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
@@ -71,6 +89,16 @@ public class LeylineGraph : MonoBehaviour
         }
 
         Debug.Log($"LeylineGraph: {tiles.Count} tiles, {CountEdges()} edges. Dead ends: {deadEnds}, Isolated: {isolated}");
+    }
+
+    private void RegisterCell(Vector3 samplePoint, float y)
+    {
+        Vector2Int gridPos = WorldToGrid(samplePoint);
+        Vector3 cellCenter = new Vector3(
+            (gridPos.x + 0.5f) * tileSize,
+            y,
+            (gridPos.y + 0.5f) * tileSize);
+        tiles.TryAdd(gridPos, cellCenter);
     }
 
     private int CountEdges()
