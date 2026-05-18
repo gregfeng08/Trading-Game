@@ -39,7 +39,12 @@ public class Database
     {
         using var conn = Open();
 
-        // Collect table names first
+        using (var pragma = conn.CreateCommand())
+        {
+            pragma.CommandText = "PRAGMA foreign_keys = OFF;";
+            pragma.ExecuteNonQuery();
+        }
+
         var tables = new List<string>();
         using (var cmd = conn.CreateCommand())
         {
@@ -54,6 +59,12 @@ public class Database
             using var drop = conn.CreateCommand();
             drop.CommandText = $"DROP TABLE IF EXISTS \"{table.Replace("\"", "\"\"")}\"";
             drop.ExecuteNonQuery();
+        }
+
+        using (var pragma = conn.CreateCommand())
+        {
+            pragma.CommandText = "PRAGMA foreign_keys = ON;";
+            pragma.ExecuteNonQuery();
         }
     }
 }

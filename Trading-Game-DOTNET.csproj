@@ -9,10 +9,25 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.3" />
+    <PackageReference Include="PuppeteerSharp" Version="24.42.0" />
+  </ItemGroup>
+
+  <!-- Exclude temp test projects that OneDrive may lock -->
+  <ItemGroup>
+    <Compile Remove="DbQuery\**" />
+    <Content Remove="DbQuery\**" />
+    <None Remove="DbQuery\**" />
+    <Compile Remove="RenderTest\**" />
+    <Content Remove="RenderTest\**" />
+    <None Remove="RenderTest\**" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="Data\schema.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Update="Data\knowledge_graph.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Update="Data\historical_events.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Update="Data\arcs.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\newspaper_template.html" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Data\ticker_download.py" CopyToOutputDirectory="Never" />
   </ItemGroup>
 

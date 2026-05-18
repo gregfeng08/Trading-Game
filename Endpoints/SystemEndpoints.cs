@@ -1,4 +1,6 @@
 using TradingGame.Data;
+using TradingGame.Models;
+using TradingGame.Services;
 
 namespace TradingGame.Endpoints;
 
@@ -10,14 +12,9 @@ public static class SystemEndpoints
     {
         app.MapGet("/", () => Results.Ok(new { message = "Trading Game API" }));
 
-        // Unity expects: { status: "ok", server_time: <epoch_seconds> }
-        app.MapGet("/ping", () => Results.Ok(new
-        {
-            status = "ok",
-            server_time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0,
-        }));
+        app.MapGet("/ping", () =>
+            Results.Ok(new PingResponse("ok", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0)));
 
-        // Unity expects: { status, server_time, uptime_seconds, db_connected, version }
         app.MapGet("/status", (Database db) =>
         {
             bool dbOk = true;
@@ -28,73 +25,48 @@ public static class SystemEndpoints
                 cmd.CommandText = "SELECT 1;";
                 cmd.ExecuteScalar();
             }
-            catch
-            {
-                dbOk = false;
-            }
+            catch { dbOk = false; }
 
-            return Results.Ok(new
-            {
-                status = "ok",
-                server_time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0,
-                uptime_seconds = (DateTimeOffset.UtcNow - StartTime).TotalSeconds,
-                db_connected = dbOk,
-                version = "dotnet-dev",
-            });
+            return Results.Ok(new StatusResponse(
+                "ok",
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0,
+                (DateTimeOffset.UtcNow - StartTime).TotalSeconds,
+                dbOk,
+                "dotnet-dev"
+            ));
         });
 
-        // Unity expects: { status, message, initialized }
         app.MapPost("/init_db", (Database db) =>
         {
             try
             {
                 db.InitSchema();
-                return Results.Ok(new
-                {
-                    status = "ok",
-                    message = "Database initialized",
-                    initialized = true,
-                });
+                return Results.Ok(new InitDbResponse("ok", "Database initialized", true));
             }
             catch (Exception ex)
             {
-                return Results.Json(new
-                {
-                    status = "error",
-                    message = ex.Message,
-                    initialized = false,
-                }, statusCode: 500);
+                return Results.Json(new InitDbResponse("error", ex.Message, false), statusCode: 500);
             }
         });
 
-        // Unity expects: { status, message, ticker_count }
-        // Data is pre-loaded via Python script; this endpoint reports what's available.
-        app.MapPost("/load_tickers", (Database db) =>
+        app.MapPost("/load_tickers", async (MarketDataService market, LoadTickersRequest? req) =>
         {
             try
             {
-                using var conn = db.Open();
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT COUNT(*) FROM loaded_ticker_list;";
-                var count = Convert.ToInt32(cmd.ExecuteScalar());
+                var existing = market.GetTickerCount();
+                if (existing > 0)
+                    return Results.Ok(new LoadTickerDataResponse("ok", $"{existing} tickers already loaded", existing));
 
-                return Results.Ok(new
-                {
-                    status = "ok",
-                    message = count > 0
-                        ? $"{count} tickers available (pre-loaded)"
-                        : "No tickers loaded. Run ticker_download.py first.",
-                    ticker_count = count,
-                });
+                var startDate = req?.StartDate ?? "2005-01-01";
+                var endDate = req?.EndDate ?? "2010-12-31";
+                var topN = req?.TopN ?? 50;
+
+                var result = await market.LoadTickersAsync(startDate, endDate, topN);
+                return Results.Ok(result);
             }
             catch (Exception ex)
             {
-                return Results.Json(new
-                {
-                    status = "error",
-                    message = ex.Message,
-                    ticker_count = 0,
-                }, statusCode: 500);
+                return Results.Json(new LoadTickerDataResponse("error", ex.Message, 0), statusCode: 500);
             }
         });
 
@@ -103,19 +75,11 @@ public static class SystemEndpoints
             try
             {
                 db.DropAllTables();
-                return Results.Ok(new
-                {
-                    status = "ok",
-                    message = "Database reset. Call /init_db to recreate schema.",
-                });
+                return Results.Ok(new DbResetResponse("ok", "Database reset. Call /init_db to recreate schema."));
             }
             catch (Exception ex)
             {
-                return Results.Json(new
-                {
-                    status = "error",
-                    message = ex.Message,
-                }, statusCode: 500);
+                return Results.Json(new DbResetResponse("error", ex.Message), statusCode: 500);
             }
         });
     }

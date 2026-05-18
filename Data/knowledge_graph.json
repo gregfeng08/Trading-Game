@@ -1,0 +1,221 @@
+{
+  "version": 1,
+  "metadata": {
+    "description": "Trading Game knowledge graph definition. Both Unity and the .NET backend consume this file.",
+    "note": "Positions are in graph-space units. The visual editor will read/write these."
+  },
+  "nodes": [
+    {
+      "id": "what_is_a_company",
+      "title": "What is a Company",
+      "type": "knowledge",
+      "description": "Learn what companies are and why they exist.",
+      "content": "A company is a legal entity formed by people to conduct business. Companies create products or services, earn revenue, and can be owned — partially or fully — by investors through shares.",
+      "prerequisites": [],
+      "priority": "normal",
+      "position": { "x": 0, "y": 0 },
+      "category": "fundamentals"
+    },
+    {
+      "id": "what_is_a_stock",
+      "title": "What is a Stock",
+      "type": "knowledge",
+      "description": "Understand stocks as ownership slices of a company.",
+      "content": "A stock represents a share of ownership in a company. When you buy a stock, you own a small piece of that company. If the company grows and earns more, your share becomes more valuable. If it shrinks, your share loses value.",
+      "prerequisites": ["what_is_a_company"],
+      "priority": "normal",
+      "position": { "x": 200, "y": 0 },
+      "category": "fundamentals"
+    },
+    {
+      "id": "market_buy_sell",
+      "title": "Market Buy / Sell",
+      "type": "knowledge",
+      "description": "Execute your first trade at the current market price.",
+      "content": "A market order buys or sells a stock immediately at the best available price. You're saying 'I want this stock now, whatever the current price is.' It's the simplest and fastest way to trade.",
+      "prerequisites": ["what_is_a_stock"],
+      "priority": "normal",
+      "position": { "x": 400, "y": 0 },
+      "category": "fundamentals"
+    },
+    {
+      "id": "limit_buy_sell",
+      "title": "Limit Buy / Sell",
+      "type": "adaptive",
+      "description": "Set your own price instead of accepting the market's.",
+      "content": "A limit order lets you specify the price you're willing to pay (or accept). A buy limit says 'only buy if the price drops to X.' A sell limit says 'only sell if the price rises to X.' The trade only happens if the market reaches your price.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "trade_count",
+        "params": { "min_trades": 3, "order_type": "market" }
+      },
+      "reward": { "mechanic": "limit_orders" },
+      "priority": "normal",
+      "position": { "x": 600, "y": -100 },
+      "category": "order_types"
+    },
+    {
+      "id": "volatility",
+      "title": "Volatility",
+      "type": "adaptive",
+      "description": "A stock you hold just moved sharply. Here's why.",
+      "content": "Volatility measures how much a stock's price swings. High volatility means big moves up and down. Low volatility means steady prices. Volatile stocks offer bigger potential gains — but also bigger losses.",
+      "prerequisites": ["what_is_a_stock"],
+      "trigger": {
+        "type": "held_stock_daily_change",
+        "params": { "change_pct": 5.0 }
+      },
+      "priority": "high",
+      "position": { "x": 400, "y": 200 },
+      "category": "risk"
+    },
+    {
+      "id": "diversification",
+      "title": "Diversification",
+      "type": "adaptive",
+      "description": "Your portfolio is concentrated. Spreading risk matters.",
+      "content": "Diversification means owning multiple different stocks so that one bad performer doesn't sink your whole portfolio. If all your money is in one company and it drops 30%, your whole portfolio drops 30%. Spread across five companies, that same drop only hits 6% of your total.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "portfolio_concentration",
+        "params": { "max_single_ticker_pct": 80.0 }
+      },
+      "priority": "high",
+      "position": { "x": 600, "y": 100 },
+      "category": "risk"
+    },
+    {
+      "id": "first_profit",
+      "title": "Locking in Gains",
+      "type": "adaptive",
+      "description": "You just made your first profitable trade.",
+      "content": "Congratulations — you sold for more than you paid. That's a realized gain. Until you sell, any profit is just 'on paper.' The discipline of knowing when to take profits is one of the hardest parts of trading.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "first_profitable_sell",
+        "params": {}
+      },
+      "priority": "high",
+      "position": { "x": 600, "y": 300 },
+      "category": "psychology"
+    },
+    {
+      "id": "first_loss",
+      "title": "Taking a Loss",
+      "type": "adaptive",
+      "description": "You sold for less than you paid. Every trader does.",
+      "content": "You just realized a loss. This is normal — even the best traders lose on individual trades. What matters is that your wins outweigh your losses over time. The key skill is cutting losses quickly rather than hoping a bad position recovers.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "first_losing_sell",
+        "params": {}
+      },
+      "priority": "high",
+      "position": { "x": 800, "y": 300 },
+      "category": "psychology"
+    },
+    {
+      "id": "cost_basis",
+      "title": "Cost Basis",
+      "type": "adaptive",
+      "description": "You bought the same stock at different prices.",
+      "content": "When you buy the same stock multiple times, your average cost basis is the weighted average of all your purchase prices. This number determines whether you're 'up' or 'down' on the position. FIFO (first in, first out) means your oldest shares are sold first.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "same_ticker_multiple_buys",
+        "params": { "min_buys": 2 }
+      },
+      "priority": "normal",
+      "position": { "x": 800, "y": -100 },
+      "category": "mechanics"
+    },
+    {
+      "id": "paper_gains",
+      "title": "Paper Gains vs Realized Gains",
+      "type": "adaptive",
+      "description": "A position is up big — but you haven't sold yet.",
+      "content": "An unrealized gain means your stock is worth more than you paid, but you haven't sold. It's 'paper profit' — it can disappear if the price drops. A realized gain is locked in when you sell. The question is always: hold for more, or take the guaranteed profit?",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "unrealized_gain_pct",
+        "params": { "gain_pct": 20.0 }
+      },
+      "priority": "normal",
+      "position": { "x": 1000, "y": 100 },
+      "category": "psychology"
+    },
+    {
+      "id": "buying_the_dip",
+      "title": "Buying the Dip",
+      "type": "adaptive",
+      "description": "You bought a stock after a significant drop.",
+      "content": "Buying the dip means purchasing a stock after its price has fallen, betting it will recover. This can be smart if the company's fundamentals haven't changed — you're getting the same business at a discount. But it's risky if the price is falling for good reason.",
+      "prerequisites": ["what_is_a_stock"],
+      "trigger": {
+        "type": "bought_after_decline",
+        "params": { "decline_pct": 5.0, "lookback_days": 5 }
+      },
+      "priority": "normal",
+      "position": { "x": 400, "y": -200 },
+      "category": "strategies"
+    },
+    {
+      "id": "cash_management",
+      "title": "Cash Reserves",
+      "type": "adaptive",
+      "description": "You're almost fully invested. Flexibility matters.",
+      "content": "Keeping some cash in reserve means you can buy opportunities when they appear — a stock drops to a great price, or a market crash creates bargains. If you're 100% invested, you can only buy more by selling something else, possibly at a bad time.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "low_cash_ratio",
+        "params": { "cash_pct_below": 10.0 }
+      },
+      "priority": "normal",
+      "position": { "x": 800, "y": 100 },
+      "category": "risk"
+    },
+    {
+      "id": "market_crash",
+      "title": "Market Downturns",
+      "type": "adaptive",
+      "description": "The whole market just dropped. Here's what happened.",
+      "content": "A broad market decline means most stocks are falling together. This often happens due to economic fears, interest rate changes, or unexpected events. Individual stock quality matters less during a crash — even good companies get dragged down. Historically, markets always recover, but timing the bottom is nearly impossible.",
+      "prerequisites": ["what_is_a_stock"],
+      "trigger": {
+        "type": "market_wide_decline",
+        "params": { "avg_decline_pct": 3.0 }
+      },
+      "priority": "high",
+      "position": { "x": 200, "y": 300 },
+      "category": "market_events"
+    },
+    {
+      "id": "market_timing",
+      "title": "Trading Phases",
+      "type": "adaptive",
+      "description": "You traded in both pre-market and post-market.",
+      "content": "Pre-market orders execute at the previous day's close price — you're acting on old information. Post-market orders execute at today's close — you've seen how the day played out. The tradeoff: pre-market lets you act first, post-market gives you more information.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "traded_both_phases",
+        "params": {}
+      },
+      "priority": "normal",
+      "position": { "x": 600, "y": -300 },
+      "category": "mechanics"
+    }
+  ],
+  "categories": {
+    "fundamentals": { "color": "#4A90D9", "label": "Fundamentals" },
+    "order_types": { "color": "#7B68EE", "label": "Order Types" },
+    "risk": { "color": "#E74C3C", "label": "Risk Management" },
+    "psychology": { "color": "#F39C12", "label": "Trading Psychology" },
+    "mechanics": { "color": "#27AE60", "label": "Game Mechanics" },
+    "strategies": { "color": "#16A085", "label": "Strategies" },
+    "market_events": { "color": "#8E44AD", "label": "Market Events" }
+  },
+  "settings": {
+    "unlock_all_knowledge_first": true,
+    "max_popups_per_day": 2
+  }
+}

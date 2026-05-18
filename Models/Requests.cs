@@ -5,10 +5,10 @@ namespace TradingGame.Models;
 public class LoadTickersRequest
 {
     [JsonPropertyName("start_date")]
-    public string StartDate { get; set; } = "2010-01-01";
+    public string StartDate { get; set; } = "2005-01-01";
 
     [JsonPropertyName("end_date")]
-    public string EndDate { get; set; } = "2011-12-31";
+    public string EndDate { get; set; } = "2010-12-31";
 
     [JsonPropertyName("top_n")]
     public int TopN { get; set; } = 50;
@@ -78,6 +78,39 @@ public class TradeRequest
 
     [JsonPropertyName("date")]
     public required string Date { get; set; }
+}
+
+public class QueueOrderRequest
+{
+    [JsonPropertyName("entity_id")]
+    public required string EntityId { get; set; }
+
+    [JsonPropertyName("ticker")]
+    public required string Ticker { get; set; }
+
+    [JsonPropertyName("side")]
+    public required string Side { get; set; }
+
+    [JsonPropertyName("quantity")]
+    public int Quantity { get; set; }
+
+    [JsonPropertyName("order_type")]
+    public string OrderType { get; set; } = "market";
+
+    [JsonPropertyName("limit_price")]
+    public double? LimitPrice { get; set; }
+}
+
+public class OpenMarketsRequest
+{
+    [JsonPropertyName("entity_id")]
+    public required string EntityId { get; set; }
+}
+
+public class CloseMarketsRequest
+{
+    [JsonPropertyName("entity_id")]
+    public required string EntityId { get; set; }
 }
 
 public class SaveStateRequest
