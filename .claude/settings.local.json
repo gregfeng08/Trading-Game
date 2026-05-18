@@ -17,7 +17,15 @@
       "Bash(Select-Object FullName)",
       "PowerShell(head *)",
       "Bash(Select-Object -First 50)",
-      "Bash(Format-List FullName)"
+      "Bash(Format-List FullName)",
+      "Bash(Get-ChildItem C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\Services *)",
+      "Bash(Select-Object -First 20)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scenes\" -Filter \"*.unity\")",
+      "Bash(Select-String -Pattern \"error CS\")",
+      "Bash(Select-Object -Last 20)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\" -Recurse -Directory | Where-Object { $_.Name -eq \"Scripts\" -or $_.Parent.Name -eq \"Scripts\" } | Select-Object FullName)"
     ]
   }
 }

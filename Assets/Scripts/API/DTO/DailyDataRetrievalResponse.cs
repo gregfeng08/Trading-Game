@@ -1,40 +1,29 @@
-using UnityEngine;
-
 namespace Game.API.DTO
 {
-    /// <summary>
-    /// Data-transfer object for sending daily price data
-    /// </summary>
+    [System.Serializable]
     public class DailyDataRetrievalResponse
     {
         public DailyTickerDTO[] data;
     }
 
-    /// <summary>
-    /// Daily Ticker DTO object on a per-ticker basis
-    /// </summary>
     [System.Serializable]
     public class DailyTickerDTO
     {
         public string ticker;
         public string date;
-        public float open;
-        public float high;
-        public float low;
-        public float close;
-        public float volume;
-
+        public double open;
+        public double high;
+        public double low;
+        public double close;
+        public double volume;
         public TechnicalData technicalData;
     }
 
-    /// <summary>
-    /// Daily Technical Data
-    /// </summary>
     [System.Serializable]
     public class TechnicalData
     {
-        public float sma20;
-        public float sma50;
-        public float sma200;
+        public double sma20;
+        public double sma50;
+        public double sma200;
     }
 }

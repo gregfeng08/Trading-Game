@@ -8,22 +8,14 @@ using Game.API.DTO;
 public enum GamePhase { PreMarket, Day, PostMarket }
 
 [System.Serializable]
-public class PendingOrder
-{
-    public string ticker;
-    public string side;
-    public int quantity;
-}
-
-[System.Serializable]
 public class TradeResult
 {
     public string ticker;
     public string side;
     public int quantity;
-    public float fillPrice;
-    public float closePrice;
-    public float pnl;
+    public double fillPrice;
+    public double closePrice;
+    public double pnl;
     public string status;
     public string message;
 }
@@ -43,13 +35,23 @@ public class GamePhaseManager : MonoBehaviour
     public bool PostMarketReady { get; private set; }
     public bool IsTransitioning { get; private set; }
 
+    // Arc (season) state — populated after each day advance
+    public string ArcName { get; private set; }
+    public int ArcDaysRemaining { get; private set; } = -1;
+    public double ArcReturnPct { get; private set; }
+    public string ArcProjectedGrade { get; private set; }
+    public ArcTransitionDTO LastArcTransition { get; private set; }
+
+    // Forced liquidations from last day advance
+    public ForcedLiquidationDTO[] LastForcedLiquidations { get; private set; }
+
     public event Action<GamePhase> OnPhaseChanged;
     public event Action OnDayTimerExpired;
+    public event Action<ArcTransitionDTO> OnArcTransition;
+    public event Action<ForcedLiquidationDTO[]> OnForcedLiquidations;
 
-    private readonly List<PendingOrder> pendingOrders = new List<PendingOrder>();
     private readonly List<TradeResult> todayResults = new List<TradeResult>();
 
-    public IReadOnlyList<PendingOrder> PendingOrders => pendingOrders;
     public IReadOnlyList<TradeResult> TodayResults => todayResults;
 
     void Awake()
@@ -78,24 +80,58 @@ public class GamePhaseManager : MonoBehaviour
         var resp = await GameStateAPI.GetGameDate();
         CurrentDate = resp.current_date;
         CurrentPhase = ParsePhase(resp.game_phase);
+        await RefreshArcStatus();
     }
 
-    // ── Order Queue ──
+    // ── Order Queue (server-persisted) ──
 
-    public void QueueOrder(string ticker, string side, int quantity)
+    public string LastOrderError { get; private set; }
+
+    public async Task<bool> QueueOrder(string ticker, string side, int quantity)
     {
-        pendingOrders.Add(new PendingOrder { ticker = ticker, side = side, quantity = quantity });
+        LastOrderError = null;
+        try
+        {
+            var req = new QueueOrderRequestDTO
+            {
+                entity_id = APIBootstrapper.EntityExternalId,
+                ticker = ticker,
+                side = side,
+                quantity = quantity,
+                order_type = "market"
+            };
+            var resp = await OrderAPI.QueueOrder(req);
+            return resp.status == "ok";
+        }
+        catch (System.Net.Http.HttpRequestException ex)
+        {
+            LastOrderError = ex.Message;
+            Debug.LogError($"[GamePhaseManager] Failed to queue order: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            LastOrderError = ex.Message;
+            Debug.LogError($"[GamePhaseManager] Failed to queue order: {ex.Message}");
+            return false;
+        }
     }
 
-    public void RemoveOrder(int index)
+    public async Task<PendingOrderDTO[]> GetPendingOrders()
     {
-        if (index >= 0 && index < pendingOrders.Count)
-            pendingOrders.RemoveAt(index);
+        try
+        {
+            var resp = await OrderAPI.GetPendingOrders(APIBootstrapper.EntityExternalId);
+            return resp.orders;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[GamePhaseManager] Failed to get pending orders: {ex.Message}");
+            return new PendingOrderDTO[0];
+        }
     }
 
-    public void ClearOrders() => pendingOrders.Clear();
-
-    // ── Phase Transitions ──
+    // ── Phase Transitions (ACID via server) ──
 
     public async Task<List<TradeResult>> OpenMarkets()
     {
@@ -104,46 +140,33 @@ public class GamePhaseManager : MonoBehaviour
 
         try
         {
-            await GameStateAPI.AdvancePhase();
+            var req = new OpenMarketsRequestDTO { entity_id = APIBootstrapper.EntityExternalId };
+            var resp = await OrderAPI.OpenMarkets(req);
+
+            if (resp.status != "ok")
+            {
+                Debug.LogError($"[GamePhaseManager] OpenMarkets failed: {resp.message}");
+                return null;
+            }
 
             todayResults.Clear();
-            foreach (var order in pendingOrders)
+            if (resp.trade_results != null)
             {
-                try
-                {
-                    var req = new TradeRequestDTO
-                    {
-                        entity_id = APIBootstrapper.EntityExternalId,
-                        ticker = order.ticker,
-                        side = order.side,
-                        quantity = order.quantity,
-                        order_type = "market"
-                    };
-                    var resp = await TradeAPI.PostTrade(req);
-                    todayResults.Add(new TradeResult
-                    {
-                        ticker = order.ticker,
-                        side = order.side,
-                        quantity = order.quantity,
-                        fillPrice = resp.filled_price,
-                        status = resp.status,
-                        message = resp.message
-                    });
-                }
-                catch (Exception ex)
+                foreach (var tr in resp.trade_results)
                 {
                     todayResults.Add(new TradeResult
                     {
-                        ticker = order.ticker,
-                        side = order.side,
-                        quantity = order.quantity,
-                        status = "error",
-                        message = ex.Message
+                        ticker = tr.ticker,
+                        side = tr.side,
+                        quantity = tr.quantity,
+                        fillPrice = tr.fill_price,
+                        status = tr.status,
+                        message = tr.message
                     });
                 }
             }
-            pendingOrders.Clear();
 
+            CurrentDate = resp.current_date;
             CurrentPhase = GamePhase.Day;
             DayTimeRemaining = dayDurationSeconds;
             DayTimerActive = true;
@@ -151,6 +174,11 @@ public class GamePhaseManager : MonoBehaviour
 
             OnPhaseChanged?.Invoke(CurrentPhase);
             return new List<TradeResult>(todayResults);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[GamePhaseManager] OpenMarkets exception: {ex.Message}");
+            return null;
         }
         finally
         {
@@ -167,31 +195,42 @@ public class GamePhaseManager : MonoBehaviour
         {
             DayTimerActive = false;
 
-            await GameStateAPI.AdvancePhase();
+            var req = new CloseMarketsRequestDTO { entity_id = APIBootstrapper.EntityExternalId };
+            var resp = await OrderAPI.CloseMarkets(req);
 
-            foreach (var result in todayResults)
+            if (resp.status != "ok")
             {
-                if (result.status != "ok") continue;
-                try
+                Debug.LogError($"[GamePhaseManager] CloseMarkets failed: {resp.message}");
+                return;
+            }
+
+            todayResults.Clear();
+            if (resp.trade_results != null)
+            {
+                foreach (var tr in resp.trade_results)
                 {
-                    var prices = await MarketAPI.GetPrices(result.ticker, CurrentDate, CurrentDate);
-                    if (prices.rows != null && prices.rows.Length > 0)
+                    todayResults.Add(new TradeResult
                     {
-                        result.closePrice = prices.rows[0].close_price;
-                        result.pnl = result.side == "buy"
-                            ? (result.closePrice - result.fillPrice) * result.quantity
-                            : (result.fillPrice - result.closePrice) * result.quantity;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[GamePhaseManager] Failed to fetch close price for {result.ticker}: {ex.Message}");
+                        ticker = tr.ticker,
+                        side = tr.side,
+                        quantity = tr.quantity,
+                        fillPrice = tr.fill_price,
+                        closePrice = tr.close_price,
+                        pnl = tr.pnl,
+                        status = tr.status,
+                        message = tr.message
+                    });
                 }
             }
 
+            CurrentDate = resp.current_date;
             CurrentPhase = GamePhase.PostMarket;
             PostMarketReady = true;
             OnPhaseChanged?.Invoke(CurrentPhase);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[GamePhaseManager] CloseMarkets exception: {ex.Message}");
         }
         finally
         {
@@ -211,12 +250,23 @@ public class GamePhaseManager : MonoBehaviour
 
             CurrentDate = resp.current_date;
             todayResults.Clear();
-            pendingOrders.Clear();
             PostMarketReady = false;
+
+            LastForcedLiquidations = resp.forced_liquidations;
+            if (LastForcedLiquidations != null && LastForcedLiquidations.Length > 0)
+                OnForcedLiquidations?.Invoke(LastForcedLiquidations);
+
+            await CheckArcAdvance();
+            await RefreshArcStatus();
 
             CurrentPhase = GamePhase.PreMarket;
             OnPhaseChanged?.Invoke(CurrentPhase);
             return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[GamePhaseManager] AdvanceToNextDay exception: {ex.Message}");
+            return false;
         }
         finally
         {
@@ -243,6 +293,53 @@ public class GamePhaseManager : MonoBehaviour
     private void HandleDayExpired()
     {
         _ = CloseMarketsAndGoHome();
+    }
+
+    // ── Arc helpers ──
+
+    private async Task RefreshArcStatus()
+    {
+        try
+        {
+            var arcResp = await ArcAPI.GetStatus(APIBootstrapper.EntityExternalId);
+            if (arcResp.arc != null)
+            {
+                ArcName = arcResp.arc.name;
+                ArcDaysRemaining = arcResp.trading_days_remaining;
+                ArcReturnPct = arcResp.current_return_pct;
+                ArcProjectedGrade = arcResp.projected_grade;
+            }
+            else
+            {
+                ArcName = null;
+                ArcDaysRemaining = -1;
+                ArcProjectedGrade = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[GamePhaseManager] Arc status fetch failed: {ex.Message}");
+        }
+    }
+
+    private async Task CheckArcAdvance()
+    {
+        try
+        {
+            var resp = await ArcAPI.Advance(APIBootstrapper.EntityExternalId);
+            LastArcTransition = resp.transition;
+            if (resp.transition != null)
+            {
+                Debug.Log($"[GamePhaseManager] Arc completed: {resp.transition.completed_arc.arc_name} " +
+                          $"Grade={resp.transition.completed_arc.grade} " +
+                          $"Return={resp.transition.completed_arc.return_pct}%");
+                OnArcTransition?.Invoke(resp.transition);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[GamePhaseManager] Arc advance check failed: {ex.Message}");
+        }
     }
 
     private static GamePhase ParsePhase(string phase)

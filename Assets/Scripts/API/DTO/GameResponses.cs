@@ -10,6 +10,15 @@ namespace Game.API.DTO
     }
 
     [System.Serializable]
+    public class ForcedLiquidationDTO
+    {
+        public string ticker_id;
+        public double shares;
+        public double price;
+        public string reason;
+    }
+
+    [System.Serializable]
     public class AdvanceDayResponse
     {
         public string status;
@@ -18,6 +27,7 @@ namespace Game.API.DTO
         public string game_phase;
         public bool game_over;
         public string message;
+        public ForcedLiquidationDTO[] forced_liquidations;
     }
 
     [System.Serializable]

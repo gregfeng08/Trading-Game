@@ -13,8 +13,8 @@ namespace Game.API.DTO
         public int history_id;
         public int entity_id;
         public string ticker_id;
-        public float price_paid;
-        public float shares;
+        public double price_paid;
+        public double shares;
         public string trade_date;
     }
 }

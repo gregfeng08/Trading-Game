@@ -3,6 +3,7 @@ using TMPro;
 using System.Collections;
 using UnityEngine.UI;
 using Game.API;
+using Game.API.DTO;
 using UnityEngine.SceneManagement;
 
 public class MainMenuController : MonoBehaviour
@@ -110,7 +111,10 @@ public class MainMenuController : MonoBehaviour
     {
         statusText.text = "Creating new game...";
 
-        var task = GameStateAPI.NewGame("2020-01-01");
+        var config = bootstrapper.GetConfig();
+        var startDate = config != null ? config.startDate : "2020-01-01";
+
+        var task = GameStateAPI.NewGame(startDate);
         yield return new WaitUntil(() => task.IsCompleted);
 
         if (!task.IsCompletedSuccessfully)
@@ -121,11 +125,36 @@ public class MainMenuController : MonoBehaviour
             yield break;
         }
 
+        // Re-register entity (NewGame wipes player-specific state)
+        if (config != null && config.registerEntity)
+        {
+            var entity = new EntityDTO
+            {
+                entity_id = config.entity_id,
+                entity_type = config.entity_type,
+                display_name = config.display_name
+            };
+            var regTask = DbAPI.RegisterEntity(entity);
+            yield return new WaitUntil(() => regTask.IsCompleted);
+
+            if (regTask.IsCompletedSuccessfully)
+            {
+                APIBootstrapper.EntityDbId = regTask.Result.entity_db_id;
+                APIBootstrapper.EntityExternalId = config.entity_id;
+            }
+        }
+
         // Re-initialize knowledge graph for fresh start
         if (KnowledgeGraphManager.Inst != null)
         {
             var kgTask = KnowledgeGraphManager.Inst.InitializeAsync();
             yield return new WaitUntil(() => kgTask.IsCompleted);
+        }
+
+        if (GamePhaseManager.Inst != null)
+        {
+            var syncTask = GamePhaseManager.Inst.SyncWithServer();
+            yield return new WaitUntil(() => syncTask.IsCompleted);
         }
 
         LoadRoom();

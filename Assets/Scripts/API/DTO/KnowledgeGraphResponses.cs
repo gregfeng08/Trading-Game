@@ -34,6 +34,13 @@ namespace Game.API.DTO
     }
 
     [Serializable]
+    public class KnowledgeGraphCategoryDTO
+    {
+        public string color;
+        public string label;
+    }
+
+    [Serializable]
     public class KnowledgeGraphResponse
     {
         public string status;

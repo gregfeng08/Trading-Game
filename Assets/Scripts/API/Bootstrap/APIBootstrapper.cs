@@ -29,6 +29,8 @@ namespace Game.API
         [SerializeField] private bool dontDestroyOnLoad = true;
         [SerializeField] private bool verboseLogs = true;
 
+        public BootstrapConfig GetConfig() => config;
+
         private void Awake()
         {
             if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
@@ -86,9 +88,26 @@ namespace Game.API
             go.AddComponent<KnowledgeGraphManager>();
         }
 
+        private void EnsureBackendProcess()
+        {
+            var existing = FindObjectOfType<BackendProcessLauncher>();
+            if (existing == null)
+            {
+                var go = new GameObject("BackendProcessLauncher");
+                existing = go.AddComponent<BackendProcessLauncher>();
+            }
+            existing.Launch();
+        }
+
         private async Task RunBootstrapAsync()
         {
+            EnsureBackendProcess();
             EnsureKnowledgeGraphManager();
+
+            // Give the backend a moment to bind its port in builds
+#if !UNITY_EDITOR
+            await Task.Delay(1500);
+#endif
 
             Log($"Pinging API at {APIClient.BaseUrl} ...");
             var ping = await HealthAPI.PingAsync();
@@ -108,14 +127,14 @@ namespace Game.API
             if (config.loadTickers)
             {
                 Log("Loading tickers ...");
-                var load = await DbAPI.LoadTickers();
+                var load = await DbAPI.LoadTickers(config.startDate, config.endDate, config.topN);
                 Log($"Load tickers: {load.status}");
             }
 
             if (config.newGame)
             {
                 Log("Creating New Game");
-                var createGameResp = await GameStateAPI.NewGame("2020-01-01");
+                var createGameResp = await GameStateAPI.NewGame(config.startDate);
             }
 
             if (config.registerEntity)
@@ -139,6 +158,13 @@ namespace Game.API
                     await KnowledgeGraphManager.Inst.InitializeAsync();
                     Log("Knowledge graph ready.");
                 }
+            }
+
+            if (GamePhaseManager.Inst != null)
+            {
+                Log("Syncing game state ...");
+                await GamePhaseManager.Inst.SyncWithServer();
+                Log($"Game state: date={GamePhaseManager.Inst.CurrentDate} phase={GamePhaseManager.Inst.CurrentPhase}");
             }
         }
 

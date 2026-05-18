@@ -13,9 +13,16 @@ namespace Game.API
         public static Task<InitDBResponse> InitializeDB()
             => APIClient.PostAsync<object, InitDBResponse>("init_db", new { });
 
-        //Post request to begin tell the database to load the ticker data into the DB
-        public static Task<LoadTickerDataResponse> LoadTickers()
-            => APIClient.PostAsync<object, LoadTickerDataResponse>("load_tickers", new { });
+        public static Task<LoadTickerDataResponse> LoadTickers(string startDate = null, string endDate = null, int? topN = null)
+        {
+            var body = new LoadTickersRequestDTO
+            {
+                start_date = startDate,
+                end_date = endDate,
+                top_n = topN ?? 50
+            };
+            return APIClient.PostAsync<LoadTickersRequestDTO, LoadTickerDataResponse>("load_tickers", body);
+        }
 
         //Function to register entities within the DB
         public static Task<EntityRegistrationResponse> RegisterEntity(EntityDTO entity)

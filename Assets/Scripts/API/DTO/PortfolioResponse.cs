@@ -14,7 +14,7 @@ namespace Game.API.DTO
     {
         public int entity_id;
         public int is_player;
-        public float available_cash;
+        public double available_cash;
     }
 
     [System.Serializable]
@@ -23,15 +23,15 @@ namespace Game.API.DTO
         public int portfolio_id;
         public int entity_id;
         public string ticker_id;
-        public float shares_held;
+        public double shares_held;
         public string purchase_date;
-        public float price;
+        public double price;
     }
 
     [System.Serializable]
     public class PortfolioTotalDTO
     {
         public string ticker_id;
-        public float shares_held;
+        public double shares_held;
     }
 }

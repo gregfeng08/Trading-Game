@@ -19,7 +19,15 @@ public class TradingUIController : MonoBehaviour
     [SerializeField] private TMP_Text dateText;
     [SerializeField] private TMP_Text priceText;
     [SerializeField] private OHLCChart ohlcChart;
-    [SerializeField] private int chartLookbackDays = 120;
+
+    [Header("Chart Timeframe")]
+    [SerializeField] private Button btn1W;
+    [SerializeField] private Button btn1M;
+    [SerializeField] private Button btn3M;
+    [SerializeField] private Button btn1Y;
+    [SerializeField] private Button btn5Y;
+    [SerializeField] private Color timeframeActiveColor = new Color(1f, 1f, 1f, 1f);
+    [SerializeField] private Color timeframeInactiveColor = new Color(1f, 1f, 1f, 0.4f);
 
     [Header("Trade Controls")]
     [SerializeField] private TMP_InputField quantityInput;
@@ -30,7 +38,12 @@ public class TradingUIController : MonoBehaviour
 
     [Header("Player Info")]
     [SerializeField] private TMP_Text cashText;
+    [SerializeField] private TMP_Text netWorthText;
     [SerializeField] private TMP_Text holdingsText;
+
+    [Header("Portfolio Chart")]
+    [SerializeField] private Button portfolioChartButton;
+    [SerializeField] private PortfolioLineChart portfolioChart;
 
     [Header("Feedback")]
     [SerializeField] private TMP_Text statusText;
@@ -40,6 +53,8 @@ public class TradingUIController : MonoBehaviour
     private string currentGameDate;
     private GamePhase currentPhase;
     private PortfolioTotalDTO[] cachedHoldings;
+    private ChartTimeframe selectedTimeframe = ChartTimeframe.Month3;
+    private bool showingPortfolioChart = false;
 
     void OnEnable()
     {
@@ -66,6 +81,13 @@ public class TradingUIController : MonoBehaviour
 
         closeButton.onClick.AddListener(Close);
         tickerDropdown.onValueChanged.AddListener(OnTickerChanged);
+        BindTimeframeButtons();
+
+        if (portfolioChartButton != null)
+            portfolioChartButton.onClick.AddListener(TogglePortfolioChart);
+
+        showingPortfolioChart = false;
+        SetChartVisibility();
 
         _ = LoadInitialData();
     }
@@ -83,18 +105,15 @@ public class TradingUIController : MonoBehaviour
         sellButton.onClick.RemoveAllListeners();
         advanceDayButton.onClick.RemoveAllListeners();
         tickerDropdown.onValueChanged.RemoveAllListeners();
+        UnbindTimeframeButtons();
+
+        if (portfolioChartButton != null)
+            portfolioChartButton.onClick.RemoveAllListeners();
 
         tradingPanel.SetActive(false);
     }
 
     // ── Data Loading ──
-
-    private async Task EnsureEntityDbId()
-    {
-        if (APIBootstrapper.EntityDbId >= 0) return;
-        var resp = await TradeAPI.ResolveEntity(APIBootstrapper.EntityExternalId);
-        APIBootstrapper.EntityDbId = resp.entity_db_id;
-    }
 
     private async Task LoadInitialData()
     {
@@ -112,7 +131,6 @@ public class TradingUIController : MonoBehaviour
 
         try
         {
-            await EnsureEntityDbId();
             await RefreshPortfolio();
         }
         catch (System.Exception ex)
@@ -237,10 +255,10 @@ public class TradingUIController : MonoBehaviour
 
     // ── Pre-Market: Queue Orders ──
 
-    private void OnQueueBuy() => QueueOrder("buy");
-    private void OnQueueSell() => QueueOrder("sell");
+    private void OnQueueBuy() => _ = QueueOrderAsync("buy");
+    private void OnQueueSell() => _ = QueueOrderAsync("sell");
 
-    private void QueueOrder(string side)
+    private async Task QueueOrderAsync(string side)
     {
         if (GamePhaseManager.Inst == null) return;
 
@@ -249,27 +267,46 @@ public class TradingUIController : MonoBehaviour
             SetStatus("Select a ticker first.");
             return;
         }
+        if (!tickerTradableToday)
+        {
+            SetStatus("This ticker has no data today (halted/delisted).");
+            return;
+        }
         if (!int.TryParse(quantityInput.text, out int qty) || qty <= 0)
         {
             SetStatus("Enter a valid quantity.");
             return;
         }
 
-        GamePhaseManager.Inst.QueueOrder(selectedTicker, side, qty);
-        SetStatus($"Queued: {side.ToUpper()} {qty} {selectedTicker}");
-        RebuildHoldingsDisplay();
+        SetStatus($"Queueing {side}...");
+        bool success = await GamePhaseManager.Inst.QueueOrder(selectedTicker, side, qty);
+        if (success)
+        {
+            SetStatus($"Queued: {side.ToUpper()} {qty} {selectedTicker}");
+            await RebuildHoldingsDisplayAsync();
+        }
+        else
+        {
+            string err = GamePhaseManager.Inst.LastOrderError ?? "Failed to queue order.";
+            SetStatus(err);
+        }
     }
 
     // ── Holdings Display (adapts per phase) ──
 
     private void RebuildHoldingsDisplay()
     {
+        _ = RebuildHoldingsDisplayAsync();
+    }
+
+    private async Task RebuildHoldingsDisplayAsync()
+    {
         var sb = new System.Text.StringBuilder();
 
         switch (currentPhase)
         {
             case GamePhase.PreMarket:
-                BuildPendingOrdersSection(sb);
+                await BuildPendingOrdersSection(sb);
                 break;
             case GamePhase.Day:
                 BuildFilledOrdersSection(sb);
@@ -283,15 +320,15 @@ public class TradingUIController : MonoBehaviour
         holdingsText.text = sb.ToString().TrimEnd();
     }
 
-    private void BuildPendingOrdersSection(System.Text.StringBuilder sb)
+    private async Task BuildPendingOrdersSection(System.Text.StringBuilder sb)
     {
         if (GamePhaseManager.Inst == null) return;
-        var orders = GamePhaseManager.Inst.PendingOrders;
-        if (orders.Count == 0) return;
+        var orders = await GamePhaseManager.Inst.GetPendingOrders();
+        if (orders == null || orders.Length == 0) return;
 
         sb.AppendLine("<b>--- Pending Orders ---</b>");
         foreach (var o in orders)
-            sb.AppendLine($"  {o.side.ToUpper()} {o.quantity} {o.ticker}");
+            sb.AppendLine($"  {o.side.ToUpper()} {o.quantity} {o.ticker_id}");
         sb.AppendLine();
     }
 
@@ -331,7 +368,7 @@ public class TradingUIController : MonoBehaviour
         }
 
         sb.AppendLine("<b>--- Trade Results ---</b>");
-        float totalPnl = 0f;
+        double totalPnl = 0;
 
         foreach (var r in results)
         {
@@ -343,7 +380,7 @@ public class TradingUIController : MonoBehaviour
 
             string pnlColor = r.pnl >= 0 ? "#26BF59" : "#D93838";
             string pnlSign = r.pnl >= 0 ? "+" : "-";
-            string pnlStr = $"<color={pnlColor}>{pnlSign}${Mathf.Abs(r.pnl):F2}</color>";
+            string pnlStr = $"<color={pnlColor}>{pnlSign}${System.Math.Abs(r.pnl):F2}</color>";
 
             sb.AppendLine($"  {r.side.ToUpper()} {r.quantity} {r.ticker}");
             sb.AppendLine($"    Open: ${r.fillPrice:F2}  Close: ${r.closePrice:F2}  {pnlStr}");
@@ -353,7 +390,7 @@ public class TradingUIController : MonoBehaviour
         sb.AppendLine();
         string totalColor = totalPnl >= 0 ? "#26BF59" : "#D93838";
         string totalSign = totalPnl >= 0 ? "+" : "-";
-        sb.AppendLine($"<b>Day P&L: <color={totalColor}>{totalSign}${Mathf.Abs(totalPnl):F2}</color></b>");
+        sb.AppendLine($"<b>Day P&L: <color={totalColor}>{totalSign}${System.Math.Abs(totalPnl):F2}</color></b>");
         sb.AppendLine();
     }
 
@@ -454,10 +491,116 @@ public class TradingUIController : MonoBehaviour
         if (KnowledgeGraphManager.Inst != null)
             _ = KnowledgeGraphManager.Inst.CheckTriggersAsync();
 
-        SetStatus($"New day: {currentGameDate}");
+        var liquidations = GamePhaseManager.Inst.LastForcedLiquidations;
+        if (liquidations != null && liquidations.Length > 0)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("<color=#FF8800>DELISTED: </color>");
+            foreach (var liq in liquidations)
+                sb.Append($"{liq.ticker_id} ({liq.shares:F0} shares @ ${liq.price:F2})  ");
+            SetStatus(sb.ToString().TrimEnd());
+        }
+        else
+        {
+            SetStatus($"New day: {currentGameDate}");
+        }
+    }
+
+    // ── Portfolio Chart Toggle ──
+
+    private void TogglePortfolioChart()
+    {
+        showingPortfolioChart = !showingPortfolioChart;
+        SetChartVisibility();
+
+        if (showingPortfolioChart)
+            _ = LoadPortfolioChart();
+        else
+            _ = RefreshPrice();
+    }
+
+    private void SetChartVisibility()
+    {
+        if (ohlcChart != null)
+            ohlcChart.gameObject.SetActive(!showingPortfolioChart);
+        if (portfolioChart != null)
+            portfolioChart.gameObject.SetActive(showingPortfolioChart);
+
+        if (portfolioChartButton != null)
+        {
+            var tmp = portfolioChartButton.GetComponentInChildren<TMP_Text>();
+            if (tmp != null)
+                tmp.text = showingPortfolioChart ? "Ticker Chart" : "Portfolio";
+        }
+    }
+
+    private async Task LoadPortfolioChart()
+    {
+        if (portfolioChart == null) return;
+
+        try
+        {
+            var resp = await OrderAPI.GetPortfolioHistory(APIBootstrapper.EntityDbId);
+            if (resp.history != null && resp.history.Length >= 2)
+                portfolioChart.SetData(resp.history);
+            else
+                portfolioChart.Clear();
+        }
+        catch
+        {
+            portfolioChart.Clear();
+        }
+    }
+
+    // ── Timeframe Selection ──
+
+    private void BindTimeframeButtons()
+    {
+        if (btn1W != null) btn1W.onClick.AddListener(() => SetTimeframe(ChartTimeframe.Week1));
+        if (btn1M != null) btn1M.onClick.AddListener(() => SetTimeframe(ChartTimeframe.Month1));
+        if (btn3M != null) btn3M.onClick.AddListener(() => SetTimeframe(ChartTimeframe.Month3));
+        if (btn1Y != null) btn1Y.onClick.AddListener(() => SetTimeframe(ChartTimeframe.Year1));
+        if (btn5Y != null) btn5Y.onClick.AddListener(() => SetTimeframe(ChartTimeframe.Year5));
+        UpdateTimeframeHighlight();
+    }
+
+    private void UnbindTimeframeButtons()
+    {
+        if (btn1W != null) btn1W.onClick.RemoveAllListeners();
+        if (btn1M != null) btn1M.onClick.RemoveAllListeners();
+        if (btn3M != null) btn3M.onClick.RemoveAllListeners();
+        if (btn1Y != null) btn1Y.onClick.RemoveAllListeners();
+        if (btn5Y != null) btn5Y.onClick.RemoveAllListeners();
+    }
+
+    private void SetTimeframe(ChartTimeframe tf)
+    {
+        selectedTimeframe = tf;
+        UpdateTimeframeHighlight();
+        _ = RefreshPrice();
+    }
+
+    private void UpdateTimeframeHighlight()
+    {
+        SetButtonColor(btn1W, selectedTimeframe == ChartTimeframe.Week1);
+        SetButtonColor(btn1M, selectedTimeframe == ChartTimeframe.Month1);
+        SetButtonColor(btn3M, selectedTimeframe == ChartTimeframe.Month3);
+        SetButtonColor(btn1Y, selectedTimeframe == ChartTimeframe.Year1);
+        SetButtonColor(btn5Y, selectedTimeframe == ChartTimeframe.Year5);
+    }
+
+    private void SetButtonColor(Button btn, bool active)
+    {
+        if (btn == null) return;
+        var tmp = btn.GetComponentInChildren<TMP_Text>();
+        if (tmp != null) tmp.color = active ? timeframeActiveColor : timeframeInactiveColor;
     }
 
     // ── Refresh Helpers ──
+
+    private const int MinChartDataPoints = 15;
+
+    private bool tickerTradableToday = true;
 
     private async Task RefreshPrice()
     {
@@ -465,12 +608,12 @@ public class TradingUIController : MonoBehaviour
         {
             priceText.text = "---";
             if (ohlcChart != null) ohlcChart.Clear();
+            SetTickerTradable(true);
             return;
         }
 
         try
         {
-            // During Day phase, don't show today's candle (outcome unknown)
             string chartEndDate = currentGameDate;
             if (currentPhase == GamePhase.Day)
             {
@@ -478,14 +621,26 @@ public class TradingUIController : MonoBehaviour
                     chartEndDate = dt.AddDays(-1).ToString("yyyy-MM-dd");
             }
 
+            // Fetch chart data with selected timeframe
+            int lookback = CandleAggregator.LookbackCalendarDays(selectedTimeframe);
             string startDate = null;
             if (System.DateTime.TryParse(chartEndDate, out var endDt))
-                startDate = endDt.AddDays(-chartLookbackDays).ToString("yyyy-MM-dd");
+                startDate = endDt.AddDays(-lookback).ToString("yyyy-MM-dd");
 
             var resp = await MarketAPI.GetPrices(selectedTicker, startDate, chartEndDate);
+
+            // If too few data points, fetch all available history for this ticker
+            if (resp.rows == null || resp.rows.Length < MinChartDataPoints)
+            {
+                var allResp = await MarketAPI.GetPrices(selectedTicker, null, chartEndDate);
+                if (allResp.rows != null && allResp.rows.Length > resp.rows?.Length)
+                    resp = allResp;
+            }
+
             if (resp.rows != null && resp.rows.Length > 0)
             {
-                if (ohlcChart != null) ohlcChart.SetData(resp.rows);
+                var chartData = CandleAggregator.Aggregate(resp.rows, selectedTimeframe);
+                if (ohlcChart != null && !showingPortfolioChart) ohlcChart.SetData(chartData);
 
                 var latest = resp.rows[resp.rows.Length - 1];
 
@@ -497,15 +652,18 @@ public class TradingUIController : MonoBehaviour
                         {
                             var today = todayResp.rows[0];
                             priceText.text = $"Today's Open: ${today.open_price:F2}   (Prev Close: ${latest.close_price:F2})";
+                            SetTickerTradable(true);
                         }
                         else
                         {
-                            priceText.text = $"Prev Close: ${latest.close_price:F2}";
+                            priceText.text = $"Prev Close: ${latest.close_price:F2}   <color=#FF8800>(No data today — halted/delisted)</color>";
+                            SetTickerTradable(false);
                         }
                         break;
 
                     case GamePhase.Day:
                         priceText.text = $"Prev Close: ${latest.close_price:F2}   (Markets open)";
+                        SetTickerTradable(true);
                         break;
 
                     case GamePhase.PostMarket:
@@ -515,30 +673,51 @@ public class TradingUIController : MonoBehaviour
                             var p = pmResp.rows[0];
                             priceText.text = $"O: ${p.open_price:F2}   H: ${p.high_price:F2}   L: ${p.low_price:F2}   C: ${p.close_price:F2}";
 
-                            // Add today's candle to the chart
-                            if (ohlcChart != null)
+                            if (ohlcChart != null && !showingPortfolioChart)
                             {
                                 var fullResp = await MarketAPI.GetPrices(selectedTicker, startDate, currentGameDate);
+                                if (fullResp.rows == null || fullResp.rows.Length < MinChartDataPoints)
+                                {
+                                    var allFull = await MarketAPI.GetPrices(selectedTicker, null, currentGameDate);
+                                    if (allFull.rows != null && allFull.rows.Length > (fullResp.rows?.Length ?? 0))
+                                        fullResp = allFull;
+                                }
                                 if (fullResp.rows != null && fullResp.rows.Length > 0)
-                                    ohlcChart.SetData(fullResp.rows);
+                                {
+                                    var fullData = CandleAggregator.Aggregate(fullResp.rows, selectedTimeframe);
+                                    ohlcChart.SetData(fullData);
+                                }
                             }
                         }
                         else
                         {
-                            priceText.text = $"Close: ${latest.close_price:F2}";
+                            priceText.text = $"Close: ${latest.close_price:F2}   <color=#FF8800>(No data today)</color>";
                         }
+                        SetTickerTradable(true);
                         break;
                 }
             }
             else
             {
                 if (ohlcChart != null) ohlcChart.Clear();
-                priceText.text = "No price data for this date";
+                priceText.text = "<color=#FF8800>No price data available for this ticker</color>";
+                SetTickerTradable(false);
             }
         }
         catch
         {
             priceText.text = "Failed to load price";
+            SetTickerTradable(false);
+        }
+    }
+
+    private void SetTickerTradable(bool tradable)
+    {
+        tickerTradableToday = tradable;
+        if (currentPhase == GamePhase.PreMarket)
+        {
+            buyButton.interactable = tradable;
+            sellButton.interactable = tradable;
         }
     }
 
@@ -547,12 +726,35 @@ public class TradingUIController : MonoBehaviour
         try
         {
             var resp = await TradeAPI.GetPortfolio(APIBootstrapper.EntityDbId);
-            cashText.text = $"Cash: ${resp.entity.available_cash:N2}";
+            double cash = resp.entity.available_cash;
+            cashText.text = $"Cash: ${cash:N2}";
             cachedHoldings = resp.totals;
+
+            if (netWorthText != null)
+            {
+                double holdingsValue = 0;
+                if (cachedHoldings != null && !string.IsNullOrEmpty(currentGameDate))
+                {
+                    foreach (var h in cachedHoldings)
+                    {
+                        try
+                        {
+                            var priceResp = await MarketAPI.GetPrices(h.ticker_id, currentGameDate, currentGameDate);
+                            if (priceResp.rows != null && priceResp.rows.Length > 0)
+                                holdingsValue += h.shares_held * priceResp.rows[0].close_price;
+                        }
+                        catch { }
+                    }
+                }
+                double netWorth = cash + holdingsValue;
+                string color = netWorth >= 10000 ? "#26BF59" : "#D93838";
+                netWorthText.text = $"Net Worth: <color={color}>${netWorth:N2}</color>";
+            }
         }
         catch
         {
             cashText.text = "Cash: ---";
+            if (netWorthText != null) netWorthText.text = "Net Worth: ---";
             cachedHoldings = null;
         }
     }

@@ -1,6 +1,14 @@
 namespace Game.API.DTO
 {
     [System.Serializable]
+    public class LoadTickersRequestDTO
+    {
+        public string start_date;
+        public string end_date;
+        public int top_n = 50;
+    }
+
+    [System.Serializable]
     public class LoadTickerDataResponse
     {
         /// <summary>

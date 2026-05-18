@@ -13,9 +13,9 @@ namespace Game.API.DTO
     {
         public string ticker_id;
         public string date;
-        public float open_price;
-        public float high_price;
-        public float low_price;
-        public float close_price;
+        public double open_price;
+        public double high_price;
+        public double low_price;
+        public double close_price;
     }
 }

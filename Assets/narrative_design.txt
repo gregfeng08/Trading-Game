@@ -1,0 +1,222 @@
+HIGHSIGHT FINANCIAL — NARRATIVE DESIGN DOCUMENT
+================================================
+
+SETTING
+-------
+Highsight Financial exists outside of time. It is an institution that trades on
+already-happened markets — not to profit, but to train. The player does not know
+why they are here or what the endgame is. That mystery is the long-term hook.
+
+The tone is: cozy trading life sim (90%) with slow-building uncanny dread (10%).
+Think Stardew Valley meets The Stanley Parable in a corporate liminal space.
+
+
+CORE CHARACTERS
+---------------
+
+THE PLAYER
+- Cannot remember how they arrived.
+- Was "selected" — not randomly.
+- Starts as a new hire on Floor 1.
+- Progression through trading skill IS narrative progression.
+
+THE PRINCIPAL
+- Runs Highsight Financial.
+- Features never resolve visually — silhouetted or blurred, not shadowed.
+- Voice is warm but wrong in a way you can't name.
+- Appears rarely. Always knows more than they should.
+- Never threatening. Always accommodating. That's what's unsettling.
+
+CASEY (Mentor)
+- Friendly, slightly harried, clearly human.
+- Genuinely believes in teaching the player.
+- Works on Floor 1. Has never been past Floor 3.
+- Serves as tutorial guide and recurring friendly face.
+- Does NOT know the institution's true nature.
+
+
+SEQUENCE OF EVENTS
+------------------
+
+1. MAIN MENU
+   - Player model stands on a small floating platform (fragment of sidewalk,
+     a piece of the "real world" suspended in void).
+   - Ambient city sounds, distant and muffled.
+   - On pressing Play: platform crumbles. Player falls silently, weightlessly
+     into a spiraling black hole. Screen compresses to a point of light.
+
+2. THE ARRIVAL (Clouds Scene)
+   - Explodes outward into: a sea of luminous clouds.
+   - Slow-drifting constellations that don't match any real sky.
+   - Player stands on a glass-like surface with no visible bottom.
+   - In the far distance: a structure — angular, impossibly tall, faintly
+     glowing at its edges. Looks like a skyscraper designed by someone who
+     only had one described to them.
+   - Player internal monologue (dialogue boxes):
+     "..."
+     "Where is this?"
+     "I was just... I was on my way to..."
+     "...I can't remember."
+   - Player walks toward the building. No other direction exists.
+   - As they approach, details resolve: glass doors, reception desk, warm light.
+     It looks almost normal. Almost welcoming.
+
+3. THE HIRING (Lobby)
+   - Pristine, too-clean lobby. Marble that seems to hum. Single elevator.
+   - No receptionist. Elevator opens on its own.
+   - Top floor: a room. Backlit. A desk. The Principal sits behind it.
+   - The Principal speaks:
+     "You're early. That's good. We value punctuality at Highsight."
+     "You've been selected. Not randomly — we don't do random here."
+     "Your position begins immediately. Floor 1. Your mentor is waiting."
+     "Oh — and welcome to Highsight Financial. You'll do well here.
+      Everyone does."
+   - No interview. No explanation. No option to refuse.
+   - Elevator takes player down.
+
+4. CASEY'S TUTORIAL (Floor 1 — The Bullpen)
+   - Doors open to something warmer: soft lighting, plants, hum of work.
+   - Casey turns and waves.
+   - Casey dialogue:
+     "Hey! New hire, right? Don't worry, everyone has that look their
+      first day."
+     "I'm Casey. I'll be showing you the ropes. Come on, let me show
+      you your desk."
+
+   Casey teaches three things:
+
+   A) THE DAY CYCLE
+      "We work in phases here. Pre-market is when you plan. Market hours
+       are when things move. Post-market is when you see how you did.
+       Then you rest. Simple rhythm."
+
+   B) THE KNOWLEDGE LATTICE (their name for the knowledge graph)
+      "See this? It's your progression map. As you trade and learn, new
+       concepts unlock. Some you study yourself. Others... find you,
+       when you're ready."
+      [Player sees first 3 nodes: What is a Company > What is a Stock >
+       Market Buy/Sell]
+
+   C) FIRST TRADE
+      "Don't overthink it. Your first trade is never your best.
+       That's the point."
+      [Guided walkthrough: select ticker, set quantity, queue buy order,
+       open markets]
+
+5. DAILY LOOP BEGINS
+   - After tutorial, the normal game cycle starts.
+   - Player has freedom: trade, explore Floor 1, check lattice.
+   - Casey remains available for optional dialogue hints.
+
+
+POST-TUTORIAL NARRATIVE BEATS
+-----------------------------
+
+WEEK 1 COMPLETE:
+- Casey mentions other floors.
+  "You'll get access eventually. Everyone moves up."
+- Player notices an elevator button that's grayed out.
+
+FIRST ADAPTIVE NODE UNLOCK (e.g., Volatility):
+- Casey is NOT the one who explains it.
+- A typed note appears on the player's desk. No signature.
+- The knowledge content feels different — more clinical.
+
+AFTER 10+ TRADING DAYS:
+- Player spots another new hire in the lobby.
+- They have the same confused look.
+- The Principal greets them with the exact same words.
+
+LATE GAME (Floor 3+):
+- Higher floors unlock as player masters concepts.
+- Trading gets harder. Knowledge graph branches into territory Casey
+  doesn't understand.
+- Casey: "I've never been past Floor 3. I don't know what's up there."
+
+ENDGAME (not yet designed):
+- The player's mastery of markets reveals something about what Highsight
+  actually is.
+- The Principal's true purpose becomes clear.
+- Leave open for now — the mystery sustains engagement.
+
+
+DESIGN PRINCIPLES
+-----------------
+
+1. LEARNING IS THE PLOT
+   The player's progression through trading concepts IS their narrative
+   progression through the building. Every floor corresponds to deeper
+   financial knowledge.
+
+2. NEVER BREAK THE COZY
+   The uncanny elements are background radiation, not jump scares. The
+   player should feel safe to learn and experiment. Dread is seasoning,
+   not the main course.
+
+3. SHOW, DON'T GATE
+   Narrative beats are triggered by player actions (trades, node completions,
+   days elapsed) — never by forced cutscenes that block gameplay. The player
+   can always choose to keep trading.
+
+4. THE INSTITUTION IS THE ANTAGONIST (MAYBE)
+   Keep it ambiguous. Highsight might be benevolent (genuinely training
+   people). It might be exploitative (using trained traders for something).
+   Don't resolve this early. Let players theorize.
+
+5. CASEY IS REAL
+   Casey is not a plant. She genuinely cares. If the institution turns out
+   to be sinister, Casey is as much a victim as the player. Protect this
+   character's authenticity.
+
+
+SCENE MAP (Implementation)
+---------------------------
+
+Main Menu          → Menu scene (existing). Add player model + platform.
+Black Hole Drop    → Transition animation/VFX between scenes.
+Clouds Arrival     → New scene: "Arrival". Skybox + cloud plane + distant building.
+The Lobby          → New scene or zone: "Lobby". Minimal, clean, elevator.
+Principal's Office → Sub-area of Lobby or separate small scene. Cutscene-driven.
+Floor 1 Bullpen    → Repurpose existing "Room" scene or new "Floor1" scene.
+Trading Terminal   → Existing Trading UI prefab, triggered by interaction zone.
+Knowledge Lattice  → Existing Knowledge Graph UI, opened via Casey interaction.
+City/Exterior      → Existing "City Scene" — could become the post-tutorial hub.
+
+
+KNOWLEDGE LATTICE — FIRST 3 NODES (Tutorial)
+---------------------------------------------
+
+Node 1: "What is a Company"
+  - Casey explains: businesses, ownership, why companies exist.
+  - Unlocked at game start (root node).
+
+Node 2: "What is a Stock"
+  - Casey explains: shares, ownership stakes, why prices move.
+  - Unlocked after completing Node 1.
+
+Node 3: "Market Buy / Sell"
+  - Casey walks player through their first actual trade.
+  - Unlocked after completing Node 2.
+  - Completing this node ends the tutorial and begins free play.
+
+
+DIALOGUE STYLE GUIDE
+---------------------
+
+- Casey: Casual, warm, uses contractions. Slight humor. Never condescending.
+  Example: "Yeah, I lost money my first week too. Everyone does. The trick
+  is figuring out WHY you lost it."
+
+- The Principal: Formal but not stiff. Short sentences. Declarative. No
+  questions — only statements. Unnerving politeness.
+  Example: "You'll understand in time. Everyone does."
+
+- Player (internal): Fragmented. Trailing off. Uncertain. Gets more
+  confident as days pass.
+  Example early: "I don't... why can't I remember?"
+  Example later: "Something about this place doesn't add up."
+
+- Typed Notes (anonymous): Clinical. Precise. Educational but cold.
+  No warmth. Pure information delivery.
+  Example: "Volatility measures the degree of variation in price over time.
+  High volatility implies high risk. You experienced this today."
