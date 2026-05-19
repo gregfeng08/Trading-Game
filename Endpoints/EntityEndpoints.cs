@@ -13,9 +13,9 @@ public static class EntityEndpoints
             {
                 return Results.Ok(entities.Register(req));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return Results.Json(new ErrorResponse("error", ex.Message), statusCode: 500);
+                return Results.Json(new ErrorResponse("error", "An internal error occurred while registering entity."), statusCode: 500);
             }
         });
 

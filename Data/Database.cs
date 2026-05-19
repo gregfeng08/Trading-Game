@@ -33,6 +33,58 @@ public class Database
         using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
+
+        MigrateNetWorthHistory(conn);
+
+        var seedPath = Path.Combine(Path.GetDirectoryName(_schemaPath)!, "seed_static_dialogue.sql");
+        if (File.Exists(seedPath))
+        {
+            using var countCmd = conn.CreateCommand();
+            countCmd.CommandText = "SELECT COUNT(*) FROM static_npc_dialogue WHERE date IS NULL;";
+            var existing = Convert.ToInt32(countCmd.ExecuteScalar());
+            if (existing == 0)
+            {
+                var seedSql = File.ReadAllText(seedPath);
+                using var seedCmd = conn.CreateCommand();
+                seedCmd.CommandText = seedSql;
+                seedCmd.ExecuteNonQuery();
+            }
+        }
+    }
+
+    private static void MigrateNetWorthHistory(SqliteConnection conn)
+    {
+        using var check = conn.CreateCommand();
+        check.CommandText = "PRAGMA table_info(net_worth_history);";
+        bool hasPhase = false;
+        using (var reader = check.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                if (reader.GetString(1) == "phase") { hasPhase = true; break; }
+            }
+        }
+
+        if (hasPhase) return;
+
+        using var migrate = conn.CreateCommand();
+        migrate.CommandText = """
+            ALTER TABLE net_worth_history RENAME TO net_worth_history_old;
+            CREATE TABLE net_worth_history (
+                entity_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                phase TEXT NOT NULL DEFAULT 'close',
+                cash REAL NOT NULL,
+                holdings_value REAL NOT NULL,
+                net_worth REAL NOT NULL,
+                PRIMARY KEY (entity_id, date, phase),
+                FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
+            );
+            INSERT INTO net_worth_history (entity_id, date, phase, cash, holdings_value, net_worth)
+            SELECT entity_id, date, 'close', cash, holdings_value, net_worth FROM net_worth_history_old;
+            DROP TABLE net_worth_history_old;
+            """;
+        migrate.ExecuteNonQuery();
     }
 
     public void DropAllTables()

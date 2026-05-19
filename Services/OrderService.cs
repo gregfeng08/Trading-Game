@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.Data.Sqlite;
 using TradingGame.Data;
 using TradingGame.Models;
@@ -10,13 +11,16 @@ public class OrderService
     private readonly EntityService _entities;
     private readonly GameStateService _gameState;
     private readonly KnowledgeGraphService _knowledgeGraph;
+    private readonly NpcDialogueService? _dialogueService;
 
-    public OrderService(Database db, EntityService entities, GameStateService gameState, KnowledgeGraphService knowledgeGraph)
+    public OrderService(Database db, EntityService entities, GameStateService gameState,
+        KnowledgeGraphService knowledgeGraph, NpcDialogueService? dialogueService = null)
     {
         _db = db;
         _entities = entities;
         _gameState = gameState;
         _knowledgeGraph = knowledgeGraph;
+        _dialogueService = dialogueService;
     }
 
     public IResult QueueOrder(QueueOrderRequest req)
@@ -45,7 +49,6 @@ public class OrderService
 
         var gameDate = _gameState.GetSaveValue(conn, "current_date");
 
-        // Estimate fill price for validation (use today's open, fallback to prev close)
         double estimatedPrice;
         if (orderType == "limit")
         {
@@ -53,12 +56,12 @@ public class OrderService
         }
         else
         {
-            var ohlc = GetOHLC(conn, ticker, gameDate!, null);
+            var ohlc = TradingDbOps.GetOHLC(conn, ticker, gameDate!, null);
             if (ohlc is not null)
                 estimatedPrice = ohlc.Value.Open;
             else
             {
-                var prevClose = GetPreviousClosePrice(conn, ticker, gameDate!, null);
+                var prevClose = TradingDbOps.GetPreviousClosePrice(conn, ticker, gameDate!, null);
                 if (prevClose is null)
                     return Results.Json(new ErrorResponse("error", $"No price data for {ticker}"), statusCode: 400);
                 estimatedPrice = prevClose.Value;
@@ -79,14 +82,13 @@ public class OrderService
         }
         else
         {
-            double held = GetTotalShares(conn, entityDbId.Value, ticker, null);
+            double held = TradingDbOps.GetTotalShares(conn, entityDbId.Value, ticker, null);
             double pendingSellQty = GetPendingSellQuantity(conn, entityDbId.Value, ticker);
             if (held - pendingSellQty < req.Quantity - 1e-9)
                 return Results.Json(new ErrorResponse("error",
                     $"Insufficient shares. Hold {held - pendingSellQty:F0}, trying to sell {req.Quantity}"), statusCode: 400);
         }
 
-        // Check for existing matching order to batch with
         int? existingOrderId = FindMatchingOrder(conn, entityDbId.Value, ticker, side, orderType, req.LimitPrice);
 
         int orderId;
@@ -141,7 +143,7 @@ public class OrderService
                 price = reader.GetDouble(3);
             else
             {
-                var ohlc = GetOHLC(conn, tid, gameDate, null);
+                var ohlc = TradingDbOps.GetOHLC(conn, tid, gameDate, null);
                 price = ohlc?.Open ?? 0;
             }
             total += price * qty;
@@ -249,12 +251,30 @@ public class OrderService
 
             _gameState.SetSaveValue(conn, "game_phase", "day", tx);
 
-            var orders = LoadPendingOrders(conn, entityDbId.Value, tx);
+            List<PendingOrderRecord> orders;
+            if (req.Orders is { Count: > 0 })
+            {
+                orders = req.Orders.Select((o, i) => new PendingOrderRecord(
+                    -i - 1,
+                    o.Ticker.ToUpperInvariant().Trim(),
+                    o.Side.Trim().ToLowerInvariant(),
+                    o.Quantity,
+                    (o.OrderType ?? "market").Trim().ToLowerInvariant(),
+                    o.LimitPrice
+                )).ToList();
+            }
+            else
+            {
+                orders = LoadPendingOrders(conn, entityDbId.Value, tx);
+            }
+
+            SnapshotNetWorth(conn, tx, entityDbId.Value, gameDate, "open");
+
             var results = new List<TradeResultDto>();
 
             foreach (var order in orders)
             {
-                var result = ExecuteOrder(conn, tx, entityDbId.Value, order, gameDate, "day");
+                var result = ExecuteOrder(conn, tx, entityDbId.Value, order, gameDate);
                 results.Add(result);
             }
 
@@ -264,14 +284,24 @@ public class OrderService
 
             var unlocked = _knowledgeGraph.EvaluateTriggers(entityDbId.Value, gameDate);
 
+            if (_dialogueService is not null)
+            {
+                var eid = entityDbId.Value;
+                _ = Task.Run(async () =>
+                {
+                    try { await _dialogueService.GenerateForPhase(gameDate, "day", eid); }
+                    catch (Exception ex) { Console.WriteLine($"[Dialogue] Generation failed: {ex.Message}"); }
+                });
+            }
+
             return Results.Ok(new OpenMarketsResponse(
                 "ok", gameDate, "day", results,
                 unlocked.Count > 0 ? unlocked : null, null));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             try { tx.Rollback(); } catch { }
-            return Results.Json(new ErrorResponse("error", ex.Message), statusCode: 500);
+            return Results.Json(new ErrorResponse("error", "An internal error occurred while opening markets."), statusCode: 500);
         }
     }
 
@@ -307,7 +337,7 @@ public class OrderService
 
             foreach (var trade in todayTrades)
             {
-                var closePrice = GetClosePrice(conn, trade.TickerId, gameDate, tx);
+                var closePrice = TradingDbOps.GetClosePrice(conn, trade.TickerId, gameDate, tx);
                 double? pnl = null;
 
                 if (closePrice.HasValue)
@@ -336,23 +366,33 @@ public class OrderService
 
             var unlocked = _knowledgeGraph.EvaluateTriggers(entityDbId.Value, gameDate);
 
+            if (_dialogueService is not null)
+            {
+                var eid = entityDbId.Value;
+                _ = Task.Run(async () =>
+                {
+                    try { await _dialogueService.GenerateForPhase(gameDate, "post_market", eid); }
+                    catch (Exception ex) { Console.WriteLine($"[Dialogue] Generation failed: {ex.Message}"); }
+                });
+            }
+
             return Results.Ok(new CloseMarketsResponse(
                 "ok", gameDate, "post_market", results, Math.Round(dayPnl, 2),
                 unlocked.Count > 0 ? unlocked : null, null));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             try { tx.Rollback(); } catch { }
-            return Results.Json(new ErrorResponse("error", ex.Message), statusCode: 500);
+            return Results.Json(new ErrorResponse("error", "An internal error occurred while closing markets."), statusCode: 500);
         }
     }
 
     // ── Private helpers ──
 
     private TradeResultDto ExecuteOrder(SqliteConnection conn, SqliteTransaction tx,
-        int entityDbId, PendingOrderRecord order, string gameDate, string gamePhase)
+        int entityDbId, PendingOrderRecord order, string gameDate)
     {
-        var ohlc = GetOHLC(conn, order.TickerId, gameDate, tx);
+        var ohlc = TradingDbOps.GetOHLC(conn, order.TickerId, gameDate, tx);
         if (ohlc is null)
             return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "error", $"No price data for {order.TickerId} on {gameDate}");
 
@@ -368,10 +408,7 @@ public class OrderService
         }
         else
         {
-            var prevClose = GetPreviousClosePrice(conn, order.TickerId, gameDate, tx);
-            if (prevClose is null)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "error", $"No previous close price for {order.TickerId}");
-            price = prevClose.Value;
+            price = ohlc.Value.Open;
         }
 
         var entity = _entities.GetEntity(conn, entityDbId, tx);
@@ -387,18 +424,18 @@ public class OrderService
                 return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "error", "Insufficient cash");
 
             _entities.UpdateCash(conn, tx, entityDbId, currentCash - cost);
-            InsertPortfolioLot(conn, tx, entityDbId, order.TickerId, order.Quantity, gameDate, price);
-            InsertTradeHistory(conn, tx, entityDbId, order.TickerId, price, order.Quantity, gameDate);
+            TradingDbOps.InsertPortfolioLot(conn, tx, entityDbId, order.TickerId, order.Quantity, gameDate, price);
+            TradingDbOps.InsertTradeHistory(conn, tx, entityDbId, order.TickerId, price, order.Quantity, gameDate, "day");
         }
         else
         {
-            double held = GetTotalShares(conn, entityDbId, order.TickerId, tx);
+            double held = TradingDbOps.GetTotalShares(conn, entityDbId, order.TickerId, tx);
             if (held + 1e-9 < order.Quantity)
                 return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "error", "Insufficient shares");
 
             _entities.UpdateCash(conn, tx, entityDbId, currentCash + price * order.Quantity);
-            SellFifo(conn, tx, entityDbId, order.TickerId, order.Quantity);
-            InsertTradeHistory(conn, tx, entityDbId, order.TickerId, price, -order.Quantity, gameDate);
+            TradingDbOps.SellFifo(conn, tx, entityDbId, order.TickerId, order.Quantity);
+            TradingDbOps.InsertTradeHistory(conn, tx, entityDbId, order.TickerId, price, -order.Quantity, gameDate, "day");
         }
 
         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, price, null, null, "ok", null);
@@ -474,124 +511,7 @@ public class OrderService
         return trades;
     }
 
-    private (double Open, double High, double Low, double Close)? GetOHLC(
-        SqliteConnection conn, string tickerId, string dateIso, SqliteTransaction? tx)
-    {
-        using var cmd = conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = "SELECT open_price, high_price, low_price, close_price FROM ticker_prices WHERE ticker_id = @tid AND date = @d;";
-        cmd.Parameters.AddWithValue("@tid", tickerId);
-        cmd.Parameters.AddWithValue("@d", dateIso);
-        using var reader = cmd.ExecuteReader();
-        if (!reader.Read()) return null;
-        return (reader.GetDouble(0), reader.GetDouble(1), reader.GetDouble(2), reader.GetDouble(3));
-    }
-
-    private double? GetPreviousClosePrice(SqliteConnection conn, string tickerId, string currentDate, SqliteTransaction? tx)
-    {
-        using var cmd = conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = "SELECT close_price FROM ticker_prices WHERE ticker_id = @tid AND date < @d ORDER BY date DESC LIMIT 1;";
-        cmd.Parameters.AddWithValue("@tid", tickerId);
-        cmd.Parameters.AddWithValue("@d", currentDate);
-        var result = cmd.ExecuteScalar();
-        return result is not null ? Convert.ToDouble(result) : null;
-    }
-
-    private double? GetClosePrice(SqliteConnection conn, string tickerId, string dateIso, SqliteTransaction? tx)
-    {
-        using var cmd = conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = "SELECT close_price FROM ticker_prices WHERE ticker_id = @tid AND date = @d;";
-        cmd.Parameters.AddWithValue("@tid", tickerId);
-        cmd.Parameters.AddWithValue("@d", dateIso);
-        var result = cmd.ExecuteScalar();
-        return result is not null ? Convert.ToDouble(result) : null;
-    }
-
-    private double GetTotalShares(SqliteConnection conn, int entityId, string tickerId, SqliteTransaction? tx)
-    {
-        using var cmd = conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = "SELECT COALESCE(SUM(shares_held), 0) FROM portfolio WHERE entity_id = @eid AND ticker_id = @tid;";
-        cmd.Parameters.AddWithValue("@eid", entityId);
-        cmd.Parameters.AddWithValue("@tid", tickerId);
-        return Convert.ToDouble(cmd.ExecuteScalar()!);
-    }
-
-    private void InsertPortfolioLot(SqliteConnection conn, SqliteTransaction tx,
-        int entityId, string tickerId, double shares, string date, double price)
-    {
-        using var cmd = conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = "INSERT INTO portfolio (entity_id, ticker_id, shares_held, purchase_date, price) VALUES (@eid, @tid, @sh, @d, @p);";
-        cmd.Parameters.AddWithValue("@eid", entityId);
-        cmd.Parameters.AddWithValue("@tid", tickerId);
-        cmd.Parameters.AddWithValue("@sh", shares);
-        cmd.Parameters.AddWithValue("@d", date);
-        cmd.Parameters.AddWithValue("@p", price);
-        cmd.ExecuteNonQuery();
-    }
-
-    private void InsertTradeHistory(SqliteConnection conn, SqliteTransaction tx,
-        int entityId, string tickerId, double price, double shares, string date)
-    {
-        using var cmd = conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = "INSERT INTO trade_history (entity_id, ticker_id, price_paid, shares, trade_date) VALUES (@eid, @tid, @pp, @sh, @d);";
-        cmd.Parameters.AddWithValue("@eid", entityId);
-        cmd.Parameters.AddWithValue("@tid", tickerId);
-        cmd.Parameters.AddWithValue("@pp", price);
-        cmd.Parameters.AddWithValue("@sh", shares);
-        cmd.Parameters.AddWithValue("@d", date);
-        cmd.ExecuteNonQuery();
-    }
-
-    private void SellFifo(SqliteConnection conn, SqliteTransaction tx,
-        int entityId, string tickerId, double sharesToSell)
-    {
-        var lots = new List<(int Id, double Shares)>();
-        using (var cmd = conn.CreateCommand())
-        {
-            cmd.Transaction = tx;
-            cmd.CommandText = """
-                SELECT portfolio_id, shares_held FROM portfolio
-                WHERE entity_id = @eid AND ticker_id = @tid
-                ORDER BY purchase_date ASC, portfolio_id ASC;
-                """;
-            cmd.Parameters.AddWithValue("@eid", entityId);
-            cmd.Parameters.AddWithValue("@tid", tickerId);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-                lots.Add((reader.GetInt32(0), reader.GetDouble(1)));
-        }
-
-        double remaining = sharesToSell;
-        foreach (var (lotId, lotShares) in lots)
-        {
-            if (remaining <= 0) break;
-            double take = Math.Min(lotShares, remaining);
-            double newShares = lotShares - take;
-
-            using var cmd = conn.CreateCommand();
-            cmd.Transaction = tx;
-            if (newShares <= 1e-12)
-            {
-                cmd.CommandText = "DELETE FROM portfolio WHERE portfolio_id = @pid;";
-                cmd.Parameters.AddWithValue("@pid", lotId);
-            }
-            else
-            {
-                cmd.CommandText = "UPDATE portfolio SET shares_held = @sh WHERE portfolio_id = @pid;";
-                cmd.Parameters.AddWithValue("@sh", newShares);
-                cmd.Parameters.AddWithValue("@pid", lotId);
-            }
-            cmd.ExecuteNonQuery();
-            remaining -= take;
-        }
-    }
-
-    private void SnapshotNetWorth(SqliteConnection conn, SqliteTransaction tx, int entityDbId, string date)
+    private void SnapshotNetWorth(SqliteConnection conn, SqliteTransaction tx, int entityDbId, string date, string phase = "close")
     {
         var entity = _entities.GetEntity(conn, entityDbId, tx);
         if (entity is null) return;
@@ -607,9 +527,11 @@ public class OrderService
             {
                 var tid = reader.GetString(0);
                 var shares = reader.GetDouble(1);
-                var close = GetClosePrice(conn, tid, date, tx);
-                if (close.HasValue)
-                    holdingsValue += shares * close.Value;
+                double? price = phase == "open"
+                    ? TradingDbOps.GetOpenPrice(conn, tid, date, tx)
+                    : TradingDbOps.GetClosePrice(conn, tid, date, tx);
+                if (price.HasValue)
+                    holdingsValue += shares * price.Value;
             }
         }
 
@@ -618,11 +540,12 @@ public class OrderService
         using var insert = conn.CreateCommand();
         insert.Transaction = tx;
         insert.CommandText = """
-            INSERT OR REPLACE INTO net_worth_history (entity_id, date, cash, holdings_value, net_worth)
-            VALUES (@eid, @d, @cash, @hv, @nw);
+            INSERT OR REPLACE INTO net_worth_history (entity_id, date, phase, cash, holdings_value, net_worth)
+            VALUES (@eid, @d, @phase, @cash, @hv, @nw);
             """;
         insert.Parameters.AddWithValue("@eid", entityDbId);
         insert.Parameters.AddWithValue("@d", date);
+        insert.Parameters.AddWithValue("@phase", phase);
         insert.Parameters.AddWithValue("@cash", entity.AvailableCash);
         insert.Parameters.AddWithValue("@hv", holdingsValue);
         insert.Parameters.AddWithValue("@nw", netWorth);
@@ -634,7 +557,12 @@ public class OrderService
         using var conn = _db.Open();
         var rows = new List<NetWorthPointDto>();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT date, cash, holdings_value, net_worth FROM net_worth_history WHERE entity_id = @eid ORDER BY date;";
+        cmd.CommandText = """
+            SELECT date || CASE phase WHEN 'open' THEN 'T09:30' ELSE 'T16:00' END,
+                   cash, holdings_value, net_worth
+            FROM net_worth_history WHERE entity_id = @eid
+            ORDER BY date, CASE phase WHEN 'open' THEN 0 ELSE 1 END;
+            """;
         cmd.Parameters.AddWithValue("@eid", entityDbId);
 
         using var reader = cmd.ExecuteReader();

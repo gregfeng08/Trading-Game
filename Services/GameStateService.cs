@@ -7,8 +7,13 @@ namespace TradingGame.Services;
 public class GameStateService
 {
     private readonly Database _db;
+    private readonly EntityService _entities;
 
-    public GameStateService(Database db) => _db = db;
+    public GameStateService(Database db, EntityService entities)
+    {
+        _db = db;
+        _entities = entities;
+    }
 
     public GameDateResponse GetGameDate()
     {
@@ -115,14 +120,7 @@ public class GameStateService
 
             // Liquidate: credit cash, remove portfolio lots
             double proceeds = shares * lastClose;
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.Transaction = tx;
-                cmd.CommandText = "UPDATE entity SET available_cash = available_cash + @amt WHERE entity_id = @eid;";
-                cmd.Parameters.AddWithValue("@amt", proceeds);
-                cmd.Parameters.AddWithValue("@eid", entityDbId);
-                cmd.ExecuteNonQuery();
-            }
+            _entities.CreditCash(conn, tx, entityDbId, proceeds);
 
             using (var cmd = conn.CreateCommand())
             {
@@ -257,12 +255,14 @@ public class GameStateService
         var where = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) : "";
 
         cmd.CommandText = $"""
-            SELECT id, date, ticker_id, npc_type, category, text, 'static' AS source
+            SELECT id, date, ticker_id, npc_type, category, text, 'static' AS source,
+                   priority, phase, line_order
             FROM static_npc_dialogue {where}
             UNION ALL
-            SELECT id, date, ticker_id, npc_type, category, text, 'dynamic' AS source
+            SELECT id, date, ticker_id, npc_type, category, text, 'dynamic' AS source,
+                   priority, phase, line_order
             FROM dynamic_npc_dialogue {where}
-            ORDER BY date, npc_type, category;
+            ORDER BY date, npc_type, line_order;
             """;
 
         var rows = new List<DialogueRowDto>();
@@ -276,7 +276,10 @@ public class GameStateService
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.IsDBNull(5) ? null : reader.GetString(5),
-                reader.GetString(6)
+                reader.GetString(6),
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+                reader.IsDBNull(9) ? 0 : reader.GetInt32(9)
             ));
         }
 

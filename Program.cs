@@ -42,11 +42,17 @@ else
 {
     Console.WriteLine($"[WARNING] historical_events.json not found at {historicalEventsPath}. Newspaper endpoint disabled.");
 }
+builder.Services.AddSingleton(sp => new NpcDialogueService(
+    sp.GetRequiredService<Database>(),
+    sp.GetRequiredService<GameStateService>(),
+    sp.GetRequiredService<KnowledgeGraphService>(),
+    sp.GetService<ArcService>()));
 builder.Services.AddSingleton(sp => new OrderService(
     sp.GetRequiredService<Database>(),
     sp.GetRequiredService<EntityService>(),
     sp.GetRequiredService<GameStateService>(),
-    sp.GetRequiredService<KnowledgeGraphService>()));
+    sp.GetRequiredService<KnowledgeGraphService>(),
+    sp.GetService<NpcDialogueService>()));
 if (File.Exists(arcsPath))
 {
     builder.Services.AddSingleton(sp => new ArcService(

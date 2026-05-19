@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS trade_history (
     price_paid REAL NOT NULL,
     shares REAL NOT NULL,
     trade_date TEXT NOT NULL,
+    trade_phase TEXT,
     FOREIGN KEY(entity_id) REFERENCES entity(entity_id),
     FOREIGN KEY(ticker_id) REFERENCES loaded_ticker_list(ticker_id)
 );
@@ -68,7 +69,11 @@ CREATE TABLE IF NOT EXISTS static_npc_dialogue (
     ticker_id TEXT,
     npc_type TEXT,
     category TEXT,
-    text TEXT
+    text TEXT,
+    mood TEXT,
+    phase TEXT,
+    priority TEXT DEFAULT 'low',
+    line_order INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS dynamic_npc_dialogue (
@@ -77,7 +82,13 @@ CREATE TABLE IF NOT EXISTS dynamic_npc_dialogue (
     ticker_id TEXT,
     npc_type TEXT,
     category TEXT,
-    text TEXT
+    text TEXT,
+    phase TEXT,
+    priority TEXT DEFAULT 'medium',
+    trigger_source TEXT,
+    entity_id INTEGER,
+    line_order INTEGER DEFAULT 0,
+    FOREIGN KEY(entity_id) REFERENCES entity(entity_id)
 );
 
 -- Knowledge graph progress tracking
@@ -134,10 +145,11 @@ CREATE TABLE IF NOT EXISTS arc_grades (
 CREATE TABLE IF NOT EXISTS net_worth_history (
     entity_id INTEGER NOT NULL,
     date TEXT NOT NULL,
+    phase TEXT NOT NULL DEFAULT 'close',
     cash REAL NOT NULL,
     holdings_value REAL NOT NULL,
     net_worth REAL NOT NULL,
-    PRIMARY KEY (entity_id, date),
+    PRIMARY KEY (entity_id, date, phase),
     FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
 );
 
@@ -147,3 +159,5 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_entity_ticker ON portfolio(entity_id, t
 CREATE INDEX IF NOT EXISTS idx_trade_history_entity ON trade_history(entity_id, ticker_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_progress_entity ON knowledge_node_progress(entity_id);
 CREATE INDEX IF NOT EXISTS idx_pending_orders_entity ON pending_orders(entity_id);
+CREATE INDEX IF NOT EXISTS idx_dynamic_dialogue_date_phase ON dynamic_npc_dialogue(date, phase);
+CREATE INDEX IF NOT EXISTS idx_static_dialogue_npc_phase ON static_npc_dialogue(npc_type, phase, mood);

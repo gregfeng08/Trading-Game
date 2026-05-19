@@ -237,7 +237,10 @@ public record DialogueRowDto(
     [property: JsonPropertyName("npc_type")] string? NpcType,
     [property: JsonPropertyName("category")] string? Category,
     [property: JsonPropertyName("text")] string? Text,
-    [property: JsonPropertyName("source")] string Source
+    [property: JsonPropertyName("source")] string Source,
+    [property: JsonPropertyName("priority")] string? Priority,
+    [property: JsonPropertyName("phase")] string? Phase,
+    [property: JsonPropertyName("line_order")] int LineOrder
 );
 
 public record DialogueResponse(
@@ -245,6 +248,15 @@ public record DialogueResponse(
     [property: JsonPropertyName("date")] string? Date,
     [property: JsonPropertyName("count")] int Count,
     [property: JsonPropertyName("dialogue")] List<DialogueRowDto> Dialogue
+);
+
+public record DialogueGenerationResponse(
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("date")] string Date,
+    [property: JsonPropertyName("phase")] string Phase,
+    [property: JsonPropertyName("interestingness_score")] double InterestingnessScore,
+    [property: JsonPropertyName("dynamic_count")] int DynamicCount,
+    [property: JsonPropertyName("static_count")] int StaticCount
 );
 
 // ── Newspaper ──
@@ -293,7 +305,9 @@ public record KnowledgeNodeStateDto(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("unlocked_at")] string? UnlockedAt,
     [property: JsonPropertyName("completed_at")] string? CompletedAt,
-    [property: JsonPropertyName("reward_mechanic")] string? RewardMechanic
+    [property: JsonPropertyName("reward_mechanic")] string? RewardMechanic,
+    [property: JsonPropertyName("trigger_explanation")] string? TriggerExplanation,
+    [property: JsonPropertyName("correct_action")] string? CorrectAction
 );
 
 public record KnowledgeGraphResponse(
@@ -450,6 +464,22 @@ public record NetWorthPointDto(
 public record PortfolioHistoryResponse(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("history")] List<NetWorthPointDto> History
+);
+
+// ── Market Movers (Daily Summary) ──
+
+public record MarketMoverDto(
+    [property: JsonPropertyName("ticker")] string Ticker,
+    [property: JsonPropertyName("close")] double Close,
+    [property: JsonPropertyName("change_pct")] double ChangePct
+);
+
+public record MarketMoversResponse(
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("date")] string Date,
+    [property: JsonPropertyName("gainers")] List<MarketMoverDto> Gainers,
+    [property: JsonPropertyName("losers")] List<MarketMoverDto> Losers,
+    [property: JsonPropertyName("delisted")] List<string> Delisted
 );
 
 // ── Shared error envelope ──

@@ -109,4 +109,14 @@ public class EntityService
         cmd.Parameters.AddWithValue("@eid", entityId);
         cmd.ExecuteNonQuery();
     }
+
+    public void CreditCash(SqliteConnection conn, SqliteTransaction tx, int entityId, double amount)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE entity SET available_cash = available_cash + @amt WHERE entity_id = @eid;";
+        cmd.Parameters.AddWithValue("@amt", amount);
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.ExecuteNonQuery();
+    }
 }

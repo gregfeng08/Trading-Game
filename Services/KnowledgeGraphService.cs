@@ -35,11 +35,13 @@ public class KnowledgeGraphService
 
             return new KnowledgeNodeStateDto(
                 n.Id, n.Title, n.Type, n.Description,
-                status == "completed" ? n.Content : null,
+                status != "locked" ? n.Content : null,
                 n.Prerequisites, n.Category, n.Priority,
                 new NodePositionDto(n.Position.X, n.Position.Y),
                 status, unlockedAt, completedAt,
-                n.Reward?.Mechanic
+                n.Reward?.Mechanic,
+                n.TriggerExplanation,
+                n.CorrectAction
             );
         }).ToList();
 
@@ -153,6 +155,7 @@ public class KnowledgeGraphService
             "low_cash_ratio" => CheckLowCash(conn, entityId, gameDate, trigger.Params),
             "market_wide_decline" => CheckMarketDecline(conn, gameDate, trigger.Params),
             "traded_both_phases" => CheckTradedBothPhases(conn, entityId),
+            "held_overnight_gap" => CheckHeldOvernightGap(conn, entityId, gameDate, trigger.Params),
             _ => false
         };
     }
@@ -256,11 +259,11 @@ public class KnowledgeGraphService
 
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT ticker_id, COUNT(*) as buy_count
+            SELECT ticker_id, COUNT(*) as buy_count, COUNT(DISTINCT ROUND(price_paid, 2)) as distinct_prices
             FROM trade_history
             WHERE entity_id = @eid AND shares > 0
             GROUP BY ticker_id
-            HAVING buy_count >= @min;
+            HAVING buy_count >= @min AND distinct_prices >= 2;
             """;
         cmd.Parameters.AddWithValue("@eid", entityId);
         cmd.Parameters.AddWithValue("@min", minBuys);
@@ -373,11 +376,37 @@ public class KnowledgeGraphService
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT COUNT(DISTINCT trade_date) FROM trade_history
-            WHERE entity_id = @eid;
+            SELECT COUNT(DISTINCT trade_phase) FROM trade_history
+            WHERE entity_id = @eid AND trade_phase IS NOT NULL;
             """;
         cmd.Parameters.AddWithValue("@eid", entityId);
-        return Convert.ToInt32(cmd.ExecuteScalar()) >= 3;
+        return Convert.ToInt32(cmd.ExecuteScalar()) >= 2;
+    }
+
+    private bool CheckHeldOvernightGap(SqliteConnection conn, int entityId, string gameDate, Dictionary<string, JsonElement> p)
+    {
+        var threshold = p.TryGetValue("gap_pct", out var gp) ? gp.GetDouble() : 1.0;
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT ABS((tp_today.open_price - tp_prev.close_price) / tp_prev.close_price * 100) as gap_pct
+            FROM portfolio pf
+            JOIN ticker_prices tp_today ON tp_today.ticker_id = pf.ticker_id AND tp_today.date = @date
+            JOIN ticker_prices tp_prev ON tp_prev.ticker_id = pf.ticker_id
+                AND tp_prev.date = (SELECT MAX(date) FROM ticker_prices WHERE ticker_id = pf.ticker_id AND date < @date)
+            WHERE pf.entity_id = @eid AND pf.shares_held > 0
+                AND tp_prev.close_price > 0
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.Parameters.AddWithValue("@date", gameDate);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (!reader.IsDBNull(0) && reader.GetDouble(0) >= threshold)
+                return true;
+        }
+        return false;
     }
 
     // ── Helper methods ──
@@ -502,6 +531,12 @@ public class KnowledgeNodeConfig
 
     [JsonPropertyName("reward")]
     public RewardConfig? Reward { get; set; }
+
+    [JsonPropertyName("trigger_explanation")]
+    public string? TriggerExplanation { get; set; }
+
+    [JsonPropertyName("correct_action")]
+    public string? CorrectAction { get; set; }
 }
 
 public class RewardConfig

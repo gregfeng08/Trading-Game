@@ -39,6 +39,23 @@
       "category": "fundamentals"
     },
     {
+      "id": "market_hours",
+      "title": "Market Hours & Price Gaps",
+      "type": "adaptive",
+      "description": "Why prices can change while the market is closed.",
+      "content": "Stock exchanges have set trading hours. After the market closes, trading still happens in smaller 'after-hours' and 'pre-market' sessions. News, earnings, or global events overnight can shift prices. This means a stock that closed at $100 might open at $95 or $105 the next day — this is called a 'gap.' Your portfolio value changes even while you sleep because the market prices in new information as soon as trading resumes.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "held_overnight_gap",
+        "params": { "gap_pct": 1.0 }
+      },
+      "trigger_explanation": "A stock you held overnight opened at a different price than yesterday's close.",
+      "correct_action": "This is normal — prices gap between sessions due to after-hours trading and overnight news. Factor in overnight risk when holding positions.",
+      "priority": "high",
+      "position": { "x": 400, "y": -100 },
+      "category": "fundamentals"
+    },
+    {
       "id": "limit_buy_sell",
       "title": "Limit Buy / Sell",
       "type": "adaptive",
@@ -49,6 +66,8 @@
         "type": "trade_count",
         "params": { "min_trades": 3, "order_type": "market" }
       },
+      "trigger_explanation": "You've placed several market orders, always accepting whatever price the market gives you.",
+      "correct_action": "Use limit orders to set the exact price you're willing to pay or accept, giving you more control over your trades.",
       "reward": { "mechanic": "limit_orders" },
       "priority": "normal",
       "position": { "x": 600, "y": -100 },
@@ -65,6 +84,8 @@
         "type": "held_stock_daily_change",
         "params": { "change_pct": 5.0 }
       },
+      "trigger_explanation": "A stock you're holding just moved more than 5% in a single day.",
+      "correct_action": "Expect volatility when holding individual stocks. Consider whether the position size matches your comfort with big daily swings.",
       "priority": "high",
       "position": { "x": 400, "y": 200 },
       "category": "risk"
@@ -80,6 +101,8 @@
         "type": "portfolio_concentration",
         "params": { "max_single_ticker_pct": 80.0 }
       },
+      "trigger_explanation": "Over 80% of your portfolio is in a single stock. If that company has a bad day, your whole portfolio takes the hit.",
+      "correct_action": "Spread your investments across multiple stocks so one bad performer doesn't sink everything.",
       "priority": "high",
       "position": { "x": 600, "y": 100 },
       "category": "risk"
@@ -95,6 +118,8 @@
         "type": "first_profitable_sell",
         "params": {}
       },
+      "trigger_explanation": "You sold a stock for more than you paid — your first realized profit.",
+      "correct_action": "Nice work. Now the question becomes: when do you take profits versus holding for more? Develop a plan for when to sell winners.",
       "priority": "high",
       "position": { "x": 600, "y": 300 },
       "category": "psychology"
@@ -110,6 +135,8 @@
         "type": "first_losing_sell",
         "params": {}
       },
+      "trigger_explanation": "You sold a stock for less than you paid — your first realized loss.",
+      "correct_action": "Losses are part of trading. The key is cutting them early instead of hoping a bad position recovers. Set a mental stop-loss before you buy.",
       "priority": "high",
       "position": { "x": 800, "y": 300 },
       "category": "psychology"
@@ -125,6 +152,8 @@
         "type": "same_ticker_multiple_buys",
         "params": { "min_buys": 2 }
       },
+      "trigger_explanation": "You bought the same stock more than once, at different prices.",
+      "correct_action": "Track your average cost basis — it determines whether you're actually up or down on the position, not just your latest purchase price.",
       "priority": "normal",
       "position": { "x": 800, "y": -100 },
       "category": "mechanics"
@@ -140,6 +169,8 @@
         "type": "unrealized_gain_pct",
         "params": { "gain_pct": 20.0 }
       },
+      "trigger_explanation": "One of your positions is up over 20%, but you haven't sold yet — that's paper profit, not real profit.",
+      "correct_action": "Decide whether to lock in your gains or hold for more. Paper profits can vanish. Consider selling part of the position to secure some profit.",
       "priority": "normal",
       "position": { "x": 1000, "y": 100 },
       "category": "psychology"
@@ -155,6 +186,8 @@
         "type": "bought_after_decline",
         "params": { "decline_pct": 5.0, "lookback_days": 5 }
       },
+      "trigger_explanation": "You bought a stock after it dropped over 5% recently — that's called 'buying the dip.'",
+      "correct_action": "Before buying a dip, ask why the price fell. If the company is still strong, it could be a bargain. If something fundamental changed, you might be catching a falling knife.",
       "priority": "normal",
       "position": { "x": 400, "y": -200 },
       "category": "strategies"
@@ -170,6 +203,8 @@
         "type": "low_cash_ratio",
         "params": { "cash_pct_below": 10.0 }
       },
+      "trigger_explanation": "Your cash reserves dropped below 10% of your total portfolio. You're almost fully invested with little flexibility.",
+      "correct_action": "Keep some cash on hand so you can act on opportunities. Being 100% invested means you can only buy by selling something else, possibly at a bad time.",
       "priority": "normal",
       "position": { "x": 800, "y": 100 },
       "category": "risk"
@@ -185,6 +220,8 @@
         "type": "market_wide_decline",
         "params": { "avg_decline_pct": 3.0 }
       },
+      "trigger_explanation": "The overall market just dropped significantly — most stocks fell together.",
+      "correct_action": "Don't panic sell during a broad market decline. Historically, markets recover. Focus on whether your individual holdings are still fundamentally sound.",
       "priority": "high",
       "position": { "x": 200, "y": 300 },
       "category": "market_events"
@@ -193,13 +230,15 @@
       "id": "market_timing",
       "title": "Trading Phases",
       "type": "adaptive",
-      "description": "You traded in both pre-market and post-market.",
-      "content": "Pre-market orders execute at the previous day's close price — you're acting on old information. Post-market orders execute at today's close — you've seen how the day played out. The tradeoff: pre-market lets you act first, post-market gives you more information.",
+      "description": "You've traded in multiple phases of the market day.",
+      "content": "Pre-market and day orders execute at today's opening price — the price the market starts at each morning. Post-market orders execute at today's closing price — you've seen how the day played out. The tradeoff: acting early means committing before you know how the day ends, while waiting gives you more information but you can't undo what already happened.",
       "prerequisites": ["market_buy_sell"],
       "trigger": {
         "type": "traded_both_phases",
         "params": {}
       },
+      "trigger_explanation": "You've traded in different phases of the market day — experiencing both open and close pricing.",
+      "correct_action": "Pay attention to when you place orders. Pre-market and day orders use the opening price; post-market orders use the close. Each has tradeoffs — information vs. speed.",
       "priority": "normal",
       "position": { "x": 600, "y": -300 },
       "category": "mechanics"

@@ -46,13 +46,39 @@ public static class GameEndpoints
             {
                 return Results.Ok(game.NewGame(startDate));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return Results.Json(new ErrorResponse("error", ex.Message), statusCode: 500);
+                return Results.Json(new ErrorResponse("error", "An internal error occurred while starting new game."), statusCode: 500);
             }
         });
 
         app.MapGet("/dialogue", (string? date, string? npcType, string? tickerId, string? category, GameStateService game) =>
             Results.Ok(game.GetDialogue(date, npcType, tickerId, category)));
+
+        app.MapPost("/dialogue/generate", async (string? entityId, NpcDialogueService? dialogueService,
+            GameStateService game, EntityService entities) =>
+        {
+            if (dialogueService is null)
+                return Results.Json(new ErrorResponse("error", "Dialogue service not available"), statusCode: 503);
+
+            try
+            {
+                var dateResp = game.GetGameDate();
+                if (dateResp.CurrentDate is null)
+                    return Results.Json(new ErrorResponse("error", "No active game"), statusCode: 400);
+
+                int? entityDbId = null;
+                if (entityId is not null)
+                    entityDbId = entities.ResolveExternalId(entityId);
+
+                var phase = dateResp.GamePhase ?? "pre_market";
+                var result = await dialogueService.GenerateForPhase(dateResp.CurrentDate, phase, entityDbId);
+                return Results.Ok(result);
+            }
+            catch (Exception)
+            {
+                return Results.Json(new ErrorResponse("error", "An internal error occurred while generating dialogue."), statusCode: 500);
+            }
+        });
     }
 }

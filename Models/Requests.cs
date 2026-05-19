@@ -56,7 +56,7 @@ public class PostTradeRequest
     public int Quantity { get; set; }
 
     [JsonPropertyName("price")]
-    public float Price { get; set; }
+    public double Price { get; set; }
 
     [JsonPropertyName("order_type")]
     public string OrderType { get; set; } = "market";
@@ -101,10 +101,31 @@ public class QueueOrderRequest
     public double? LimitPrice { get; set; }
 }
 
+public class InlineOrder
+{
+    [JsonPropertyName("ticker")]
+    public required string Ticker { get; set; }
+
+    [JsonPropertyName("side")]
+    public required string Side { get; set; }
+
+    [JsonPropertyName("quantity")]
+    public int Quantity { get; set; }
+
+    [JsonPropertyName("order_type")]
+    public string OrderType { get; set; } = "market";
+
+    [JsonPropertyName("limit_price")]
+    public double? LimitPrice { get; set; }
+}
+
 public class OpenMarketsRequest
 {
     [JsonPropertyName("entity_id")]
     public required string EntityId { get; set; }
+
+    [JsonPropertyName("orders")]
+    public List<InlineOrder>? Orders { get; set; }
 }
 
 public class CloseMarketsRequest

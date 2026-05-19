@@ -14,5 +14,8 @@ public static class MarketEndpoints
 
         app.MapGet("/get_daily_data", (string? ticker, int? limit, MarketDataService market) =>
             Results.Ok(market.GetDailyData(ticker, limit)));
+
+        app.MapGet("/market_movers", (string date, MarketDataService market) =>
+            Results.Ok(market.GetMarketMovers(date)));
     }
 }

@@ -170,6 +170,73 @@ public class MarketDataService
         return new DailyDataResponse(data);
     }
 
+    public MarketMoversResponse GetMarketMovers(string date)
+    {
+        using var conn = _db.Open();
+
+        // Find the previous trading day
+        using var prevCmd = conn.CreateCommand();
+        prevCmd.CommandText = "SELECT MAX(date) FROM ticker_prices WHERE date < @date";
+        prevCmd.Parameters.AddWithValue("@date", date);
+        var prevDate = prevCmd.ExecuteScalar() as string;
+
+        if (prevDate == null)
+            return new MarketMoversResponse("ok", date, [], [], []);
+
+        // Get today's and yesterday's closes in one query
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT t.ticker_id, t.close_price, p.close_price
+            FROM ticker_prices t
+            INNER JOIN ticker_prices p ON t.ticker_id = p.ticker_id AND p.date = @prev
+            WHERE t.date = @date AND p.close_price > 0
+            """;
+        cmd.Parameters.AddWithValue("@date", date);
+        cmd.Parameters.AddWithValue("@prev", prevDate);
+
+        var movers = new List<(string ticker, double close, double changePct)>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var ticker = reader.GetString(0);
+            var todayClose = reader.GetDouble(1);
+            var prevClose = reader.GetDouble(2);
+            var pct = (todayClose - prevClose) / prevClose * 100.0;
+            movers.Add((ticker, todayClose, pct));
+        }
+        reader.Close();
+
+        movers.Sort((a, b) => b.changePct.CompareTo(a.changePct));
+
+        var gainers = movers.Take(3)
+            .Where(m => m.changePct > 0)
+            .Select(m => new MarketMoverDto(m.ticker, Math.Round(m.close, 2), Math.Round(m.changePct, 2)))
+            .ToList();
+
+        var losers = movers.TakeLast(3)
+            .Where(m => m.changePct < 0)
+            .OrderBy(m => m.changePct)
+            .Select(m => new MarketMoverDto(m.ticker, Math.Round(m.close, 2), Math.Round(m.changePct, 2)))
+            .ToList();
+
+        // Delistings: tickers with data yesterday but not today
+        using var delCmd = conn.CreateCommand();
+        delCmd.CommandText = """
+            SELECT p.ticker_id FROM ticker_prices p
+            WHERE p.date = @prev
+            AND p.ticker_id NOT IN (SELECT ticker_id FROM ticker_prices WHERE date = @date)
+            """;
+        delCmd.Parameters.AddWithValue("@date", date);
+        delCmd.Parameters.AddWithValue("@prev", prevDate);
+
+        var delisted = new List<string>();
+        using var delReader = delCmd.ExecuteReader();
+        while (delReader.Read())
+            delisted.Add(delReader.GetString(0));
+
+        return new MarketMoversResponse("ok", date, gainers, losers, delisted);
+    }
+
     // ── Yahoo Finance download (replaces ticker_download.py) ──
 
     public async Task<LoadTickerDataResponse> LoadTickersAsync(string startDate, string endDate, int topN)
@@ -177,14 +244,6 @@ public class MarketDataService
         var symbols = DefaultUniverse.Take(topN > 0 ? topN : DefaultUniverse.Length).ToArray();
 
         using var conn = _db.Open();
-
-        foreach (var sym in symbols)
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "INSERT OR IGNORE INTO loaded_ticker_list (ticker_id, company_name, description) VALUES (@tid, NULL, NULL);";
-            cmd.Parameters.AddWithValue("@tid", sym);
-            cmd.ExecuteNonQuery();
-        }
 
         var startUnix = new DateTimeOffset(DateTime.Parse(startDate, CultureInfo.InvariantCulture)).ToUnixTimeSeconds();
         var endUnix = new DateTimeOffset(DateTime.Parse(endDate, CultureInfo.InvariantCulture).AddDays(1)).ToUnixTimeSeconds();
@@ -197,12 +256,35 @@ public class MarketDataService
         for (int i = 0; i < symbols.Length; i += batchSize)
         {
             var batch = symbols.Skip(i).Take(batchSize).ToArray();
-            var tasks = batch.Select(sym => DownloadSymbolAsync(sym, startUnix, endUnix));
-            var results = await Task.WhenAll(tasks);
+
+            var priceTasks = batch.Select(sym => DownloadSymbolAsync(sym, startUnix, endUnix));
+            var metaTasks = batch.Select(DownloadMetadataAsync);
+            var priceResults = await Task.WhenAll(priceTasks);
+            var metaResults = await Task.WhenAll(metaTasks);
 
             using var tx = conn.BeginTransaction();
-            foreach (var (sym, rows) in batch.Zip(results))
+            for (int j = 0; j < batch.Length; j++)
             {
+                var sym = batch[j];
+                var meta = metaResults[j];
+
+                using (var insertCmd = conn.CreateCommand())
+                {
+                    insertCmd.Transaction = tx;
+                    insertCmd.CommandText = """
+                        INSERT INTO loaded_ticker_list (ticker_id, company_name, description)
+                        VALUES (@tid, @name, @desc)
+                        ON CONFLICT(ticker_id) DO UPDATE SET
+                            company_name = COALESCE(excluded.company_name, loaded_ticker_list.company_name),
+                            description = COALESCE(excluded.description, loaded_ticker_list.description);
+                        """;
+                    insertCmd.Parameters.AddWithValue("@tid", sym);
+                    insertCmd.Parameters.AddWithValue("@name", (object?)meta?.Name ?? DBNull.Value);
+                    insertCmd.Parameters.AddWithValue("@desc", (object?)meta?.Description ?? DBNull.Value);
+                    insertCmd.ExecuteNonQuery();
+                }
+
+                var rows = priceResults[j];
                 if (rows is null) continue;
                 foreach (var row in rows)
                 {
@@ -311,6 +393,40 @@ public class MarketDataService
         el.ValueKind == JsonValueKind.Null;
 
     private record OhlcRow(string Date, double Open, double High, double Low, double Close);
+
+    private async Task<TickerMetadata?> DownloadMetadataAsync(string symbol)
+    {
+        var url = $"https://query2.finance.yahoo.com/v7/finance/quote?symbols={Uri.EscapeDataString(symbol)}&fields=shortName,longName,longBusinessSummary&crumb={Uri.EscapeDataString(_crumb!)}";
+
+        try
+        {
+            var response = await _http.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            var result = doc.RootElement
+                .GetProperty("quoteResponse")
+                .GetProperty("result");
+
+            if (result.GetArrayLength() == 0) return null;
+
+            var quote = result[0];
+            var name = quote.TryGetProperty("shortName", out var sn) ? sn.GetString()
+                     : quote.TryGetProperty("longName", out var ln) ? ln.GetString()
+                     : null;
+            var desc = quote.TryGetProperty("longBusinessSummary", out var lbs) ? lbs.GetString() : null;
+
+            return new TickerMetadata(name, desc);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private record TickerMetadata(string? Name, string? Description);
 
     // ── Shared helpers ──
 

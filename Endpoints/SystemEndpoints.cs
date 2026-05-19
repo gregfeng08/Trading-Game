@@ -43,9 +43,9 @@ public static class SystemEndpoints
                 db.InitSchema();
                 return Results.Ok(new InitDbResponse("ok", "Database initialized", true));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return Results.Json(new InitDbResponse("error", ex.Message, false), statusCode: 500);
+                return Results.Json(new InitDbResponse("error", "An internal error occurred while initializing database.", false), statusCode: 500);
             }
         });
 
@@ -64,9 +64,9 @@ public static class SystemEndpoints
                 var result = await market.LoadTickersAsync(startDate, endDate, topN);
                 return Results.Ok(result);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return Results.Json(new LoadTickerDataResponse("error", ex.Message, 0), statusCode: 500);
+                return Results.Json(new LoadTickerDataResponse("error", "An internal error occurred while loading ticker data.", 0), statusCode: 500);
             }
         });
 
@@ -77,9 +77,9 @@ public static class SystemEndpoints
                 db.DropAllTables();
                 return Results.Ok(new DbResetResponse("ok", "Database reset. Call /init_db to recreate schema."));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return Results.Json(new DbResetResponse("error", ex.Message), statusCode: 500);
+                return Results.Json(new DbResetResponse("error", "An internal error occurred while resetting database."), statusCode: 500);
             }
         });
     }

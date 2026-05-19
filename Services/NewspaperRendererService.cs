@@ -52,7 +52,7 @@ public class NewspaperRendererService : IAsyncDisposable
             arcName = arc?.Name ?? "";
         }
 
-        var daysSinceEpoch = gameDate.DayNumber - new DateOnly(2010, 1, 1).DayNumber;
+        var daysSinceEpoch = gameDate.DayNumber - new DateOnly(2007, 1, 1).DayNumber;
         var volume = (daysSinceEpoch / 365) + 1;
         var issue = (daysSinceEpoch % 365) + 1;
 
