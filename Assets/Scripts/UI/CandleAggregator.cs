@@ -10,12 +10,25 @@ public static class CandleAggregator
     {
         return tf switch
         {
-            ChartTimeframe.Week1 => 10,
-            ChartTimeframe.Month1 => 35,
-            ChartTimeframe.Month3 => 100,
-            ChartTimeframe.Year1 => 370,
-            ChartTimeframe.Year5 => 1850,
-            _ => 100
+            ChartTimeframe.Week1 => 12,
+            ChartTimeframe.Month1 => 40,
+            ChartTimeframe.Month3 => 110,
+            ChartTimeframe.Year1 => 400,
+            ChartTimeframe.Year5 => 1900,
+            _ => 110
+        };
+    }
+
+    public static int MaxBars(ChartTimeframe tf)
+    {
+        return tf switch
+        {
+            ChartTimeframe.Week1 => 5,
+            ChartTimeframe.Month1 => 22,
+            ChartTimeframe.Month3 => 65,
+            ChartTimeframe.Year1 => 52,
+            ChartTimeframe.Year5 => 60,
+            _ => 65
         };
     }
 
@@ -23,12 +36,22 @@ public static class CandleAggregator
     {
         if (daily == null || daily.Length == 0) return daily;
 
-        return tf switch
+        PriceRowDTO[] result = tf switch
         {
             ChartTimeframe.Year1 => AggregateWeekly(daily),
             ChartTimeframe.Year5 => AggregateMonthly(daily),
             _ => daily
         };
+
+        int max = MaxBars(tf);
+        if (result.Length > max)
+        {
+            var trimmed = new PriceRowDTO[max];
+            System.Array.Copy(result, result.Length - max, trimmed, 0, max);
+            return trimmed;
+        }
+
+        return result;
     }
 
     private static PriceRowDTO[] AggregateWeekly(PriceRowDTO[] daily)

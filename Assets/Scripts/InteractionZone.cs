@@ -10,7 +10,16 @@ public class InteractionZone : MonoBehaviour
     [SerializeField] private UnityEvent onInteract;
 
     public InteractionType Type => interactionType;
-    public string InteractionName => interactionName;
+    public string InteractionName => overrideName ?? interactionName;
+
+    private string overrideName;
+
+    public void SetInteractionName(string name)
+    {
+        overrideName = name;
+        if (InteractionsController.Inst != null)
+            InteractionsController.Inst.RefreshPrompt(this);
+    }
 
     public void Execute()
     {

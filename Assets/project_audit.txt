@@ -1,0 +1,197 @@
+HIGHSIGHT FINANCIAL — PROJECT AUDIT
+====================================
+Generated: 2026-05-18
+
+
+THE FULL SYSTEM AT A GLANCE
+----------------------------
+You have a Unity 6 3D game (URP, new Input System) talking to a .NET 10 backend
+API over HTTP on localhost:5000. The backend uses SQLite, downloads real market
+data from Yahoo Finance, and generates newspapers via Claude API. The game is set
+during the 2007-2009 financial crisis, split into three story arcs.
+
+
+WHAT'S FULLY BUILT AND WORKING
+-------------------------------
+
+CORE GAME LOOP
+- Three-phase day cycle: Pre-Market (queue orders) -> Day (timer countdown,
+  markets open) -> Post-Market (see results, P&L) -> Sleep -> next day
+- Order system: Queue buy/sell during pre-market, orders execute at open with
+  ACID transactions, FIFO lot tracking for portfolio
+- Trading terminal UI: Ticker dropdown, OHLC candlestick chart with 5 timeframes
+  (1W/1M/3M/1Y/5Y), portfolio line chart tab, cash/net worth display, holdings +
+  orders panel, phase-dependent controls
+- Real market data: 250-symbol universe downloaded from Yahoo Finance, stored in
+  SQLite
+
+ARC (SEASON) SYSTEM
+- 3 arcs: Bull Market (Apr-Oct 2007), The Unraveling (Nov 2007-Sep 2008),
+  Meltdown (Sep 2008-Mar 2009)
+- Grading: S/A/B/C/D based on return % with per-arc thresholds (break-even in
+  Meltdown = S grade)
+- Cash multiplier consequences: Grade determines a cash bonus/penalty carried
+  into the next arc
+- Cinematic arc transition overlay: Programmatically built full-screen UI with
+  staggered fade-in, grade reveal, next arc preview, flavor quotes from "The
+  Principal"
+- Arc intro on scene load: Shows arc name, date range, starting cash when
+  entering a new arc
+
+KNOWLEDGE GRAPH
+- 14 nodes across 7 categories: Fundamentals (3 knowledge nodes), Order Types,
+  Risk Management, Trading Psychology, Game Mechanics, Strategies, Market Events
+  (11 adaptive nodes)
+- Two node types: Knowledge (prerequisite-based, auto-complete on dismiss) and
+  Adaptive (triggered by player trading behavior)
+- 11 trigger evaluators: trade_count, held_stock_daily_change,
+  portfolio_concentration, first_profitable_sell, first_losing_sell,
+  same_ticker_multiple_buys, unrealized_gain_pct, bought_after_decline,
+  low_cash_ratio, market_wide_decline, traded_both_phases
+- Reward/mechanic unlock system: Nodes can optionally unlock game mechanics
+  (e.g., limit_buy_sell unlocks limit_orders)
+- Full UI: Pannable/zoomable graph viewer, color-coded nodes (knowledge vs
+  adaptive), centered article-style detail popup with category label + reward
+  display
+- Objectives HUD integration: High-priority unlocks appear in the side
+  objectives panel
+
+3D CITY ENVIRONMENT
+- Scenes: Main Menu, Onboarding, City Scene, Room, Knowledge Graph Editor (empty)
+- NPC system: Leyline-based pathfinding built from "NPC walkable" tilemap layer,
+  A* with custom priority queue, right-side lane offset, L-shaped corner
+  transitions, weighted spawn zones, 3 NPC types (persistent patrollers, leyline
+  wanderers, edge-to-edge commuters), phase-based population scaling
+- 9 NPC variant prefabs with shared animator (Idle/Walk states)
+- Interaction system: Trigger-based zones, E-key prompt, supports scene
+  transitions, UI opens, and custom UnityEvents
+- Scene transitions: Room <-> City via entry zones with named spawn points
+
+NEWSPAPER SYSTEM
+- AI-generated via Claude API: System prompt with editorial voice + arc tone, 52
+  real historical events (2007-2009) for context
+- Rendered to PNG via Puppeteer with a styled HTML template ("The Market Tribune")
+- Cached in DB so each date only generates once
+- In-game viewer: Full-screen panel with scroll and mouse-wheel zoom
+
+DIALOGUE SYSTEM
+- SpeechBubble: World-space billboard with typewriter text reveal, skip, advance
+  prompt
+- DialoguePlayer: Drives sequences line-by-line, locks player into CUTSCENE state
+- Onboarding: 6-line hardcoded intro with "Casey" NPC, camera lock, then
+  transitions to Room
+
+UI/HUD
+- DayCycleHUD: Top-left, shows date, phase, timer countdown, arc info (name,
+  days remaining, return %, projected grade)
+- ExhaustionOverlay: Fade-in message when day timer expires
+- PlayerObjectivesUI: Side panel tracking objectives, auto-adds knowledge graph
+  unlocks
+- Pause Overlay, Loading Overlay: Built as prefabs, no scripts attached
+
+INFRASTRUCTURE
+- APIBootstrapper: Full startup sequence -- launches backend process, pings,
+  inits DB, loads tickers, registers entity, inits knowledge graph, syncs game
+  state
+- BackendProcessLauncher: Auto-launches .NET exe in builds, no-op in Editor
+- BootstrapConfig: ScriptableObject for all startup settings
+- 44 API endpoints across 9 endpoint groups
+
+
+WHAT'S BROKEN OR MISSING
+--------------------------
+
+BROKEN
+1. MinimapController -- The "== Player ==" prefab references a script that was
+   deleted (the minimap rabbit hole). Shows as "Missing Script" in Inspector.
+   Fix: Remove the missing component from the prefab.
+
+2. Company names are NULL -- MarketDataService.LoadTickersAsync inserts tickers
+   with company_name = NULL. The companyNameText field in TradingUIController
+   will always be empty. Fix: Add a name mapping (hardcoded dictionary or CSV)
+   in the backend.
+
+3. Player Animator Controller is empty -- No states, no parameters, no motions.
+   Player has no walk/idle animation. Fix: Build one like the NPC animator, or
+   use the existing CityPeople clips.
+
+4. KnowledgeNotificationUI -- Script exists but is not attached to any scene or
+   prefab. Redundant with PlayerObjectivesUI which already handles unlock
+   notifications. Fix: Delete the script or leave it as dead code.
+
+NOT YET BUILT
+1. Dynamic NPC dialogue -- The DB tables exist (static_npc_dialogue,
+   dynamic_npc_dialogue), the /dialogue endpoint exists, and there's a Python
+   generator script. But nothing in Unity fetches or displays NPC dialogue
+   dynamically. NPCs walk around silently. No "walk up to NPC and they talk"
+   system.
+
+2. NPC interaction -- NPCs have no colliders/triggers for player interaction. You
+   can't talk to them.
+
+3. Tutorial/guided intro -- The onboarding scene has 6 hardcoded lines from
+   Casey, but there's no guided "walk here, open this, place your first trade"
+   sequence.
+
+4. Limit order UI gating -- The HasMechanic("limit_orders") check exists in
+   KnowledgeGraphManager but nothing in TradingUIController uses it to hide/show
+   limit order controls. The mechanic unlock is tracked but not enforced.
+
+5. Knowledge graph terminal placement -- Two KnowledgeGraphTerminal objects exist
+   in the Room scene but may not be properly positioned or connected to
+   interaction zones.
+
+6. Portfolio chart button -- tickerChartButton is a new serialized field but
+   needs to be created and assigned in the prefab.
+
+7. Missing textures -- Ocean_Floor material and cloud prefab reference missing
+   asset GUIDs (requires Unity Editor manual fix).
+
+
+WHAT WOULD MAKE IT BETTER (CREATIVE RECOMMENDATIONS)
+------------------------------------------------------
+
+HIGH IMPACT, LOW EFFORT (DEMO-READY)
+- NPC bark system: NPCs that say a one-liner when the player walks near them (no
+  interaction needed). Pull from the dialogue DB, filter by arc/phase. Just a
+  trigger collider + SpeechBubble. The world goes from silent to alive in one
+  feature.
+- Guided first trade: After the Casey onboarding, an objective appears ("Go to
+  the trading terminal and place your first trade"). When the player opens the
+  terminal, a tooltip highlights the buy button. Completing the trade triggers
+  the first knowledge node. This turns a sandbox into a story.
+- Arc-reactive city ambience: During bull_market, spawn more NPCs and use
+  brighter lighting. During meltdown, fewer NPCs, dimmer. You already have
+  phase-based population scaling -- extend it to arc-based.
+
+MEDIUM EFFORT, THESIS-STRENGTHENING
+- NPC traders in the backend: Create 2-3 bot entities that make simple
+  algorithmic trades. Their activity shows up in newspaper movers. The market
+  feels less like a solo puzzle.
+- Debrief NPC: A mentor character (maybe Casey again) you can visit after each
+  arc who reflects on your performance: "You were too concentrated in tech
+  stocks" or "You timed the dip well." Uses the trade history + knowledge graph
+  state to generate a personalized summary.
+- Consequence environment: Your room changes based on arc grade. S grade = nicer
+  furniture, D grade = bare minimum. Small visual reward that reinforces the
+  "living it" thesis.
+
+LONGER TERM (POST-DEFENSE)
+- Classroom deployment: Teacher dashboard showing which students unlocked which
+  nodes, aggregate portfolio performance, common mistakes
+- Procedural arcs: Generate arc parameters from any historical period, not just
+  2007-2009
+- Mobile/web client: The backend is already a REST API -- a web frontend could
+  reach more students
+
+
+SYSTEM INVENTORY
+-----------------
+
+64 C# classes, 44 API endpoints, 13 DB tables, 0 TODOs in the codebase.
+
+The trading loop, knowledge graph, arc system, and newspaper are all end-to-end
+functional. The biggest gap for the demo is that the city feels static (NPCs
+don't talk, no guided first experience). For the thesis defense, the priority is
+framing the adaptive knowledge graph as the contribution and getting a small user
+study run through the complete arc 1 experience.

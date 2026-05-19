@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Terminal — Tab Layout Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0b10;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #e8e8f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .terminal {
+    background: #12131a;
+    border: 1px solid #2a2b35;
+    border-radius: 12px;
+    width: 900px;
+    max-width: 100%;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+
+  /* ── Top Bar ── */
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid #1e1f28;
+  }
+  .date-phase {
+    font-size: 13px;
+    color: #8888aa;
+  }
+  .date-phase .phase {
+    color: #4a9eff;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .close-btn {
+    background: #d93838;
+    color: white;
+    border: none;
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* ── Ticker Row ── */
+  .ticker-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px 6px;
+    gap: 16px;
+  }
+  .ticker-dropdown {
+    background: #1a1b24;
+    border: 1px solid #2a2b35;
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    min-width: 100px;
+  }
+  .company-name {
+    color: #6666888;
+    font-style: italic;
+    font-size: 13px;
+    flex: 1;
+  }
+  .price {
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .price .change {
+    font-size: 14px;
+    font-weight: 400;
+    margin-left: 8px;
+  }
+  .price .change.up { color: #26bf59; }
+  .price .change.down { color: #d93838; }
+
+  /* ── Chart Area ── */
+  .chart-area {
+    margin: 8px 20px;
+    background: #0e0f16;
+    border-radius: 8px;
+    border: 1px solid #1e1f28;
+    position: relative;
+    height: 260px;
+  }
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+  }
+  .chart-tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .chart-tab {
+    padding: 4px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    border: none;
+    cursor: pointer;
+    color: white;
+  }
+  .chart-tab.active { background: #3388cc; }
+  .chart-tab.inactive { background: transparent; color: #666680; }
+  .timeframes {
+    display: flex;
+    gap: 4px;
+  }
+  .tf-btn {
+    background: transparent;
+    border: none;
+    color: #666680;
+    font-size: 11px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  .tf-btn.active { color: #ffffff; background: #2a2b35; }
+  .chart-placeholder {
+    position: absolute;
+    top: 40px; left: 12px; right: 12px; bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .chart-placeholder svg { width: 100%; height: 100%; }
+
+  /* ── Info Bar ── */
+  .info-bar {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    gap: 24px;
+    border-bottom: 1px solid #1e1f28;
+  }
+  .info-item { font-size: 13px; }
+  .info-item .label { color: #8888aa; }
+  .info-item .value { font-weight: 600; }
+  .info-item .value.green { color: #26bf59; }
+  .status-text {
+    flex: 1;
+    font-size: 12px;
+    color: #666680;
+    font-style: italic;
+    text-align: right;
+  }
+  .advance-btn {
+    background: #3388cc;
+    border: none;
+    color: white;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .advance-btn:hover { background: #4499dd; }
+
+  /* ── Bottom Tabs ── */
+  .tab-bar {
+    display: flex;
+    margin: 0 20px;
+    gap: 2px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    color: white;
+    transition: background 0.15s;
+  }
+  .tab-btn.active { background: #1e2030; color: #4a9eff; }
+  .tab-btn.inactive { background: #14151c; color: #555566; }
+  .tab-btn.inactive:hover { background: #1a1b24; color: #8888aa; }
+
+  .tab-content {
+    background: #1e2030;
+    margin: 0 20px 16px;
+    border-radius: 0 0 8px 8px;
+    min-height: 180px;
+    padding: 16px;
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Trade Tab ── */
+  .order-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .qty-input {
+    background: #14151c;
+    border: 1px solid #2a2b35;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: white;
+    font-size: 14px;
+    width: 100px;
+  }
+  .qty-input::placeholder { color: #555566; }
+  .buy-btn, .sell-btn {
+    border: none;
+    color: white;
+    padding: 8px 24px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+  }
+  .buy-btn { background: #1a8a42; }
+  .buy-btn:hover { background: #22a854; }
+  .sell-btn { background: #c42828; }
+  .sell-btn:hover { background: #d93838; }
+
+  .orders-section h4 {
+    font-size: 12px;
+    color: #8888aa;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .order-row {
+    font-size: 13px;
+    padding: 4px 0;
+    color: #ccccdd;
+  }
+  .order-row .side { font-weight: 600; }
+  .order-row .side.buy { color: #26bf59; }
+  .order-row .side.sell { color: #d93838; }
+  .empty-state {
+    color: #555566;
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  /* ── Portfolio Tab ── */
+  .holding-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #2a2b35;
+  }
+  .holding-card:last-child { border-bottom: none; }
+  .holding-ticker { font-weight: 700; font-size: 15px; }
+  .holding-detail { font-size: 12px; color: #8888aa; margin-top: 2px; }
+  .holding-value { text-align: right; }
+  .holding-value .amount { font-weight: 600; font-size: 14px; }
+  .holding-value .pnl { font-size: 12px; margin-top: 2px; }
+  .holding-value .pnl.up { color: #26bf59; }
+  .holding-value .pnl.down { color: #d93838; }
+
+  /* ── History Tab ── */
+  .history-date {
+    font-size: 12px;
+    font-weight: 700;
+    color: #8888aa;
+    padding: 8px 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .history-date:first-child { padding-top: 0; }
+  .history-row {
+    font-size: 13px;
+    padding: 3px 0;
+    color: #ccccdd;
+  }
+
+  /* ── Phase Labels ── */
+  .phase-note {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #14151c;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #666680;
+    border-left: 3px solid #3388cc;
+  }
+
+  /* ── Layout Description ── */
+  .mockup-label {
+    position: fixed;
+    top: 12px; left: 12px;
+    background: #3388cc;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 100;
+  }
+  .mockup-notes {
+    position: fixed;
+    top: 12px; right: 12px;
+    background: #1e2030;
+    color: #8888aa;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.6;
+    max-width: 260px;
+    z-index: 100;
+  }
+  .mockup-notes strong { color: #ccccdd; }
+</style>
+</head>
+<body>
+
+<div class="mockup-label">MOCKUP: Pre-Market Phase</div>
+<div class="mockup-notes">
+  <strong>Layout structure:</strong><br>
+  Top: always-visible ticker + price + chart<br>
+  Middle: cash / net worth / advance button<br>
+  Bottom: switchable tabs<br><br>
+  <strong>Tab behavior:</strong><br>
+  Trade = order form + phase-dependent info<br>
+  Portfolio = holdings with avg cost + P&L<br>
+  History = full trade log grouped by date<br><br>
+  Click the tabs below to switch!
+</div>
+
+<div class="terminal">
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="date-phase">
+      2007-04-16<span class="phase">PRE-MARKET</span>
+    </div>
+    <button class="close-btn">X</button>
+  </div>
+
+  <!-- Ticker Row -->
+  <div class="ticker-row">
+    <select class="ticker-dropdown">
+      <option>NVDA</option>
+      <option>AAPL</option>
+      <option>MSFT</option>
+      <option>JPM</option>
+    </select>
+    <span class="company-name">NVIDIA Corporation</span>
+    <span class="price">
+      $31.42
+      <span class="change up">+1.28 (+4.2%)</span>
+    </span>
+  </div>
+
+  <!-- Chart Area -->
+  <div class="chart-area">
+    <div class="chart-header">
+      <div class="chart-tabs">
+        <button class="chart-tab active" id="ct-ticker" onclick="switchChart('ticker')">Ticker</button>
+        <button class="chart-tab inactive" id="ct-portfolio" onclick="switchChart('portfolio')">Portfolio</button>
+      </div>
+      <div class="timeframes">
+        <button class="tf-btn">1W</button>
+        <button class="tf-btn">1M</button>
+        <button class="tf-btn active">3M</button>
+        <button class="tf-btn">1Y</button>
+        <button class="tf-btn">5Y</button>
+      </div>
+    </div>
+    <div class="chart-placeholder">
+      <svg viewBox="0 0 800 180" preserveAspectRatio="none">
+        <!-- Fake candlestick chart -->
+        <defs>
+          <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#26bf59" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="#26bf59" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,140 L40,130 L80,120 L120,125 L160,100 L200,110 L240,90 L280,95 L320,70 L360,80 L400,60 L440,65 L480,50 L520,55 L560,40 L600,45 L640,30 L680,35 L720,25 L760,20 L800,15 L800,180 L0,180 Z" fill="url(#grad)"/>
+        <polyline points="0,140 40,130 80,120 120,125 160,100 200,110 240,90 280,95 320,70 360,80 400,60 440,65 480,50 520,55 560,40 600,45 640,30 680,35 720,25 760,20 800,15" fill="none" stroke="#26bf59" stroke-width="2"/>
+        <!-- Candlestick bodies -->
+        <rect x="30" y="125" width="8" height="12" fill="#26bf59" rx="1"/>
+        <rect x="70" y="115" width="8" height="10" fill="#26bf59" rx="1"/>
+        <rect x="110" y="120" width="8" height="8" fill="#d93838" rx="1"/>
+        <rect x="150" y="95" width="8" height="12" fill="#26bf59" rx="1"/>
+        <rect x="190" y="105" width="8" height="10" fill="#d93838" rx="1"/>
+        <rect x="230" y="85" width="8" height="10" fill="#26bf59" rx="1"/>
+        <rect x="270" y="90" width="8" height="10" fill="#d93838" rx="1"/>
+        <rect x="310" y="65" width="8" height="12" fill="#26bf59" rx="1"/>
+        <rect x="350" y="75" width="8" height="10" fill="#d93838" rx="1"/>
+        <rect x="390" y="55" width="8" height="10" fill="#26bf59" rx="1"/>
+        <rect x="430" y="60" width="8" height="8" fill="#d93838" rx="1"/>
+        <rect x="470" y="45" width="8" height="10" fill="#26bf59" rx="1"/>
+        <rect x="510" y="50" width="8" height="10" fill="#d93838" rx="1"/>
+        <rect x="550" y="35" width="8" height="10" fill="#26bf59" rx="1"/>
+        <rect x="590" y="40" width="8" height="8" fill="#d93838" rx="1"/>
+        <rect x="630" y="25" width="8" height="10" fill="#26bf59" rx="1"/>
+        <rect x="670" y="30" width="8" height="10" fill="#d93838" rx="1"/>
+        <rect x="710" y="18" width="8" height="12" fill="#26bf59" rx="1"/>
+        <rect x="750" y="12" width="8" height="12" fill="#26bf59" rx="1"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Info Bar -->
+  <div class="info-bar">
+    <div class="info-item">
+      <span class="label">Cash: </span>
+      <span class="value">$8,241.50</span>
+    </div>
+    <div class="info-item">
+      <span class="label">Net Worth: </span>
+      <span class="value green">$11,487.22</span>
+    </div>
+    <span class="status-text">Ready</span>
+    <button class="advance-btn">Open Markets</button>
+  </div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-trade" onclick="switchTab('trade')">Trade</button>
+    <button class="tab-btn inactive" id="tab-portfolio" onclick="switchTab('portfolio')">Portfolio</button>
+    <button class="tab-btn inactive" id="tab-history" onclick="switchTab('history')">History</button>
+  </div>
+
+  <!-- Tab Content -->
+  <div class="tab-content">
+
+    <!-- Trade Tab -->
+    <div class="tab-panel active" id="panel-trade">
+      <div class="order-form">
+        <input type="number" class="qty-input" placeholder="Qty" value="10">
+        <button class="buy-btn">BUY</button>
+        <button class="sell-btn">SELL</button>
+      </div>
+      <div class="orders-section">
+        <h4>Pending Orders</h4>
+        <div class="order-row">
+          <span class="side buy">BUY</span> 15 AAPL
+        </div>
+        <div class="order-row">
+          <span class="side sell">SELL</span> 5 JPM
+        </div>
+      </div>
+      <div class="phase-note">
+        Pre-market: Queue orders now. They execute when you click "Open Markets."
+      </div>
+    </div>
+
+    <!-- Portfolio Tab -->
+    <div class="tab-panel" id="panel-portfolio">
+      <div class="holding-card">
+        <div>
+          <div class="holding-ticker">AAPL</div>
+          <div class="holding-detail">25 shares &middot; Avg $138.20</div>
+        </div>
+        <div class="holding-value">
+          <div class="amount">$3,680.00</div>
+          <div class="pnl up">+$225.00 (+6.5%)</div>
+        </div>
+      </div>
+      <div class="holding-card">
+        <div>
+          <div class="holding-ticker">NVDA</div>
+          <div class="holding-detail">50 shares &middot; Avg $28.60</div>
+        </div>
+        <div class="holding-value">
+          <div class="amount">$1,571.00</div>
+          <div class="pnl up">+$141.00 (+9.8%)</div>
+        </div>
+      </div>
+      <div class="holding-card">
+        <div>
+          <div class="holding-ticker">JPM</div>
+          <div class="holding-detail">10 shares &middot; Avg $52.10</div>
+        </div>
+        <div class="holding-value">
+          <div class="amount">$495.50</div>
+          <div class="pnl down">-$25.50 (-4.9%)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Tab -->
+    <div class="tab-panel" id="panel-history">
+      <div class="history-date">2007-04-15</div>
+      <div class="history-row">
+        <span class="side buy" style="color:#26bf59;font-weight:600">BUY</span> 20 NVDA @ $29.85
+      </div>
+      <div class="history-row">
+        <span class="side sell" style="color:#d93838;font-weight:600">SELL</span> 5 MSFT @ $28.12
+      </div>
+      <div class="history-date">2007-04-14</div>
+      <div class="history-row">
+        <span class="side buy" style="color:#26bf59;font-weight:600">BUY</span> 30 NVDA @ $27.50
+      </div>
+      <div class="history-row">
+        <span class="side buy" style="color:#26bf59;font-weight:600">BUY</span> 25 AAPL @ $138.20
+      </div>
+      <div class="history-row">
+        <span class="side buy" style="color:#26bf59;font-weight:600">BUY</span> 10 JPM @ $52.10
+      </div>
+      <div class="history-date">2007-04-10</div>
+      <div class="history-row">
+        <span class="side buy" style="color:#26bf59;font-weight:600">BUY</span> 5 MSFT @ $27.90
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('active');
+    b.classList.add('inactive');
+  });
+  document.getElementById('tab-' + name).classList.remove('inactive');
+  document.getElementById('tab-' + name).classList.add('active');
+
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+function switchChart(name) {
+  document.getElementById('ct-ticker').className = 'chart-tab ' + (name === 'ticker' ? 'active' : 'inactive');
+  document.getElementById('ct-portfolio').className = 'chart-tab ' + (name === 'portfolio' ? 'active' : 'inactive');
+}
+
+// Make timeframe buttons clickable
+document.querySelectorAll('.tf-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+
+</body>
+</html>

@@ -25,6 +25,8 @@ namespace Game.API.DTO
         public string unlocked_at;
         public string completed_at;
         public string reward_mechanic;
+        public string trigger_explanation;
+        public string correct_action;
     }
 
     [Serializable]

@@ -34,7 +34,18 @@
       "Bash(sqlite3 database.db \"SELECT COUNT\\(DISTINCT ticker_id\\) as distinct_tickers FROM ticker_prices;\")",
       "Bash(sqlite3 database.db \"SELECT MIN\\(date\\), MAX\\(date\\) FROM ticker_prices;\")",
       "Bash(sqlite3 database.db \"SELECT ticker_id, date, open_price, high_price, low_price, close_price FROM ticker_prices WHERE date = '2010-01-04' ORDER BY ticker_id LIMIT 20;\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Read(//c/Users/gregf/OneDrive/Desktop/VSCode/Trading-Game/Trading-Game-DOTNET/**)",
+      "Bash(Get-ChildItem -Recurse -File)",
+      "Bash(Sort-Object)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\" -Directory)",
+      "Bash(git checkout *)",
+      "PowerShell(git reset *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\" -Directory)",
+      "Bash(Sort-Object Name)",
+      "Bash(Select-String -Pattern \"error \\(?!MSB3\\)\")",
+      "Bash(Select-Object -First 10)",
+      "Bash(Select-String -Path \"Assets\\\\Scenes\\\\Room.unity\" -Pattern \"interactionName\" -Context 2)"
     ]
   }
 }

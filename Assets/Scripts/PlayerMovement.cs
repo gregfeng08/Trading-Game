@@ -100,11 +100,29 @@ public class PlayerMovement : MonoBehaviour
         HandleCamera();
     }
 
-    /// <summary>Snap camera to current pivot position, clearing all smooth-follow lag.</summary>
     public void SnapCamera()
     {
+        float playerYaw = transform.eulerAngles.y;
+        yaw = smoothYaw = playerYaw;
+        yawVel = 0f;
+
+        smoothPitch = pitch;
+        pitchVel = 0f;
+
+        smoothDistance = targetDistance;
+        actualDistance = targetDistance;
+        distanceVel = 0f;
+
         pivotFollowPos = cameraPivot.position;
         pivotFollowVel = Vector3.zero;
+
+        velocity = Vector3.zero;
+        velocity.y = groundedStick;
+
+        Quaternion rot = Quaternion.Euler(smoothPitch, smoothYaw, 0f);
+        Vector3 dir = -(rot * Vector3.forward);
+        cam.position = pivotFollowPos + dir * actualDistance;
+        cam.rotation = rot;
     }
 
     /// <summary>Call from scene triggers/scripts to lock or unlock the orbit.</summary>

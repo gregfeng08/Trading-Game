@@ -26,13 +26,13 @@ public class PortfolioLineChart : MaskableGraphic
     [Header("Axes")]
     [SerializeField] private float leftMargin = 65f;
     [SerializeField] private float rightMargin = 10f;
-    [SerializeField] private float topMargin = 10f;
-    [SerializeField] private float bottomMargin = 22f;
+    [SerializeField] private float topMargin = 40f;
+    [SerializeField] private float bottomMargin = 28f;
     [SerializeField] private Color axisLineColor = new Color(1f, 1f, 1f, 0.2f);
     [SerializeField] private float axisLineWidth = 1f;
     [SerializeField] private float tickLength = 4f;
-    [SerializeField] private Color labelColor = new Color(1f, 1f, 1f, 0.5f);
-    [SerializeField] private float labelFontSize = 10f;
+    [SerializeField] private Color labelColor = new Color(1f, 1f, 1f, 0.7f);
+    [SerializeField] private float labelFontSize = 13f;
     [SerializeField] private TMP_FontAsset labelFont;
 
     private NetWorthPointDTO[] data;

@@ -9,26 +9,30 @@ using UnityEngine.SceneManagement;
 public class MainMenuController : MonoBehaviour
 {
     [SerializeField] private TMP_Text statusText;
-    [SerializeField] private GameObject continueButtonObj;
+    [SerializeField] private GameObject playButtonObj;
     [SerializeField] private GameObject newGameButtonObj;
+    [SerializeField] private GameObject resetButtonObj;
 
     [Header("Bootstrap")]
     [SerializeField] private APIBootstrapper bootstrapper;
 
     private Coroutine _poll;
-    private Button continueButton;
+    private Button playButton;
     private Button newGameButton;
+    private Button resetButton;
 
     private void Awake()
     {
-        continueButton = continueButtonObj.GetComponent<Button>();
+        playButton = playButtonObj.GetComponent<Button>();
         newGameButton = newGameButtonObj.GetComponent<Button>();
+        resetButton = resetButtonObj.GetComponent<Button>();
     }
 
     private void OnEnable()
     {
-        continueButtonObj.SetActive(false);
+        playButtonObj.SetActive(false);
         newGameButtonObj.SetActive(false);
+        resetButtonObj.SetActive(false);
 
         bootstrapper.TryStart();
         _poll = StartCoroutine(PollBootstrap());
@@ -83,28 +87,35 @@ public class MainMenuController : MonoBehaviour
 
         if (hasSave)
         {
-            continueButtonObj.SetActive(true);
-            continueButton.onClick.AddListener(OnContinue);
+            playButtonObj.SetActive(true);
+            playButton.onClick.AddListener(OnPlay);
         }
 
         newGameButtonObj.SetActive(true);
         newGameButton.onClick.AddListener(OnNewGame);
 
+        resetButtonObj.SetActive(true);
+        resetButton.onClick.AddListener(OnReset);
+
         statusText.text = hasSave ? "Welcome back" : "Ready to start";
     }
 
-    private void OnContinue()
+    private void OnPlay()
     {
-        continueButton.interactable = false;
-        newGameButton.interactable = false;
+        SetAllButtonsInteractable(false);
         LoadRoom();
     }
 
     private void OnNewGame()
     {
-        continueButton.interactable = false;
-        newGameButton.interactable = false;
+        SetAllButtonsInteractable(false);
         StartCoroutine(NewGameFlow());
+    }
+
+    private void OnReset()
+    {
+        SetAllButtonsInteractable(false);
+        StartCoroutine(ResetFlow());
     }
 
     private IEnumerator NewGameFlow()
@@ -120,12 +131,10 @@ public class MainMenuController : MonoBehaviour
         if (!task.IsCompletedSuccessfully)
         {
             statusText.text = "Failed to create game. Try again.";
-            continueButton.interactable = true;
-            newGameButton.interactable = true;
+            SetAllButtonsInteractable(true);
             yield break;
         }
 
-        // Re-register entity (NewGame wipes player-specific state)
         if (config != null && config.registerEntity)
         {
             var entity = new EntityDTO
@@ -144,7 +153,6 @@ public class MainMenuController : MonoBehaviour
             }
         }
 
-        // Re-initialize knowledge graph for fresh start
         if (KnowledgeGraphManager.Inst != null)
         {
             var kgTask = KnowledgeGraphManager.Inst.InitializeAsync();
@@ -159,6 +167,81 @@ public class MainMenuController : MonoBehaviour
         }
 
         LoadOnboarding();
+    }
+
+    private IEnumerator ResetFlow()
+    {
+        statusText.text = "Resetting database...";
+
+        var resetTask = DbAPI.ResetDB();
+        yield return new WaitUntil(() => resetTask.IsCompleted);
+
+        if (!resetTask.IsCompletedSuccessfully || resetTask.Result.status != "ok")
+        {
+            statusText.text = "Reset failed. Try again.";
+            SetAllButtonsInteractable(true);
+            yield break;
+        }
+
+        statusText.text = "Initializing database...";
+
+        var initTask = DbAPI.InitializeDB();
+        yield return new WaitUntil(() => initTask.IsCompleted);
+
+        if (!initTask.IsCompletedSuccessfully)
+        {
+            statusText.text = "Init failed. Try again.";
+            SetAllButtonsInteractable(true);
+            yield break;
+        }
+
+        statusText.text = "Downloading market data...";
+
+        var config = bootstrapper.GetConfig();
+        var loadTask = DbAPI.LoadTickers(
+            config != null ? config.startDate : "2005-01-01",
+            config != null ? config.endDate : "2010-12-31",
+            config != null ? config.topN : 50
+        );
+        yield return new WaitUntil(() => loadTask.IsCompleted);
+
+        if (!loadTask.IsCompletedSuccessfully || loadTask.Result.status != "ok")
+        {
+            statusText.text = "Ticker download failed. Try again.";
+            SetAllButtonsInteractable(true);
+            yield break;
+        }
+
+        if (config != null && config.registerEntity)
+        {
+            statusText.text = "Registering player...";
+
+            var entity = new EntityDTO
+            {
+                entity_id = config.entity_id,
+                entity_type = config.entity_type,
+                display_name = config.display_name
+            };
+            var regTask = DbAPI.RegisterEntity(entity);
+            yield return new WaitUntil(() => regTask.IsCompleted);
+
+            if (regTask.IsCompletedSuccessfully)
+            {
+                APIBootstrapper.EntityDbId = regTask.Result.entity_db_id;
+                APIBootstrapper.EntityExternalId = config.entity_id;
+            }
+        }
+
+        statusText.text = "Reset complete!";
+        playButtonObj.SetActive(false);
+        SetAllButtonsInteractable(true);
+    }
+
+    private void SetAllButtonsInteractable(bool interactable)
+    {
+        playButton.interactable = interactable;
+        newGameButton.interactable = interactable;
+        resetButton.interactable = interactable;
     }
 
     private void LoadRoom()

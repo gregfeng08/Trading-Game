@@ -10,19 +10,41 @@ public class KnowledgeGraphInteraction : MonoBehaviour
 
     void Start()
     {
-        UpdateBadge(0);
+        if (KnowledgeGraphManager.Inst != null)
+            UpdateBadge(KnowledgeGraphManager.Inst.PendingUnlockedCount);
+        else
+            UpdateBadge(0);
     }
 
     void OnEnable()
     {
         if (KnowledgeGraphManager.Inst != null)
+        {
             KnowledgeGraphManager.Inst.OnPendingCountChanged += UpdateBadge;
+            KnowledgeGraphManager.Inst.OnInitialized += OnGraphInitialized;
+            KnowledgeGraphManager.Inst.OnGraphRefreshed += OnGraphRefreshed;
+            UpdateBadge(KnowledgeGraphManager.Inst.PendingUnlockedCount);
+        }
     }
 
     void OnDisable()
     {
         if (KnowledgeGraphManager.Inst != null)
+        {
             KnowledgeGraphManager.Inst.OnPendingCountChanged -= UpdateBadge;
+            KnowledgeGraphManager.Inst.OnInitialized -= OnGraphInitialized;
+            KnowledgeGraphManager.Inst.OnGraphRefreshed -= OnGraphRefreshed;
+        }
+    }
+
+    private void OnGraphInitialized()
+    {
+        UpdateBadge(KnowledgeGraphManager.Inst.PendingUnlockedCount);
+    }
+
+    private void OnGraphRefreshed()
+    {
+        UpdateBadge(KnowledgeGraphManager.Inst.PendingUnlockedCount);
     }
 
     public void OpenGraph()

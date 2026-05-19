@@ -29,13 +29,13 @@ public class KnowledgeGraphUI : MonoBehaviour
     [SerializeField] private Button completeButton;
 
     [Header("Knowledge Node Colors")]
-    [SerializeField] private Color lockedColor = new Color(0.3f, 0.3f, 0.3f, 0.6f);
+    [SerializeField] private Color lockedColor = new Color(0.22f, 0.22f, 0.25f, 1f);
     [SerializeField] private Color unlockedColor = new Color(0.9f, 0.7f, 0.1f, 1f);
     [SerializeField] private Color completedColor = new Color(0.2f, 0.8f, 0.3f, 1f);
 
     [Header("Adaptive Node Colors")]
-    [SerializeField] private Color adaptiveLockedColor = new Color(0.25f, 0.25f, 0.35f, 0.6f);
-    [SerializeField] private Color adaptiveReadyColor = new Color(0.3f, 0.5f, 0.8f, 0.8f);
+    [SerializeField] private Color adaptiveLockedColor = new Color(0.2f, 0.2f, 0.28f, 1f);
+    [SerializeField] private Color adaptiveReadyColor = new Color(0.25f, 0.4f, 0.65f, 1f);
     [SerializeField] private Color adaptiveUnlockedColor = new Color(0.9f, 0.5f, 0.1f, 1f);
     [SerializeField] private Color adaptiveCompletedColor = new Color(0.2f, 0.8f, 0.3f, 1f);
 
@@ -67,7 +67,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         if (closeButton != null)
             closeButton.onClick.AddListener(Close);
         if (completeButton != null)
-            completeButton.onClick.AddListener(DismissDetail);
+            completeButton.onClick.AddListener(OnCompleteLesson);
     }
 
     void Update()
@@ -303,11 +303,23 @@ public class KnowledgeGraphUI : MonoBehaviour
 
         detailPanel.SetActive(true);
         detailTitle.text = node.title;
+        detailTitle.textWrappingMode = TextWrappingModes.Normal;
 
-        detailContent.enableWordWrapping = true;
-        detailContent.overflowMode = TextOverflowModes.Ellipsis;
+        detailContent.textWrappingMode = TextWrappingModes.Normal;
+        detailContent.overflowMode = TextOverflowModes.Overflow;
 
-        string body = node.content ?? node.description;
+        string body = "";
+
+        if (node.type == "adaptive" && !string.IsNullOrEmpty(node.trigger_explanation))
+        {
+            body += $"<color=#E8A838>{node.trigger_explanation}</color>\n\n";
+
+            if (!string.IsNullOrEmpty(node.correct_action))
+                body += $"<color=#6BC9D9>{node.correct_action}</color>\n\n";
+        }
+
+        body += node.content ?? node.description;
+
         if (!string.IsNullOrEmpty(node.reward_mechanic))
             body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(node.reward_mechanic)}</color>";
         detailContent.text = body;
@@ -329,11 +341,12 @@ public class KnowledgeGraphUI : MonoBehaviour
         string catLabel = !string.IsNullOrEmpty(node.category)
             ? node.category.Replace('_', ' ').ToUpper()
             : "";
+        detailStatus.textWrappingMode = TextWrappingModes.Normal;
         detailStatus.text = !string.IsNullOrEmpty(catLabel)
             ? $"{catLabel}  ·  {statusLabel}"
             : statusLabel;
 
-        completeButton.gameObject.SetActive(true);
+        completeButton.gameObject.SetActive(node.status == "unlocked");
     }
 
     private static string FormatMechanic(string mechanic)
@@ -343,13 +356,21 @@ public class KnowledgeGraphUI : MonoBehaviour
             .Replace("stop loss", "Stop-Loss Orders");
     }
 
-    private async void DismissDetail()
+    private async void OnCompleteLesson()
     {
         if (selectedNode != null && selectedNode.status == "unlocked")
         {
             await KnowledgeGraphManager.Inst.CompleteNodeAsync(selectedNode.id);
             RenderGraph();
         }
+        selectedNode = null;
+
+        if (detailPanel != null)
+            detailPanel.SetActive(false);
+    }
+
+    private void DismissDetail()
+    {
         selectedNode = null;
 
         if (detailPanel != null)

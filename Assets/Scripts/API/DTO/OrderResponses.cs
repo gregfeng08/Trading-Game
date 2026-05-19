@@ -51,9 +51,19 @@ namespace Game.API.DTO
     }
 
     [System.Serializable]
+    public class InlineOrderDTO
+    {
+        public string ticker;
+        public string side;
+        public int quantity;
+        public string order_type;
+    }
+
+    [System.Serializable]
     public class OpenMarketsRequestDTO
     {
         public string entity_id;
+        public InlineOrderDTO[] orders;
     }
 
     [System.Serializable]

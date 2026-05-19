@@ -15,5 +15,8 @@ namespace Game.API
             if (endDate != null) path += $"&endDate={endDate}";
             return APIClient.GetAsync<PricesResponse>(path);
         }
+
+        public static Task<MarketMoversResponse> GetMarketMovers(string date)
+            => APIClient.GetAsync<MarketMoversResponse>($"market_movers?date={date}");
     }
 }

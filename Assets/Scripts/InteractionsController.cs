@@ -55,6 +55,13 @@ public class InteractionsController : MonoBehaviour
         }
     }
 
+    public void RefreshPrompt(InteractionZone zone)
+    {
+        if (activeZone != zone) return;
+        if (promptPanel != null && promptText != null)
+            promptText.text = $"Press E to {zone.InteractionName}";
+    }
+
     public void ClearActiveZone(InteractionZone zone)
     {
         if (activeZone != zone) return;

@@ -15,5 +15,11 @@ public class GroundIndicator : MonoBehaviour
             pos.y = hit.point.y + groundOffset;
             transform.position = pos;
         }
+        else
+        {
+            Vector3 pos = transform.position;
+            pos.y = transform.parent.position.y + groundOffset;
+            transform.position = pos;
+        }
     }
 }

@@ -28,6 +28,9 @@ namespace Game.API
         public static Task<EntityRegistrationResponse> RegisterEntity(EntityDTO entity)
             => APIClient.PostAsync<EntityDTO, EntityRegistrationResponse>("register_entity", entity);
 
+        public static Task<BasicStatusResponse> ResetDB()
+            => APIClient.PostAsync<object, BasicStatusResponse>("db_reset", new { });
+
         //Function to get the daily data along with the SMA as a parameter for all tickers
         public static Task<DailyDataRetrievalResponse> GetDailyData(string ticker = null, int? limit = null)
         {

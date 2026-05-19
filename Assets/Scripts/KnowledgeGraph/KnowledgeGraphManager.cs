@@ -12,6 +12,8 @@ public class KnowledgeGraphManager : MonoBehaviour
     public event Action<UnlockedNodeDTO> OnHighPriorityUnlock;
     public event Action<int> OnPendingCountChanged;
     public event Action<string> OnMechanicUnlocked;
+    public event Action OnInitialized;
+    public event Action OnGraphRefreshed;
 
     public KnowledgeNodeStateDTO[] Nodes { get; private set; }
     public int PendingUnlockedCount { get; private set; }
@@ -37,6 +39,7 @@ public class KnowledgeGraphManager : MonoBehaviour
             await RefreshGraphAsync();
             await RefreshUnlocksAsync();
             IsInitialized = true;
+            OnInitialized?.Invoke();
         }
         catch (Exception ex)
         {
@@ -55,6 +58,7 @@ public class KnowledgeGraphManager : MonoBehaviour
             {
                 Nodes = resp.nodes;
                 RecountPending();
+                OnGraphRefreshed?.Invoke();
             }
         }
         catch (Exception ex)
@@ -70,12 +74,10 @@ public class KnowledgeGraphManager : MonoBehaviour
         try
         {
             var resp = await KnowledgeGraphAPI.CheckTriggers(APIBootstrapper.EntityDbId);
-            if (resp.status != "ok" || resp.newly_unlocked == null || resp.newly_unlocked.Length == 0)
-                return;
 
-            foreach (var node in resp.newly_unlocked)
+            if (resp.status == "ok" && resp.newly_unlocked != null)
             {
-                if (node.priority == "high")
+                foreach (var node in resp.newly_unlocked)
                 {
                     pendingPopups.Enqueue(node);
                     OnHighPriorityUnlock?.Invoke(node);

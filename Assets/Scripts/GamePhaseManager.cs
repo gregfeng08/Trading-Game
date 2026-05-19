@@ -67,6 +67,11 @@ public class GamePhaseManager : MonoBehaviour
             var go = new GameObject("ArcTransitionOverlay");
             go.AddComponent<ArcTransitionOverlay>();
         }
+        if (DailySummaryOverlay.Inst == null)
+        {
+            var go = new GameObject("DailySummaryOverlay");
+            go.AddComponent<DailySummaryOverlay>();
+        }
         if (DialoguePlayer.Inst == null)
         {
             var go = new GameObject("DialoguePlayer");
@@ -101,53 +106,88 @@ public class GamePhaseManager : MonoBehaviour
         await RefreshArcStatus();
     }
 
-    // ── Order Queue (server-persisted) ──
+    // ── Local Order Queue ──
+
+    [System.Serializable]
+    public class LocalPendingOrder
+    {
+        public string ticker;
+        public string side;
+        public int quantity;
+        public double estimatedPrice;
+    }
+
+    private readonly List<LocalPendingOrder> localOrders = new List<LocalPendingOrder>();
+    public IReadOnlyList<LocalPendingOrder> PendingOrders => localOrders;
 
     public string LastOrderError { get; private set; }
 
-    public async Task<bool> QueueOrder(string ticker, string side, int quantity)
+    private double serverCash;
+    public void SetServerCash(double cash) => serverCash = cash;
+
+    public double ReservedBuyCost
     {
-        LastOrderError = null;
-        try
+        get
         {
-            var req = new QueueOrderRequestDTO
-            {
-                entity_id = APIBootstrapper.EntityExternalId,
-                ticker = ticker,
-                side = side,
-                quantity = quantity,
-                order_type = "market"
-            };
-            var resp = await OrderAPI.QueueOrder(req);
-            return resp.status == "ok";
-        }
-        catch (System.Net.Http.HttpRequestException ex)
-        {
-            LastOrderError = ex.Message;
-            Debug.LogError($"[GamePhaseManager] Failed to queue order: {ex.Message}");
-            return false;
-        }
-        catch (Exception ex)
-        {
-            LastOrderError = ex.Message;
-            Debug.LogError($"[GamePhaseManager] Failed to queue order: {ex.Message}");
-            return false;
+            double total = 0;
+            foreach (var o in localOrders)
+                if (o.side == "buy") total += o.estimatedPrice * o.quantity;
+            return total;
         }
     }
 
-    public async Task<PendingOrderDTO[]> GetPendingOrders()
+    public double EffectiveAvailableCash => serverCash - ReservedBuyCost;
+
+    public int ReservedSellQuantity(string ticker)
     {
-        try
-        {
-            var resp = await OrderAPI.GetPendingOrders(APIBootstrapper.EntityExternalId);
-            return resp.orders;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[GamePhaseManager] Failed to get pending orders: {ex.Message}");
-            return new PendingOrderDTO[0];
-        }
+        int total = 0;
+        foreach (var o in localOrders)
+            if (o.side == "sell" && o.ticker == ticker) total += o.quantity;
+        return total;
     }
+
+    public bool QueueOrder(string ticker, string side, int quantity, double estimatedPrice, double heldShares)
+    {
+        LastOrderError = null;
+
+        if (side == "buy")
+        {
+            double cost = estimatedPrice * quantity;
+            double available = EffectiveAvailableCash;
+            if (available < cost - 1e-9)
+            {
+                LastOrderError = $"Insufficient cash. Need ${cost:F2}, available ${available:F2}";
+                return false;
+            }
+        }
+        else
+        {
+            int reserved = ReservedSellQuantity(ticker);
+            if (heldShares - reserved < quantity - 1e-9)
+            {
+                LastOrderError = $"Insufficient shares. Available: {heldShares - reserved:F0}";
+                return false;
+            }
+        }
+
+        localOrders.Add(new LocalPendingOrder
+        {
+            ticker = ticker,
+            side = side,
+            quantity = quantity,
+            estimatedPrice = estimatedPrice
+        });
+        return true;
+    }
+
+    public bool RemoveOrder(int index)
+    {
+        if (index < 0 || index >= localOrders.Count) return false;
+        localOrders.RemoveAt(index);
+        return true;
+    }
+
+    public void ClearLocalOrders() => localOrders.Clear();
 
     // ── Phase Transitions (ACID via server) ──
 
@@ -158,7 +198,23 @@ public class GamePhaseManager : MonoBehaviour
 
         try
         {
-            var req = new OpenMarketsRequestDTO { entity_id = APIBootstrapper.EntityExternalId };
+            var inlineOrders = new InlineOrderDTO[localOrders.Count];
+            for (int i = 0; i < localOrders.Count; i++)
+            {
+                inlineOrders[i] = new InlineOrderDTO
+                {
+                    ticker = localOrders[i].ticker,
+                    side = localOrders[i].side,
+                    quantity = localOrders[i].quantity,
+                    order_type = "market"
+                };
+            }
+
+            var req = new OpenMarketsRequestDTO
+            {
+                entity_id = APIBootstrapper.EntityExternalId,
+                orders = inlineOrders
+            };
             var resp = await OrderAPI.OpenMarkets(req);
 
             if (resp.status != "ok")
@@ -167,6 +223,7 @@ public class GamePhaseManager : MonoBehaviour
                 return null;
             }
 
+            localOrders.Clear();
             todayResults.Clear();
             if (resp.trade_results != null)
             {
@@ -191,6 +248,7 @@ public class GamePhaseManager : MonoBehaviour
             PostMarketReady = false;
 
             OnPhaseChanged?.Invoke(CurrentPhase);
+            CheckKnowledgeTriggers();
             return new List<TradeResult>(todayResults);
         }
         catch (Exception ex)
@@ -245,6 +303,7 @@ public class GamePhaseManager : MonoBehaviour
             CurrentPhase = GamePhase.PostMarket;
             PostMarketReady = true;
             OnPhaseChanged?.Invoke(CurrentPhase);
+            CheckKnowledgeTriggers();
         }
         catch (Exception ex)
         {
@@ -268,6 +327,7 @@ public class GamePhaseManager : MonoBehaviour
 
             CurrentDate = resp.current_date;
             todayResults.Clear();
+            localOrders.Clear();
             PostMarketReady = false;
 
             LastForcedLiquidations = resp.forced_liquidations;
@@ -279,6 +339,7 @@ public class GamePhaseManager : MonoBehaviour
 
             CurrentPhase = GamePhase.PreMarket;
             OnPhaseChanged?.Invoke(CurrentPhase);
+            CheckKnowledgeTriggers();
             return true;
         }
         catch (Exception ex)
@@ -311,6 +372,12 @@ public class GamePhaseManager : MonoBehaviour
     private void HandleDayExpired()
     {
         _ = CloseMarketsAndGoHome();
+    }
+
+    private void CheckKnowledgeTriggers()
+    {
+        if (KnowledgeGraphManager.Inst != null)
+            _ = KnowledgeGraphManager.Inst.CheckTriggersAsync();
     }
 
     // ── Arc helpers ──

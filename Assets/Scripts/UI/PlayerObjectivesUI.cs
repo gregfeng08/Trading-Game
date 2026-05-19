@@ -34,13 +34,24 @@ public class PlayerObjectivesUI : MonoBehaviour
     void OnEnable()
     {
         if (KnowledgeGraphManager.Inst != null)
+        {
             KnowledgeGraphManager.Inst.OnHighPriorityUnlock += OnKnowledgeUnlocked;
+            KnowledgeGraphManager.Inst.OnPendingCountChanged += OnPendingCountChanged;
+            KnowledgeGraphManager.Inst.OnInitialized += OnGraphInitialized;
+            KnowledgeGraphManager.Inst.OnGraphRefreshed += SyncExistingNodes;
+            SyncExistingNodes();
+        }
     }
 
     void OnDisable()
     {
         if (KnowledgeGraphManager.Inst != null)
+        {
             KnowledgeGraphManager.Inst.OnHighPriorityUnlock -= OnKnowledgeUnlocked;
+            KnowledgeGraphManager.Inst.OnPendingCountChanged -= OnPendingCountChanged;
+            KnowledgeGraphManager.Inst.OnInitialized -= OnGraphInitialized;
+            KnowledgeGraphManager.Inst.OnGraphRefreshed -= SyncExistingNodes;
+        }
     }
 
     void Update()
@@ -112,6 +123,30 @@ public class PlayerObjectivesUI : MonoBehaviour
     private void OnKnowledgeUnlocked(UnlockedNodeDTO node)
     {
         AddObjective($"kg_{node.node_id}", $"New insight: {node.title}");
+    }
+
+    private void OnPendingCountChanged(int count)
+    {
+        SyncExistingNodes();
+    }
+
+    private void OnGraphInitialized()
+    {
+        SyncExistingNodes();
+    }
+
+    private void SyncExistingNodes()
+    {
+        var nodes = KnowledgeGraphManager.Inst?.Nodes;
+        if (nodes == null) return;
+
+        foreach (var n in nodes)
+        {
+            if (n.status == "unlocked")
+                AddObjective($"kg_{n.id}", $"New insight: {n.title}");
+            else if (n.status == "completed")
+                RemoveObjective($"kg_{n.id}");
+        }
     }
 
     private GameObject CreateDefaultItem()
