@@ -1,5 +1,17 @@
 HIGHSIGHT FINANCIAL — NARRATIVE DESIGN DOCUMENT
 ================================================
+Last updated: 2026-05-26
+
+
+THESIS CONNECTION
+-----------------
+This document describes the in-game narrative and world design. The narrative
+serves the thesis: adaptive experience-driven financial education. Every design
+choice below exists to make learning feel like living, not studying. The mystery
+of Highsight Financial is what keeps students playing long enough for the
+adaptive knowledge graph and LLM-generated content to do their pedagogical work.
+See thesis_narrative.txt for the academic framing.
+
 
 SETTING
 -------
@@ -169,18 +181,43 @@ DESIGN PRINCIPLES
    character's authenticity.
 
 
+IMPLEMENTATION STATUS (as of 2026-05-26)
+-----------------------------------------
+
+IMPLEMENTED:
+- Main Menu scene (functional, no player model/platform yet)
+- Onboarding scene with Casey dialogue (6 lines, camera lock, transitions)
+- Room scene (player home, bed interaction for sleep/advance day)
+- City Scene (3D city with NPC pathfinding, interaction zones, terminals)
+- Trading terminal UI (full OHLC charts, order placement, portfolio view)
+- Knowledge graph UI (pannable/zoomable, color-coded nodes, detail popups)
+- Day cycle (Pre-Market → Day → Post-Market with timer)
+- Arc transitions (cinematic overlays with grade reveal)
+
+NOT YET IMPLEMENTED (deferred — see thesis_narrative.txt "Future Work"):
+- Black Hole Drop / Clouds Arrival scenes (aspirational intro sequence)
+- The Lobby / Principal's Office scenes
+- Floor progression (multi-floor building)
+- Casey as recurring NPC with dynamic dialogue
+- Late-game / endgame narrative beats
+- The Principal as in-game character beyond arc transition quotes
+
+These deferred elements are narrative polish. The core educational loop
+(trade → learn → progress) is complete without them.
+
+
 SCENE MAP (Implementation)
 ---------------------------
 
 Main Menu          → Menu scene (existing). Add player model + platform.
-Black Hole Drop    → Transition animation/VFX between scenes.
-Clouds Arrival     → New scene: "Arrival". Skybox + cloud plane + distant building.
-The Lobby          → New scene or zone: "Lobby". Minimal, clean, elevator.
-Principal's Office → Sub-area of Lobby or separate small scene. Cutscene-driven.
-Floor 1 Bullpen    → Repurpose existing "Room" scene or new "Floor1" scene.
-Trading Terminal   → Existing Trading UI prefab, triggered by interaction zone.
-Knowledge Lattice  → Existing Knowledge Graph UI, opened via Casey interaction.
-City/Exterior      → Existing "City Scene" — could become the post-tutorial hub.
+Black Hole Drop    → Transition animation/VFX between scenes.         [DEFERRED]
+Clouds Arrival     → New scene: "Arrival". Skybox + cloud plane.      [DEFERRED]
+The Lobby          → New scene or zone: "Lobby". Minimal, clean.      [DEFERRED]
+Principal's Office → Sub-area of Lobby. Cutscene-driven.              [DEFERRED]
+Floor 1 Bullpen    → Repurpose existing "Room" scene.                 [BUILT as Room]
+Trading Terminal   → Existing Trading UI prefab, interaction zone.    [BUILT]
+Knowledge Lattice  → Existing Knowledge Graph UI.                     [BUILT]
+City/Exterior      → Existing "City Scene" — main hub.                [BUILT]
 
 
 KNOWLEDGE LATTICE — FIRST 3 NODES (Tutorial)

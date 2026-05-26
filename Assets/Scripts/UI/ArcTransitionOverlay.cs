@@ -114,15 +114,15 @@ public class ArcTransitionOverlay : MonoBehaviour
         overlayCanvas.SetActive(true);
         LockPlayer();
         HideAll();
+        canvasGroup.alpha = 1f;
         canvasGroup.blocksRaycasts = true;
 
-        // Fetch cash while fading in
         double cash = 10000;
         var portfolioTask = APIBootstrapper.EntityDbId > 0
             ? TradeAPI.GetPortfolio(APIBootstrapper.EntityDbId)
             : null;
 
-        yield return Fade(0f, 1f, fadeInDuration);
+        yield return new WaitForSeconds(0.3f);
 
         if (portfolioTask != null)
         {
@@ -166,9 +166,10 @@ public class ArcTransitionOverlay : MonoBehaviour
         overlayCanvas.SetActive(true);
         LockPlayer();
         HideAll();
+        canvasGroup.alpha = 1f;
         canvasGroup.blocksRaycasts = true;
 
-        yield return Fade(0f, 1f, fadeInDuration);
+        yield return new WaitForSeconds(0.3f);
 
         var c = t.completed_arc;
 

@@ -1,6 +1,7 @@
 HIGHSIGHT FINANCIAL — PROJECT AUDIT
 ====================================
 Generated: 2026-05-18
+Updated:   2026-05-26
 
 
 THE FULL SYSTEM AT A GLANCE
@@ -148,8 +149,34 @@ NOT YET BUILT
    asset GUIDs (requires Unity Editor manual fix).
 
 
-WHAT WOULD MAKE IT BETTER (CREATIVE RECOMMENDATIONS)
-------------------------------------------------------
+THESIS-ALIGNED PRIORITIES (updated 2026-05-26)
+------------------------------------------------
+See thesis_narrative.txt for full thesis framing. Summary: "Adaptive
+Experience-Driven Financial Education Through Game-Based Learning and
+Generative AI." The three pillars are gamification (why), LLM adaptivity
+(how), and server-authoritative architecture (what makes it possible).
+
+DEMO PRIORITIES (June 2 — 1 week)
+- Golden-path walkthrough must be bulletproof: Main Menu → Onboarding → Room →
+  City → Terminal → Trade → Knowledge trigger → Arc grade display
+- LLM newspaper must generate and display in-game for the demo date
+- At least one adaptive knowledge trigger must visibly fire during the demo
+- NPC dialogue generation via Claude API should work (even if basic)
+- Arc transition overlay and daily summary must be polished
+
+PRESENTATION PRIORITIES (June 9 — 2 weeks)
+- Architecture diagrams (reusable in paper)
+- Recorded backup demo video
+- 15-20 slides following structure in thesis_narrative.txt
+
+PAPER PRIORITIES (June 16 — 3 weeks)
+- ACM SIG format, ~10-12 pages
+- See thesis_narrative.txt for full paper outline
+- Claude Code methodology section
+
+
+CREATIVE RECOMMENDATIONS (kept from original audit)
+-----------------------------------------------------
 
 HIGH IMPACT, LOW EFFORT (DEMO-READY)
 - NPC bark system: NPCs that say a one-liner when the player walks near them (no
@@ -176,22 +203,22 @@ MEDIUM EFFORT, THESIS-STRENGTHENING
   furniture, D grade = bare minimum. Small visual reward that reinforces the
   "living it" thesis.
 
-LONGER TERM (POST-DEFENSE)
+POST-DEFENSE (Future Work)
 - Classroom deployment: Teacher dashboard showing which students unlocked which
   nodes, aggregate portfolio performance, common mistakes
 - Procedural arcs: Generate arc parameters from any historical period, not just
   2007-2009
 - Mobile/web client: The backend is already a REST API -- a web frontend could
   reach more students
+- User studies measuring learning outcomes vs. traditional curricula
 
 
 SYSTEM INVENTORY
 -----------------
 
-64 C# classes, 44 API endpoints, 13 DB tables, 0 TODOs in the codebase.
+64 C# classes, 44 API endpoints, 15 DB tables, 0 TODOs in the codebase.
 
 The trading loop, knowledge graph, arc system, and newspaper are all end-to-end
-functional. The biggest gap for the demo is that the city feels static (NPCs
-don't talk, no guided first experience). For the thesis defense, the priority is
-framing the adaptive knowledge graph as the contribution and getting a small user
-study run through the complete arc 1 experience.
+functional. The priority for the remaining 3 weeks is polish and presentation,
+not new features. The adaptive knowledge graph is the central thesis
+contribution; demo/presentation/paper should all center on it.
