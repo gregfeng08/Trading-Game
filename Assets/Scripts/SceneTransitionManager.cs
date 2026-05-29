@@ -15,12 +15,20 @@ public class SceneTransitionManager : MonoBehaviour
     private CanvasGroup fadeGroup;
     private bool isTransitioning;
 
+    private Coroutine activeFade;
+
     void Awake()
     {
         if (Inst != null && Inst != this) { Destroy(gameObject); return; }
         Inst = this;
         DontDestroyOnLoad(gameObject);
         BuildFadeCanvas();
+
+        if (ExhaustionOverlay.Inst == null)
+        {
+            var go = new GameObject("ExhaustionOverlay");
+            go.AddComponent<ExhaustionOverlay>();
+        }
     }
 
     public void LoadScene(string sceneName, string spawnPoint = null)
@@ -29,11 +37,15 @@ public class SceneTransitionManager : MonoBehaviour
 
         if (isTransitioning)
         {
-            SceneManager.LoadScene(sceneName);
-            return;
+            if (activeFade != null)
+            {
+                StopCoroutine(activeFade);
+                activeFade = null;
+            }
+            isTransitioning = false;
         }
 
-        StartCoroutine(FadeTransition(sceneName));
+        activeFade = StartCoroutine(FadeTransition(sceneName));
     }
 
     public void ConsumePendingSpawnPoint()
@@ -72,6 +84,7 @@ public class SceneTransitionManager : MonoBehaviour
         fadeGroup.alpha = 0f;
         fadeCanvas.SetActive(false);
         isTransitioning = false;
+        activeFade = null;
     }
 
     private void BuildFadeCanvas()

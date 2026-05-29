@@ -40,6 +40,7 @@ public class ArcTransitionOverlay : MonoBehaviour
 
     private bool waitingForInput;
     private Coroutine activeSequence;
+    private bool subscribedToArcTransition;
 
     void Awake()
     {
@@ -52,8 +53,7 @@ public class ArcTransitionOverlay : MonoBehaviour
     void OnEnable()
     {
         SceneManager.sceneLoaded += OnSceneLoaded;
-        if (GamePhaseManager.Inst != null)
-            GamePhaseManager.Inst.OnArcTransition += ShowTransition;
+        TrySubscribe();
     }
 
     void OnDisable()
@@ -61,14 +61,17 @@ public class ArcTransitionOverlay : MonoBehaviour
         SceneManager.sceneLoaded -= OnSceneLoaded;
         if (GamePhaseManager.Inst != null)
             GamePhaseManager.Inst.OnArcTransition -= ShowTransition;
+        subscribedToArcTransition = false;
     }
 
     void Update()
     {
+        if (!subscribedToArcTransition)
+            TrySubscribe();
+
         if (waitingForInput && Input.anyKeyDown)
             waitingForInput = false;
 
-        // Failsafe: if overlay is blocking but no sequence is running, force cleanup
         if (activeSequence == null && overlayCanvas != null && overlayCanvas.activeSelf)
         {
             Debug.LogWarning("[ArcTransitionOverlay] Overlay stuck active with no running sequence — forcing cleanup.");
@@ -76,13 +79,22 @@ public class ArcTransitionOverlay : MonoBehaviour
         }
     }
 
+    private void TrySubscribe()
+    {
+        if (subscribedToArcTransition) return;
+        if (GamePhaseManager.Inst == null) return;
+        GamePhaseManager.Inst.OnArcTransition += ShowTransition;
+        subscribedToArcTransition = true;
+    }
+
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // Always reset overlay state on scene load to prevent stale blocksRaycasts
-        if (activeSequence != null) { StopCoroutine(activeSequence); activeSequence = null; }
+        bool wasActive = activeSequence != null;
+        if (wasActive) { StopCoroutine(activeSequence); activeSequence = null; }
         canvasGroup.alpha = 0f;
         canvasGroup.blocksRaycasts = false;
         if (overlayCanvas != null) overlayCanvas.SetActive(false);
+        if (wasActive) UnlockPlayer();
 
         if (scene.name == "Onboarding" || scene.name == "Main Menu") return;
         var gpm = GamePhaseManager.Inst;

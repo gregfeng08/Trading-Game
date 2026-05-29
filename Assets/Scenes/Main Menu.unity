@@ -455,6 +455,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fac8f95e81d0c4b469ac7685ac9d230d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTransitionManager
+  fadeDuration: 0.4
 --- !u!4 &1119193812
 Transform:
   m_ObjectHideFlags: 0

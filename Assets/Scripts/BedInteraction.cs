@@ -35,7 +35,12 @@ public class BedInteraction : MonoBehaviour
             ? GamePhaseManager.Inst.CurrentPhase
             : GamePhase.PostMarket;
 
-        zone.SetInteractionName(phase == GamePhase.Day ? "Take a Nap" : "Sleep");
+        zone.SetInteractionName(phase switch
+        {
+            GamePhase.PreMarket => "Go to the Trading Terminal first",
+            GamePhase.Day => "Take a Nap",
+            _ => "Sleep"
+        });
     }
 
     public void Interact()

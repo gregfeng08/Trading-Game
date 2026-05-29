@@ -7,32 +7,48 @@ public class ExhaustionOverlay : MonoBehaviour
 {
     public static ExhaustionOverlay Inst { get; private set; }
 
-    [SerializeField] private CanvasGroup canvasGroup;
-    [SerializeField] private TMP_Text messageText;
     [SerializeField] private float fadeInDuration = 1f;
     [SerializeField] private float holdDuration = 2f;
     [SerializeField] private float fadeOutDuration = 1f;
+
+    private GameObject overlayCanvas;
+    private CanvasGroup canvasGroup;
+    private TMP_Text messageText;
+    private bool subscribedToTimer;
+    private Coroutine activeSequence;
 
     void Awake()
     {
         if (Inst != null && Inst != this) { Destroy(gameObject); return; }
         Inst = this;
         DontDestroyOnLoad(gameObject);
-
-        if (canvasGroup != null)
-            canvasGroup.alpha = 0f;
+        BuildUI();
     }
 
     void OnEnable()
     {
-        if (GamePhaseManager.Inst != null)
-            GamePhaseManager.Inst.OnDayTimerExpired += OnExhausted;
+        TrySubscribe();
     }
 
     void OnDisable()
     {
         if (GamePhaseManager.Inst != null)
             GamePhaseManager.Inst.OnDayTimerExpired -= OnExhausted;
+        subscribedToTimer = false;
+    }
+
+    void Update()
+    {
+        if (!subscribedToTimer)
+            TrySubscribe();
+    }
+
+    private void TrySubscribe()
+    {
+        if (subscribedToTimer) return;
+        if (GamePhaseManager.Inst == null) return;
+        GamePhaseManager.Inst.OnDayTimerExpired += OnExhausted;
+        subscribedToTimer = true;
     }
 
     private void OnExhausted()
@@ -42,15 +58,14 @@ public class ExhaustionOverlay : MonoBehaviour
 
     public void Show(string message)
     {
-        if (messageText != null)
-            messageText.text = message;
-        StartCoroutine(FadeSequence());
+        if (canvasGroup == null || activeSequence != null) return;
+        messageText.text = message;
+        overlayCanvas.SetActive(true);
+        activeSequence = StartCoroutine(FadeSequence());
     }
 
     private IEnumerator FadeSequence()
     {
-        if (canvasGroup == null) yield break;
-
         canvasGroup.blocksRaycasts = true;
         float t = 0f;
         while (t < fadeInDuration)
@@ -72,5 +87,50 @@ public class ExhaustionOverlay : MonoBehaviour
         }
         canvasGroup.alpha = 0f;
         canvasGroup.blocksRaycasts = false;
+        overlayCanvas.SetActive(false);
+        activeSequence = null;
+    }
+
+    private void BuildUI()
+    {
+        overlayCanvas = new GameObject("ExhaustionCanvas");
+        overlayCanvas.transform.SetParent(transform);
+        var canvas = overlayCanvas.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 95;
+
+        var scaler = overlayCanvas.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        canvasGroup = overlayCanvas.AddComponent<CanvasGroup>();
+        canvasGroup.alpha = 0f;
+        canvasGroup.blocksRaycasts = false;
+
+        var bg = new GameObject("Background");
+        bg.transform.SetParent(overlayCanvas.transform, false);
+        var bgRect = bg.AddComponent<RectTransform>();
+        bgRect.anchorMin = Vector2.zero;
+        bgRect.anchorMax = Vector2.one;
+        bgRect.sizeDelta = Vector2.zero;
+        bgRect.anchoredPosition = Vector2.zero;
+        bg.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+
+        var textGO = new GameObject("Message");
+        textGO.transform.SetParent(overlayCanvas.transform, false);
+        var textRect = textGO.AddComponent<RectTransform>();
+        textRect.anchorMin = new Vector2(0.5f, 0.5f);
+        textRect.anchorMax = new Vector2(0.5f, 0.5f);
+        textRect.sizeDelta = new Vector2(800, 100);
+        textRect.anchoredPosition = Vector2.zero;
+        messageText = textGO.AddComponent<TextMeshProUGUI>();
+        messageText.fontSize = 28;
+        messageText.fontStyle = FontStyles.Italic;
+        messageText.alignment = TextAlignmentOptions.Center;
+        messageText.color = new Color(0.9f, 0.75f, 0.5f, 1f);
+        messageText.raycastTarget = false;
+
+        overlayCanvas.SetActive(false);
     }
 }

@@ -82,6 +82,16 @@ public class GamePhaseManager : MonoBehaviour
             var go = new GameObject("OnboardingController");
             go.AddComponent<OnboardingController>();
         }
+        if (NewspaperUI.Inst == null)
+        {
+            var go = new GameObject("NewspaperUI");
+            go.AddComponent<NewspaperUI>();
+        }
+        if (NewspaperHUDButton.Inst == null)
+        {
+            var go = new GameObject("NewspaperHUDButton");
+            go.AddComponent<NewspaperHUDButton>();
+        }
     }
 
     void Update()
@@ -340,6 +350,10 @@ public class GamePhaseManager : MonoBehaviour
             CurrentPhase = GamePhase.PreMarket;
             OnPhaseChanged?.Invoke(CurrentPhase);
             CheckKnowledgeTriggers();
+
+            if (NewspaperHUDButton.Inst != null)
+                NewspaperHUDButton.Inst.MarkUnread();
+
             return true;
         }
         catch (Exception ex)

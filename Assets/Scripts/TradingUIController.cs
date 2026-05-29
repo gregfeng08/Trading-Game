@@ -87,6 +87,8 @@ public class TradingUIController : MonoBehaviour
     private double currentEstimatedPrice;
     private NetWorthPointDTO[] cachedPortfolioHistory;
 
+    private GameObject dismissBackground;
+
     void OnEnable()
     {
         if (PlayerStateController.Inst != null)
@@ -109,6 +111,7 @@ public class TradingUIController : MonoBehaviour
 
     public void Open()
     {
+        ShowDismissBackground();
         tradingPanel.SetActive(true);
         PlayerStateController.Inst.SetState(PlayerState.TRADING);
 
@@ -147,7 +150,42 @@ public class TradingUIController : MonoBehaviour
         UnbindChartTabs();
         UnbindBottomTabs();
 
+        HideDismissBackground();
         tradingPanel.SetActive(false);
+    }
+
+    private void ShowDismissBackground()
+    {
+        if (dismissBackground == null)
+        {
+            var parent = tradingPanel.transform.parent;
+            if (parent == null) return;
+
+            dismissBackground = new GameObject("DismissBackground");
+            dismissBackground.transform.SetParent(parent, false);
+            var rt = dismissBackground.AddComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.sizeDelta = Vector2.zero;
+            rt.anchoredPosition = Vector2.zero;
+
+            var img = dismissBackground.AddComponent<Image>();
+            img.color = new Color(0f, 0f, 0f, 0.4f);
+
+            var btn = dismissBackground.AddComponent<Button>();
+            btn.transition = Selectable.Transition.None;
+            btn.onClick.AddListener(Close);
+        }
+
+        dismissBackground.SetActive(true);
+        int panelIdx = tradingPanel.transform.GetSiblingIndex();
+        dismissBackground.transform.SetSiblingIndex(panelIdx);
+    }
+
+    private void HideDismissBackground()
+    {
+        if (dismissBackground != null)
+            dismissBackground.SetActive(false);
     }
 
     // ── Bottom Tab System ──
@@ -863,6 +901,8 @@ public class TradingUIController : MonoBehaviour
                         SetTickerTradable(true);
                         break;
                 }
+
+                AppendPeriodChange(chartData);
             }
             else
             {
@@ -945,6 +985,35 @@ public class TradingUIController : MonoBehaviour
     }
 
     // ── UI Helpers ──
+
+    private void AppendPeriodChange(PriceRowDTO[] rows)
+    {
+        if (rows == null || rows.Length < 2 || priceText == null) return;
+
+        double periodOpen = rows[0].open_price;
+        double periodClose = rows[rows.Length - 1].close_price;
+        if (periodOpen <= 0) return;
+
+        double pctChange = (periodClose - periodOpen) / periodOpen * 100.0;
+        string sign = pctChange >= 0 ? "+" : "";
+        string color = pctChange >= 0 ? "#26BF59" : "#D93838";
+        string label = TimeframeLabel(selectedTimeframe);
+
+        priceText.text += $"   <size=80%><color={color}>{sign}{pctChange:F1}% {label}</color></size>";
+    }
+
+    private static string TimeframeLabel(ChartTimeframe tf)
+    {
+        return tf switch
+        {
+            ChartTimeframe.Week1 => "1W",
+            ChartTimeframe.Month1 => "1M",
+            ChartTimeframe.Month3 => "3M",
+            ChartTimeframe.Year1 => "1Y",
+            ChartTimeframe.Year5 => "5Y",
+            _ => ""
+        };
+    }
 
     public static string FmtPrice(double price)
     {

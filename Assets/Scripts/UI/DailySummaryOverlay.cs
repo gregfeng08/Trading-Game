@@ -49,6 +49,7 @@ public class DailySummaryOverlay : MonoBehaviour
 
     private bool waitingForInput;
     private Coroutine activeSequence;
+    private bool showInProgress;
     private Action onDismissed;
 
     // Captured data (snapshot before advance)
@@ -72,11 +73,12 @@ public class DailySummaryOverlay : MonoBehaviour
             waitingForInput = false;
     }
 
-    public bool IsActive => overlayCanvas != null && overlayCanvas.activeSelf;
+    public bool IsActive => showInProgress || (overlayCanvas != null && overlayCanvas.activeSelf);
 
     public void Show(Action onComplete = null)
     {
-        if (activeSequence != null) return;
+        if (showInProgress || activeSequence != null) return;
+        showInProgress = true;
 
         onDismissed = onComplete;
 
@@ -275,6 +277,7 @@ public class DailySummaryOverlay : MonoBehaviour
         HideAll();
         overlayCanvas.SetActive(false);
         activeSequence = null;
+        showInProgress = false;
 
         UnlockPlayer();
 

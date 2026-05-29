@@ -45,7 +45,20 @@
       "Bash(Sort-Object Name)",
       "Bash(Select-String -Pattern \"error \\(?!MSB3\\)\")",
       "Bash(Select-Object -First 10)",
-      "Bash(Select-String -Path \"Assets\\\\Scenes\\\\Room.unity\" -Pattern \"interactionName\" -Context 2)"
+      "Bash(Select-String -Path \"Assets\\\\Scenes\\\\Room.unity\" -Pattern \"interactionName\" -Context 2)",
+      "Bash(grep -E \"\\\\.\\(txt|md|doc\\)$\")",
+      "Bash(git add *)",
+      "Bash(git commit -m '@ *)",
+      "Bash(git push *)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.cs\")",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:5000/newspaper?date=2007-04-02\" -UseBasicParsing -TimeoutSec 5; $r.StatusCode } catch { $_.Exception.Message })",
+      "PowerShell(dotnet run *)",
+      "PowerShell(Start-Sleep -Seconds 8; try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:5000/newspaper?date=2007-04-02\" -UseBasicParsing -TimeoutSec 30; \"Status: $\\($r.StatusCode\\)\"; $r.Content.Substring\\(0, [Math]::Min\\(2000, $r.Content.Length\\)\\) } catch { $_.Exception.Message })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:5000/newspaper/image?date=2007-04-02\" -UseBasicParsing -TimeoutSec 60; \"Status: $\\($r.StatusCode\\)\"; \"Content-Type: $\\($r.Headers['Content-Type']\\)\"; \"Size: $\\($r.Content.Length\\) bytes\" } catch { \"Error: $\\($_.Exception.Message\\)\"; if \\($_.Exception.Response\\) { \"StatusCode: $\\($_.Exception.Response.StatusCode\\)\" } })",
+      "Bash(xargs grep -l \"InteractionZone\")",
+      "Bash(xargs grep -l \"fe6350c6523c506479828fc08798398d\")",
+      "Bash(powershell *)",
+      "PowerShell(Test-Path *)"
     ]
   }
 }
