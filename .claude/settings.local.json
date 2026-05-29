@@ -42,7 +42,11 @@
       "PowerShell(Invoke-RestMethod -Uri 'http://127.0.0.1:5000/new_game?startDate=2008-09-10' -Method Post)",
       "PowerShell(Start-Process \"http://127.0.0.1:5000/dialogue?date=2008-09-15\")",
       "Bash(Get-Content *)",
-      "Bash(xargs grep -l \"raycast\\\\|ground\\\\|follow\" -i)"
+      "Bash(xargs grep -l \"raycast\\\\|ground\\\\|follow\" -i)",
+      "Bash(git lfs *)",
+      "Bash(git count-objects *)",
+      "Bash(git push *)",
+      "Bash(git rev-list *)"
     ]
   }
 }

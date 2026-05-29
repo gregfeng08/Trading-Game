@@ -218,7 +218,7 @@ public class TradingService
             }
         }
 
-        var totals = new List<PortfolioTotalDto>();
+        var rawTotals = new List<(string TickerId, double Shares)>();
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
@@ -229,10 +229,36 @@ public class TradingService
             cmd.Parameters.AddWithValue("@eid", entityId);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
-                totals.Add(new PortfolioTotalDto(reader.GetString(0), reader.GetDouble(1)));
+                rawTotals.Add((reader.GetString(0), reader.GetDouble(1)));
         }
 
-        return new PortfolioResponse("ok", entity, lots, totals);
+        var gameDate = _gameState.GetSaveValue(conn, "current_date");
+        var phase = _gameState.GetSaveValue(conn, "game_phase") ?? "pre_market";
+        bool useClose = phase == "post_market";
+        string priceBasis = useClose ? "close" : "open";
+
+        double holdingsValue = 0;
+        var totals = new List<PortfolioTotalDto>();
+        foreach (var (tickerId, shares) in rawTotals)
+        {
+            double curPrice = 0;
+            if (gameDate is not null)
+            {
+                double? price = useClose
+                    ? TradingDbOps.GetClosePrice(conn, tickerId, gameDate, null)
+                    : TradingDbOps.GetOpenPrice(conn, tickerId, gameDate, null);
+                curPrice = price ?? 0;
+            }
+            double mktVal = shares * curPrice;
+            holdingsValue += mktVal;
+            totals.Add(new PortfolioTotalDto(tickerId, shares,
+                Math.Round(curPrice, 4), Math.Round(mktVal, 2)));
+        }
+
+        double netWorth = entity.AvailableCash + holdingsValue;
+
+        return new PortfolioResponse("ok", entity, lots, totals,
+            Math.Round(holdingsValue, 2), Math.Round(netWorth, 2), priceBasis);
     }
 
     // ── Trade history ──

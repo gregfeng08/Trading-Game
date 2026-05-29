@@ -65,6 +65,9 @@ public class GameStateService
         if (entityDbId.HasValue)
             liquidations = ForceLiquidateDelistedTickers(conn, tx, entityDbId.Value, nextDate, currentDate);
 
+        if (entityDbId.HasValue)
+            SnapshotNetWorth(conn, tx, entityDbId.Value, nextDate, "pre_market");
+
         tx.Commit();
 
         return new AdvanceDayResponse("ok", currentDate, nextDate, "pre_market", false, null)
@@ -284,6 +287,48 @@ public class GameStateService
         }
 
         return new DialogueResponse("ok", date, rows.Count, rows);
+    }
+
+    private void SnapshotNetWorth(SqliteConnection conn, SqliteTransaction tx, int entityDbId, string date, string phase)
+    {
+        var entity = _entities.GetEntity(conn, entityDbId, tx);
+        if (entity is null) return;
+
+        bool useClose = phase == "close";
+        double holdingsValue = 0;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = "SELECT ticker_id, SUM(shares_held) FROM portfolio WHERE entity_id = @eid GROUP BY ticker_id;";
+            cmd.Parameters.AddWithValue("@eid", entityDbId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var tid = reader.GetString(0);
+                var shares = reader.GetDouble(1);
+                var price = useClose
+                    ? TradingDbOps.GetClosePrice(conn, tid, date, tx)
+                    : TradingDbOps.GetOpenPrice(conn, tid, date, tx);
+                if (price.HasValue)
+                    holdingsValue += shares * price.Value;
+            }
+        }
+
+        double netWorth = entity.AvailableCash + holdingsValue;
+
+        using var insert = conn.CreateCommand();
+        insert.Transaction = tx;
+        insert.CommandText = """
+            INSERT OR REPLACE INTO net_worth_history (entity_id, date, phase, cash, holdings_value, net_worth)
+            VALUES (@eid, @d, @phase, @cash, @hv, @nw);
+            """;
+        insert.Parameters.AddWithValue("@eid", entityDbId);
+        insert.Parameters.AddWithValue("@d", date);
+        insert.Parameters.AddWithValue("@phase", phase);
+        insert.Parameters.AddWithValue("@cash", entity.AvailableCash);
+        insert.Parameters.AddWithValue("@hv", holdingsValue);
+        insert.Parameters.AddWithValue("@nw", netWorth);
+        insert.ExecuteNonQuery();
     }
 
     // ── Save state CRUD ──

@@ -151,6 +151,7 @@ public class KnowledgeGraphService
             "first_losing_sell" => CheckFirstLosingSell(conn, entityId),
             "same_ticker_multiple_buys" => CheckMultipleBuys(conn, entityId, trigger.Params),
             "unrealized_gain_pct" => CheckUnrealizedGain(conn, entityId, gameDate, trigger.Params),
+            "unrealized_loss_pct" => CheckUnrealizedLoss(conn, entityId, gameDate, trigger.Params),
             "bought_after_decline" => CheckBoughtDip(conn, entityId, gameDate, trigger.Params),
             "low_cash_ratio" => CheckLowCash(conn, entityId, gameDate, trigger.Params),
             "market_wide_decline" => CheckMarketDecline(conn, gameDate, trigger.Params),
@@ -292,6 +293,31 @@ public class KnowledgeGraphService
             var purchasePrice = reader.GetDouble(1);
             var currentPrice = reader.GetDouble(2);
             if (purchasePrice > 0 && (currentPrice - purchasePrice) / purchasePrice * 100 >= gainPct)
+                return true;
+        }
+        return false;
+    }
+
+    private bool CheckUnrealizedLoss(SqliteConnection conn, int entityId, string gameDate, Dictionary<string, JsonElement> p)
+    {
+        var lossPct = p.TryGetValue("loss_pct", out var lp) ? lp.GetDouble() : 15.0;
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT pf.ticker_id, pf.price as purchase_price, tp.close_price
+            FROM portfolio pf
+            JOIN ticker_prices tp ON tp.ticker_id = pf.ticker_id AND tp.date = @date
+            WHERE pf.entity_id = @eid AND pf.shares_held > 0;
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.Parameters.AddWithValue("@date", gameDate);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var purchasePrice = reader.GetDouble(1);
+            var currentPrice = reader.GetDouble(2);
+            if (purchasePrice > 0 && (purchasePrice - currentPrice) / purchasePrice * 100 >= lossPct)
                 return true;
         }
         return false;

@@ -4,7 +4,8 @@
       "PowerShell(Invoke-RestMethod -Uri 'http://127.0.0.1:5000/new_game' -Method Post)",
       "PowerShell($r = Invoke-RestMethod -Uri 'http://127.0.0.1:5000/dialogue?date=2005-01-03' -Method Get; \"Total: $\\($r.count\\)\"; $r.dialogue | Where-Object { $_.source -eq 'dynamic' } | Select-Object npc_type, priority, text | Format-Table -Wrap)",
       "PowerShell(Invoke-RestMethod -Uri 'http://127.0.0.1:5000/register_entity' -Method Post -ContentType 'application/json' -Body '{\"external_id\":\"player_001\",\"is_player\":1,\"starting_cash\":10000}')",
-      "Bash(xargs grep -l \"Casey\\\\|Principal\")"
+      "Bash(xargs grep -l \"Casey\\\\|Principal\")",
+      "Bash(git status *)"
     ]
   }
 }

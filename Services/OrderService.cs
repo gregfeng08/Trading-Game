@@ -45,7 +45,7 @@ public class OrderService
 
         var phase = _gameState.GetSaveValue(conn, "game_phase");
         if (phase != "pre_market")
-            return Results.Json(new ErrorResponse("error", "Orders can only be queued during pre_market"), statusCode: 400);
+            return Results.Json(new ErrorResponse("error", "Orders can only be queued during pre-market"), statusCode: 400);
 
         var gameDate = _gameState.GetSaveValue(conn, "current_date");
 
@@ -558,10 +558,10 @@ public class OrderService
         var rows = new List<NetWorthPointDto>();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT date || CASE phase WHEN 'open' THEN 'T09:30' ELSE 'T16:00' END,
+            SELECT date || CASE phase WHEN 'pre_market' THEN 'T08:00' WHEN 'open' THEN 'T09:30' ELSE 'T16:00' END,
                    cash, holdings_value, net_worth
             FROM net_worth_history WHERE entity_id = @eid
-            ORDER BY date, CASE phase WHEN 'open' THEN 0 ELSE 1 END;
+            ORDER BY date, CASE phase WHEN 'pre_market' THEN 0 WHEN 'open' THEN 1 ELSE 2 END;
             """;
         cmd.Parameters.AddWithValue("@eid", entityDbId);
 

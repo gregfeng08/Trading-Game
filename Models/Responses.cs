@@ -152,14 +152,19 @@ public record PortfolioLotDto(
 
 public record PortfolioTotalDto(
     [property: JsonPropertyName("ticker_id")] string TickerId,
-    [property: JsonPropertyName("shares_held")] double SharesHeld
+    [property: JsonPropertyName("shares_held")] double SharesHeld,
+    [property: JsonPropertyName("current_price")] double CurrentPrice,
+    [property: JsonPropertyName("market_value")] double MarketValue
 );
 
 public record PortfolioResponse(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("entity")] EntityInfoDto Entity,
     [property: JsonPropertyName("lots")] List<PortfolioLotDto> Lots,
-    [property: JsonPropertyName("totals")] List<PortfolioTotalDto> Totals
+    [property: JsonPropertyName("totals")] List<PortfolioTotalDto> Totals,
+    [property: JsonPropertyName("holdings_value")] double HoldingsValue,
+    [property: JsonPropertyName("net_worth")] double NetWorth,
+    [property: JsonPropertyName("price_basis")] string PriceBasis
 );
 
 public record TradeHistoryRowDto(
