@@ -7,6 +7,9 @@ namespace Game.API.DTO
         public EntityInfoDTO entity;
         public PortfolioLotDTO[] lots;
         public PortfolioTotalDTO[] totals;
+        public double holdings_value;
+        public double net_worth;
+        public string price_basis;
     }
 
     [System.Serializable]
@@ -33,5 +36,7 @@ namespace Game.API.DTO
     {
         public string ticker_id;
         public double shares_held;
+        public double current_price;
+        public double market_value;
     }
 }

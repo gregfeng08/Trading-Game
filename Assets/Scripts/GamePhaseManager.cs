@@ -53,8 +53,10 @@ public class GamePhaseManager : MonoBehaviour
     public event Action<ForcedLiquidationDTO[]> OnForcedLiquidations;
 
     private readonly List<TradeResult> todayResults = new List<TradeResult>();
+    private readonly List<TradeResult> postMarketResults = new List<TradeResult>();
 
     public IReadOnlyList<TradeResult> TodayResults => todayResults;
+    public IReadOnlyList<TradeResult> PostMarketResults => postMarketResults;
 
     void Awake()
     {
@@ -87,11 +89,6 @@ public class GamePhaseManager : MonoBehaviour
             var go = new GameObject("NewspaperUI");
             go.AddComponent<NewspaperUI>();
         }
-        if (NewspaperHUDButton.Inst == null)
-        {
-            var go = new GameObject("NewspaperHUDButton");
-            go.AddComponent<NewspaperHUDButton>();
-        }
     }
 
     void Update()
@@ -113,6 +110,13 @@ public class GamePhaseManager : MonoBehaviour
         var resp = await GameStateAPI.GetGameDate();
         CurrentDate = resp.current_date;
         CurrentPhase = ParsePhase(resp.game_phase);
+
+        if (CurrentPhase == GamePhase.Day && !DayTimerActive)
+        {
+            DayTimeRemaining = dayDurationSeconds;
+            DayTimerActive = true;
+        }
+
         await RefreshArcStatus();
     }
 
@@ -325,6 +329,61 @@ public class GamePhaseManager : MonoBehaviour
         }
     }
 
+    public async Task<List<TradeResult>> ConfirmPostMarketOrders()
+    {
+        if (CurrentPhase != GamePhase.PostMarket || IsTransitioning) return null;
+        if (localOrders.Count == 0)
+        {
+            await SyncWithServer();
+            CheckKnowledgeTriggers();
+            return new List<TradeResult>();
+        }
+        IsTransitioning = true;
+
+        try
+        {
+            postMarketResults.Clear();
+
+            foreach (var order in localOrders)
+            {
+                var req = new TradeRequestDTO
+                {
+                    entity_id = APIBootstrapper.EntityExternalId,
+                    ticker = order.ticker,
+                    side = order.side,
+                    quantity = order.quantity,
+                    price = order.estimatedPrice,
+                    order_type = "market"
+                };
+
+                var resp = await TradeAPI.PostTrade(req);
+                postMarketResults.Add(new TradeResult
+                {
+                    ticker = order.ticker,
+                    side = order.side,
+                    quantity = order.quantity,
+                    fillPrice = resp.filled_price,
+                    status = resp.status,
+                    message = resp.message
+                });
+            }
+
+            localOrders.Clear();
+            await SyncWithServer();
+            CheckKnowledgeTriggers();
+            return new List<TradeResult>(postMarketResults);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[GamePhaseManager] ConfirmPostMarketOrders exception: {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            IsTransitioning = false;
+        }
+    }
+
     public async Task<bool> AdvanceToNextDay()
     {
         if (CurrentPhase != GamePhase.PostMarket || IsTransitioning) return false;
@@ -337,6 +396,7 @@ public class GamePhaseManager : MonoBehaviour
 
             CurrentDate = resp.current_date;
             todayResults.Clear();
+            postMarketResults.Clear();
             localOrders.Clear();
             PostMarketReady = false;
 
@@ -350,9 +410,6 @@ public class GamePhaseManager : MonoBehaviour
             CurrentPhase = GamePhase.PreMarket;
             OnPhaseChanged?.Invoke(CurrentPhase);
             CheckKnowledgeTriggers();
-
-            if (NewspaperHUDButton.Inst != null)
-                NewspaperHUDButton.Inst.MarkUnread();
 
             return true;
         }

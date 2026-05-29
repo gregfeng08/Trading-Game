@@ -139,14 +139,14 @@ public class LeylineGraph : MonoBehaviour
         return new List<Vector2Int>();
     }
 
-    public Vector3 GetLanePosition(Vector2Int from, Vector2Int to)
+    public Vector3 GetLanePosition(Vector2Int from, Vector2Int to, float laneSide = 1f)
     {
         Vector3 fromWorld = GridToWorld(from);
         Vector3 toWorld = GridToWorld(to);
         Vector3 dir = (toWorld - fromWorld).normalized;
         Vector3 right = Vector3.Cross(Vector3.up, dir);
 
-        Vector3 offset = toWorld + right * laneOffset;
+        Vector3 offset = toWorld + right * (laneOffset * laneSide);
 
         if (NavMesh.SamplePosition(offset, out NavMeshHit hit, laneOffset + 1f, NavMesh.AllAreas))
             return hit.position;

@@ -32,6 +32,19 @@ public static class CandleAggregator
         };
     }
 
+    public static int MaxPortfolioPoints(ChartTimeframe tf)
+    {
+        return tf switch
+        {
+            ChartTimeframe.Week1 => 15,
+            ChartTimeframe.Month1 => 66,
+            ChartTimeframe.Month3 => 195,
+            ChartTimeframe.Year1 => 260,
+            ChartTimeframe.Year5 => 300,
+            _ => 195
+        };
+    }
+
     public static PriceRowDTO[] Aggregate(PriceRowDTO[] daily, ChartTimeframe tf)
     {
         if (daily == null || daily.Length == 0) return daily;

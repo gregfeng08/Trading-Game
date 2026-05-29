@@ -28,12 +28,10 @@ public class NewspaperUI : MonoBehaviour
         BuildUI();
     }
 
-    void Update()
+    void OnDestroy()
     {
-        if (newspaperPanel == null || !newspaperPanel.activeSelf) return;
-
-        if (Input.GetKeyDown(KeyCode.Escape))
-            Hide();
+        if (currentTexture != null)
+            Destroy(currentTexture);
     }
 
     public void Open()
@@ -41,7 +39,7 @@ public class NewspaperUI : MonoBehaviour
         string date = GamePhaseManager.Inst != null ? GamePhaseManager.Inst.CurrentDate : null;
 
         if (PlayerStateController.Inst != null)
-            PlayerStateController.Inst.SetState(PlayerState.TRADING);
+            PlayerStateController.Inst.OpenUI(PlayerState.TRADING, ClosePanel);
 
         Show(date);
     }
@@ -67,11 +65,16 @@ public class NewspaperUI : MonoBehaviour
 
     public void Hide()
     {
-        if (newspaperPanel != null)
-            newspaperPanel.SetActive(false);
-
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.SetState(PlayerState.MOVING);
+        else
+            ClosePanel();
+    }
+
+    private void ClosePanel()
+    {
+        if (newspaperPanel != null)
+            newspaperPanel.SetActive(false);
     }
 
     private async Task LoadNewspaper(string date)
@@ -133,12 +136,6 @@ public class NewspaperUI : MonoBehaviour
         float fitHeight = viewportWidth * texAspect;
 
         contentRect.sizeDelta = new Vector2(viewportWidth, fitHeight);
-    }
-
-    void OnDestroy()
-    {
-        if (currentTexture != null)
-            Destroy(currentTexture);
     }
 
     private void BuildUI()

@@ -18,6 +18,9 @@ public class PlayerStateController : MonoBehaviour
     /// <summary>Fires after every state change. Args: (oldState, newState).</summary>
     public event Action<PlayerState, PlayerState> OnStateChanged;
 
+    private Action activeUIClose;
+    private PlayerState activeUIState;
+
     void Awake()
     {
         if (Inst != null && Inst != this) { Destroy(gameObject); return; }
@@ -37,12 +40,33 @@ public class PlayerStateController : MonoBehaviour
         }
     }
 
+    public void OpenUI(PlayerState state, Action onClose)
+    {
+        if (activeUIClose != null)
+        {
+            var prev = activeUIClose;
+            activeUIClose = null;
+            prev.Invoke();
+        }
+
+        activeUIClose = onClose;
+        activeUIState = state;
+        SetState(state);
+    }
+
     public void SetState(PlayerState newState)
     {
         if (newState == State) return;
 
         PlayerState old = State;
         State = newState;
+
+        if (activeUIClose != null && old == activeUIState)
+        {
+            var cb = activeUIClose;
+            activeUIClose = null;
+            cb.Invoke();
+        }
 
         ApplyCursor(newState);
         OnStateChanged?.Invoke(old, newState);

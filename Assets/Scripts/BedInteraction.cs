@@ -3,44 +3,67 @@ using UnityEngine;
 public class BedInteraction : MonoBehaviour
 {
     private InteractionZone zone;
+    private MeshRenderer meshRenderer;
+    private Collider col;
+    private bool subscribedToPhase;
 
     void Awake()
     {
         zone = GetComponent<InteractionZone>();
+        meshRenderer = GetComponent<MeshRenderer>();
+        col = GetComponent<Collider>();
     }
 
     void OnEnable()
     {
-        if (GamePhaseManager.Inst != null)
-            GamePhaseManager.Inst.OnPhaseChanged += OnPhaseChanged;
-        UpdatePrompt();
+        TrySubscribe();
+        UpdateVisibility();
     }
 
     void OnDisable()
     {
         if (GamePhaseManager.Inst != null)
             GamePhaseManager.Inst.OnPhaseChanged -= OnPhaseChanged;
+        subscribedToPhase = false;
+    }
+
+    void Update()
+    {
+        if (!subscribedToPhase)
+            TrySubscribe();
+    }
+
+    private void TrySubscribe()
+    {
+        if (subscribedToPhase || GamePhaseManager.Inst == null) return;
+        GamePhaseManager.Inst.OnPhaseChanged += OnPhaseChanged;
+        subscribedToPhase = true;
     }
 
     private void OnPhaseChanged(GamePhase phase)
     {
-        UpdatePrompt();
+        UpdateVisibility();
     }
 
-    private void UpdatePrompt()
+    private void UpdateVisibility()
     {
-        if (zone == null) return;
-
         var phase = GamePhaseManager.Inst != null
             ? GamePhaseManager.Inst.CurrentPhase
             : GamePhase.PostMarket;
 
-        zone.SetInteractionName(phase switch
+        if (phase == GamePhase.PreMarket)
         {
-            GamePhase.PreMarket => "Go to the Trading Terminal first",
-            GamePhase.Day => "Take a Nap",
-            _ => "Sleep"
-        });
+            if (meshRenderer != null) meshRenderer.enabled = false;
+            if (col != null) col.enabled = false;
+            if (InteractionsController.Inst != null && zone != null)
+                InteractionsController.Inst.ClearActiveZone(zone);
+            return;
+        }
+
+        if (meshRenderer != null) meshRenderer.enabled = true;
+        if (col != null) col.enabled = true;
+        if (zone != null)
+            zone.SetInteractionName(phase == GamePhase.Day ? "Take a Nap" : "Sleep");
     }
 
     public void Interact()

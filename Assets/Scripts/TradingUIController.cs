@@ -14,6 +14,11 @@ public class TradingUIController : MonoBehaviour
 
     [Header("Ticker Selection")]
     [SerializeField] private TMP_Dropdown tickerDropdown;
+    [SerializeField] private TMP_InputField tickerSearchInput;
+    [SerializeField] private int searchResultLimit = 8;
+    private GameObject searchResultsPanel;
+    private List<GameObject> searchResultItems = new List<GameObject>();
+    private bool searchIsOpen;
 
     [Header("Market Info")]
     [SerializeField] private TMP_Text dateText;
@@ -75,7 +80,7 @@ public class TradingUIController : MonoBehaviour
     private enum BottomTab { Trade, Portfolio, History }
 
     private TickerDTO[] tickers;
-    private string selectedTicker;
+    private static string selectedTicker;
     private string currentGameDate;
     private GamePhase currentPhase;
     private PortfolioTotalDTO[] cachedHoldings;
@@ -85,27 +90,12 @@ public class TradingUIController : MonoBehaviour
     private BottomTab activeTab = BottomTab.Trade;
     private bool tickerTradableToday = true;
     private double currentEstimatedPrice;
+    private double cachedServerNetWorth;
+    private double cachedServerCash;
+    private double cachedServerHoldingsValue;
     private NetWorthPointDTO[] cachedPortfolioHistory;
 
-    private GameObject dismissBackground;
-
-    void OnEnable()
-    {
-        if (PlayerStateController.Inst != null)
-            PlayerStateController.Inst.OnStateChanged += OnPlayerStateChanged;
-    }
-
-    void OnDisable()
-    {
-        if (PlayerStateController.Inst != null)
-            PlayerStateController.Inst.OnStateChanged -= OnPlayerStateChanged;
-    }
-
-    private void OnPlayerStateChanged(PlayerState oldState, PlayerState newState)
-    {
-        if (oldState == PlayerState.TRADING && tradingPanel.activeSelf)
-            ClosePanel();
-    }
+    private GameObject dismissBg;
 
     private bool hasOpenedBefore;
 
@@ -113,10 +103,11 @@ public class TradingUIController : MonoBehaviour
     {
         ShowDismissBackground();
         tradingPanel.SetActive(true);
-        PlayerStateController.Inst.SetState(PlayerState.TRADING);
+        PlayerStateController.Inst.OpenUI(PlayerState.TRADING, ClosePanel);
 
         closeButton.onClick.AddListener(Close);
-        tickerDropdown.onValueChanged.AddListener(OnTickerChanged);
+        if (tickerDropdown != null && tickerSearchInput == null)
+            tickerDropdown.onValueChanged.AddListener(OnTickerChanged);
         BindTimeframeButtons();
         BindChartTabs();
         BindBottomTabs();
@@ -145,7 +136,14 @@ public class TradingUIController : MonoBehaviour
         buyButton.onClick.RemoveAllListeners();
         sellButton.onClick.RemoveAllListeners();
         if (advanceDayButton != null) advanceDayButton.onClick.RemoveAllListeners();
-        tickerDropdown.onValueChanged.RemoveAllListeners();
+        if (tickerDropdown != null) tickerDropdown.onValueChanged.RemoveAllListeners();
+        if (tickerSearchInput != null)
+        {
+            tickerSearchInput.onValueChanged.RemoveAllListeners();
+            tickerSearchInput.onSelect.RemoveAllListeners();
+            tickerSearchInput.onDeselect.RemoveAllListeners();
+            CloseSearchResults();
+        }
         UnbindTimeframeButtons();
         UnbindChartTabs();
         UnbindBottomTabs();
@@ -156,36 +154,33 @@ public class TradingUIController : MonoBehaviour
 
     private void ShowDismissBackground()
     {
-        if (dismissBackground == null)
+        if (dismissBg == null)
         {
-            var parent = tradingPanel.transform.parent;
-            if (parent == null) return;
+            var parentCanvas = tradingPanel.GetComponentInParent<Canvas>();
+            if (parentCanvas == null) return;
 
-            dismissBackground = new GameObject("DismissBackground");
-            dismissBackground.transform.SetParent(parent, false);
-            var rt = dismissBackground.AddComponent<RectTransform>();
+            dismissBg = new GameObject("DismissBackground");
+            dismissBg.transform.SetParent(parentCanvas.transform, false);
+            var rt = dismissBg.AddComponent<RectTransform>();
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.sizeDelta = Vector2.zero;
             rt.anchoredPosition = Vector2.zero;
-
-            var img = dismissBackground.AddComponent<Image>();
+            var img = dismissBg.AddComponent<Image>();
             img.color = new Color(0f, 0f, 0f, 0.4f);
-
-            var btn = dismissBackground.AddComponent<Button>();
+            var btn = dismissBg.AddComponent<Button>();
             btn.transition = Selectable.Transition.None;
             btn.onClick.AddListener(Close);
         }
 
-        dismissBackground.SetActive(true);
-        int panelIdx = tradingPanel.transform.GetSiblingIndex();
-        dismissBackground.transform.SetSiblingIndex(panelIdx);
+        dismissBg.SetActive(true);
+        dismissBg.transform.SetAsFirstSibling();
     }
 
     private void HideDismissBackground()
     {
-        if (dismissBackground != null)
-            dismissBackground.SetActive(false);
+        if (dismissBg != null)
+            dismissBg.SetActive(false);
     }
 
     // ── Bottom Tab System ──
@@ -294,31 +289,223 @@ public class TradingUIController : MonoBehaviour
         var resp = await MarketAPI.GetTickers();
         tickers = resp.tickers;
 
-        tickerDropdown.ClearOptions();
-        var options = new List<string>();
-        if (tickers != null)
+        if (tickerSearchInput != null)
         {
-            foreach (var t in tickers)
-                options.Add(t.ticker_id);
+            BuildSearchResultsPanel();
+            tickerSearchInput.onValueChanged.RemoveAllListeners();
+            tickerSearchInput.onValueChanged.AddListener(OnSearchTyping);
+            tickerSearchInput.onSelect.AddListener(_ => OnSearchFocused());
+            tickerSearchInput.onDeselect.AddListener(_ => DelayedCloseSearch());
+            tickerSearchInput.onSubmit.AddListener(_ => OnSearchSubmit());
+
+            if (!string.IsNullOrEmpty(selectedTicker))
+                tickerSearchInput.SetTextWithoutNotify(FormatTickerLabel(selectedTicker));
+            else if (tickers != null && tickers.Length > 0)
+                tickerSearchInput.SetTextWithoutNotify(FormatTickerLabel(tickers[0].ticker_id));
+
+            if (tickerDropdown != null)
+                tickerDropdown.gameObject.SetActive(false);
         }
-        tickerDropdown.AddOptions(options);
+        else if (tickerDropdown != null)
+        {
+            tickerDropdown.ClearOptions();
+            var options = new List<string>();
+            if (tickers != null)
+                foreach (var t in tickers)
+                    options.Add(string.IsNullOrEmpty(t.company_name) ? t.ticker_id : $"{t.ticker_id} — {t.company_name}");
+            tickerDropdown.AddOptions(options);
+        }
 
         if (tickers != null && tickers.Length > 0)
         {
-            int restoreIndex = 0;
-            if (!string.IsNullOrEmpty(selectedTicker))
-            {
-                for (int i = 0; i < tickers.Length; i++)
-                {
-                    if (tickers[i].ticker_id == selectedTicker) { restoreIndex = i; break; }
-                }
-            }
-
-            tickerDropdown.SetValueWithoutNotify(restoreIndex);
-            selectedTicker = tickers[restoreIndex].ticker_id;
-            UpdateCompanyName(restoreIndex);
+            if (string.IsNullOrEmpty(selectedTicker))
+                selectedTicker = tickers[0].ticker_id;
+            int idx = System.Array.FindIndex(tickers, t => t.ticker_id == selectedTicker);
+            if (idx < 0) { idx = 0; selectedTicker = tickers[0].ticker_id; }
+            if (tickerDropdown != null && tickerSearchInput == null)
+                tickerDropdown.SetValueWithoutNotify(idx);
+            UpdateCompanyName(idx);
             await RefreshPrice();
         }
+    }
+
+    private string FormatTickerLabel(string tickerId)
+    {
+        if (tickers == null) return tickerId;
+        var t = System.Array.Find(tickers, x => x.ticker_id == tickerId);
+        if (t == null) return tickerId;
+        return string.IsNullOrEmpty(t.company_name) ? t.ticker_id : $"{t.ticker_id} — {t.company_name}";
+    }
+
+    private void BuildSearchResultsPanel()
+    {
+        if (searchResultsPanel != null) return;
+
+        var inputRT = tickerSearchInput.GetComponent<RectTransform>();
+        var canvas = tickerSearchInput.GetComponentInParent<Canvas>();
+
+        searchResultsPanel = new GameObject("SearchResults", typeof(RectTransform), typeof(CanvasRenderer),
+            typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.VerticalLayoutGroup),
+            typeof(UnityEngine.UI.ContentSizeFitter));
+
+        searchResultsPanel.transform.SetParent(inputRT, false);
+
+        var rt = searchResultsPanel.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1);
+        rt.anchorMax = new Vector2(1, 1);
+        rt.pivot = new Vector2(0.5f, 1);
+        rt.anchoredPosition = new Vector2(0, -inputRT.rect.height);
+        rt.sizeDelta = new Vector2(0, 0);
+
+        var bg = searchResultsPanel.GetComponent<UnityEngine.UI.Image>();
+        bg.color = new Color(0.14f, 0.15f, 0.18f, 0.97f);
+
+        var vlg = searchResultsPanel.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(4, 4, 4, 4);
+        vlg.spacing = 2;
+        vlg.childForceExpandWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = true;
+
+        var csf = searchResultsPanel.GetComponent<UnityEngine.UI.ContentSizeFitter>();
+        csf.verticalFit = UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
+
+        if (canvas != null)
+        {
+            var canvasGO = new GameObject("SearchResultsCanvas", typeof(RectTransform), typeof(Canvas), typeof(UnityEngine.UI.GraphicRaycaster));
+            canvasGO.transform.SetParent(inputRT, false);
+            var crt = canvasGO.GetComponent<RectTransform>();
+            crt.anchorMin = Vector2.zero;
+            crt.anchorMax = Vector2.one;
+            crt.sizeDelta = Vector2.zero;
+            crt.offsetMin = Vector2.zero;
+            crt.offsetMax = Vector2.zero;
+            var c = canvasGO.GetComponent<Canvas>();
+            c.overrideSorting = true;
+            c.sortingOrder = 100;
+            searchResultsPanel.transform.SetParent(canvasGO.transform, false);
+            rt.anchoredPosition = new Vector2(0, -inputRT.rect.height);
+        }
+
+        searchResultsPanel.SetActive(false);
+    }
+
+    private void OnSearchFocused()
+    {
+        if (tickerSearchInput != null)
+            tickerSearchInput.SetTextWithoutNotify("");
+        ShowSearchResults("");
+    }
+
+    private void OnSearchSubmit()
+    {
+        if (!searchIsOpen || searchResultItems.Count == 0) return;
+        var btn = searchResultItems[0].GetComponent<UnityEngine.UI.Button>();
+        if (btn != null) btn.onClick.Invoke();
+    }
+
+    private void OnSearchTyping(string query)
+    {
+        ShowSearchResults(query);
+    }
+
+    private void ShowSearchResults(string query)
+    {
+        if (searchResultsPanel == null || tickers == null) return;
+
+        foreach (var item in searchResultItems)
+            Destroy(item);
+        searchResultItems.Clear();
+
+        var sourceFont = tickerSearchInput.textComponent.font;
+        var sourceMat = tickerSearchInput.textComponent.fontSharedMaterial;
+
+        string upper = string.IsNullOrEmpty(query) ? null : query.ToUpperInvariant();
+        int count = 0;
+
+        for (int i = 0; i < tickers.Length && count < searchResultLimit; i++)
+        {
+            var t = tickers[i];
+            if (upper != null)
+            {
+                bool match = (t.ticker_id != null && t.ticker_id.ToUpperInvariant().Contains(upper))
+                          || (t.company_name != null && t.company_name.ToUpperInvariant().Contains(upper));
+                if (!match) continue;
+            }
+
+            var itemGO = new GameObject("Result", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.Button),
+                typeof(UnityEngine.UI.LayoutElement));
+
+            itemGO.transform.SetParent(searchResultsPanel.transform, false);
+
+            var le = itemGO.GetComponent<UnityEngine.UI.LayoutElement>();
+            le.preferredHeight = 28;
+
+            var itemBg = itemGO.GetComponent<UnityEngine.UI.Image>();
+            itemBg.color = new Color(0.18f, 0.19f, 0.24f, 1f);
+
+            var textGO = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer));
+            textGO.transform.SetParent(itemGO.transform, false);
+            var tmp = textGO.AddComponent<TextMeshProUGUI>();
+            var textRT = textGO.GetComponent<RectTransform>();
+            textRT.anchorMin = Vector2.zero;
+            textRT.anchorMax = Vector2.one;
+            textRT.offsetMin = new Vector2(8, 0);
+            textRT.offsetMax = new Vector2(-8, 0);
+            tmp.font = sourceFont;
+            tmp.fontSharedMaterial = sourceMat;
+            tmp.fontSize = 14;
+            tmp.alignment = TextAlignmentOptions.MidlineLeft;
+            tmp.color = Color.white;
+            tmp.richText = true;
+            tmp.text = string.IsNullOrEmpty(t.company_name)
+                ? t.ticker_id
+                : $"<b>{t.ticker_id}</b>  <color=#AAAAAA>{t.company_name}</color>";
+
+            int capturedIndex = i;
+            var btn = itemGO.GetComponent<UnityEngine.UI.Button>();
+            btn.onClick.AddListener(() => SelectTicker(capturedIndex));
+
+            searchResultItems.Add(itemGO);
+            count++;
+        }
+
+        searchResultsPanel.SetActive(count > 0);
+        searchIsOpen = count > 0;
+    }
+
+    private void SelectTicker(int index)
+    {
+        if (tickers == null || index >= tickers.Length) return;
+        selectedTicker = tickers[index].ticker_id;
+        UpdateCompanyName(index);
+
+        if (tickerSearchInput != null)
+            tickerSearchInput.SetTextWithoutNotify(FormatTickerLabel(selectedTicker));
+
+        CloseSearchResults();
+        _ = RefreshPrice();
+    }
+
+    private void CloseSearchResults()
+    {
+        if (searchResultsPanel != null) searchResultsPanel.SetActive(false);
+        searchIsOpen = false;
+    }
+
+    private void DelayedCloseSearch()
+    {
+        StartCoroutine(CloseSearchAfterDelay());
+    }
+
+    private System.Collections.IEnumerator CloseSearchAfterDelay()
+    {
+        yield return new WaitForSeconds(0.15f);
+        CloseSearchResults();
+        if (tickerSearchInput != null && !string.IsNullOrEmpty(selectedTicker))
+            tickerSearchInput.SetTextWithoutNotify(FormatTickerLabel(selectedTicker));
     }
 
     private void OnTickerChanged(int index)
@@ -364,8 +551,25 @@ public class TradingUIController : MonoBehaviour
                 sellButton.onClick.AddListener(OnQueueSell);
                 break;
 
-            case GamePhase.Day:
             case GamePhase.PostMarket:
+                buyButton.gameObject.SetActive(true);
+                sellButton.gameObject.SetActive(true);
+                quantityInput.gameObject.SetActive(true);
+                if (advanceDayButton != null)
+                {
+                    advanceDayButton.gameObject.SetActive(true);
+                    advanceDayButton.interactable = true;
+                    advanceDayButton.onClick.AddListener(OnConfirmPostMarketOrders);
+                    SetAdvanceButtonText(GamePhaseManager.Inst != null
+                        && GamePhaseManager.Inst.PendingOrders.Count > 0
+                        ? "Confirm Trades" : "End Day");
+                }
+
+                buyButton.onClick.AddListener(OnQueueBuy);
+                sellButton.onClick.AddListener(OnQueueSell);
+                break;
+
+            case GamePhase.Day:
                 buyButton.gameObject.SetActive(false);
                 sellButton.gameObject.SetActive(false);
                 quantityInput.gameObject.SetActive(false);
@@ -435,11 +639,11 @@ public class TradingUIController : MonoBehaviour
             case GamePhase.PostMarket:
                 if (GamePhaseManager.Inst != null)
                 {
-                    var results = GamePhaseManager.Inst.TodayResults;
-                    if (results.Count > 0)
+                    var pmResults = GamePhaseManager.Inst.TodayResults;
+                    if (pmResults.Count > 0)
                     {
                         double totalPnl = 0;
-                        foreach (var r in results)
+                        foreach (var r in pmResults)
                         {
                             if (r.status != "ok")
                             {
@@ -458,9 +662,32 @@ public class TradingUIController : MonoBehaviour
                         string totalSign = totalPnl >= 0 ? "+" : "";
                         sb.AppendLine($"<b>Day P&L:  <color={totalColor}>{totalSign}${FmtPrice(totalPnl)}</color></b>");
                     }
-                    else
+
+                    var pmFills = GamePhaseManager.Inst.PostMarketResults;
+                    if (pmFills.Count > 0)
                     {
-                        sb.AppendLine("<color=#888888>No trades today.</color>");
+                        sb.AppendLine();
+                        sb.AppendLine("<b>Post-market fills:</b>");
+                        foreach (var r in pmFills)
+                        {
+                            string sideColor = r.side == "buy" ? "#26BF59" : "#D93838";
+                            if (r.status == "ok")
+                                sb.AppendLine($"<color={sideColor}>{r.side.ToUpper()}</color>  {r.quantity} {r.ticker} @ ${FmtPrice(r.fillPrice)}");
+                            else
+                                sb.AppendLine($"<color={sideColor}>{r.side.ToUpper()}</color>  {r.quantity} {r.ticker} — <color=#D93838>{r.message ?? "FAILED"}</color>");
+                        }
+                    }
+
+                    var pmOrders = GamePhaseManager.Inst.PendingOrders;
+                    if (pmOrders.Count > 0)
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine("<b>Pending orders:</b>");
+                        foreach (var o in pmOrders)
+                        {
+                            string sideColor = o.side == "buy" ? "#26BF59" : "#D93838";
+                            sb.AppendLine($"<color={sideColor}>{o.side.ToUpper()}</color>  {o.quantity} {o.ticker}  ~${FmtPrice(o.estimatedPrice)}");
+                        }
                     }
                 }
                 break;
@@ -484,9 +711,9 @@ public class TradingUIController : MonoBehaviour
                 sb.AppendLine($"<b>{h.ticker_id}</b>");
                 sb.Append($"  {h.shares_held:F0} shares");
 
+                double totalCost = 0, totalShares = 0;
                 if (cachedLots != null)
                 {
-                    double totalCost = 0, totalShares = 0;
                     foreach (var lot in cachedLots)
                     {
                         if (lot.ticker_id == h.ticker_id)
@@ -499,6 +726,18 @@ public class TradingUIController : MonoBehaviour
                     {
                         double avg = totalCost / totalShares;
                         sb.Append($"  ·  Avg ${FmtPrice(avg)}");
+                    }
+                }
+
+                if (h.market_value > 0)
+                {
+                    sb.Append($"  ·  Val ${h.market_value:N2}");
+                    if (totalCost > 0)
+                    {
+                        double gain = h.market_value - totalCost;
+                        string gainColor = gain >= 0 ? "#26BF59" : "#D93838";
+                        string gainSign = gain >= 0 ? "+" : "";
+                        sb.Append($"  <color={gainColor}>{gainSign}${gain:N2}</color>");
                     }
                 }
                 sb.AppendLine();
@@ -594,6 +833,12 @@ public class TradingUIController : MonoBehaviour
             RefreshCashDisplay();
             if (activeTab == BottomTab.Trade)
                 RefreshOrdersDisplay();
+            if (advanceDayButton != null && (currentPhase == GamePhase.PreMarket || currentPhase == GamePhase.PostMarket))
+            {
+                advanceDayButton.interactable = true;
+                if (currentPhase == GamePhase.PostMarket)
+                    SetAdvanceButtonText("Confirm Trades");
+            }
         }
         else
         {
@@ -602,6 +847,38 @@ public class TradingUIController : MonoBehaviour
     }
 
     // ── Phase Transitions ──
+
+    private async void OnConfirmPostMarketOrders()
+    {
+        if (GamePhaseManager.Inst == null) return;
+
+        SetStatus("Confirming trades...");
+        advanceDayButton.interactable = false;
+
+        var results = await GamePhaseManager.Inst.ConfirmPostMarketOrders();
+        if (results == null)
+        {
+            SetStatus("Failed to confirm trades.");
+            advanceDayButton.interactable = true;
+            return;
+        }
+
+        int filled = 0, failed = 0;
+        foreach (var r in results)
+        {
+            if (r.status == "ok") filled++;
+            else failed++;
+        }
+
+        string msg = filled > 0 ? $"{filled} order(s) filled at close." : "No orders filled.";
+        if (failed > 0) msg += $" {failed} failed.";
+        SetStatus(msg);
+
+        await RefreshPortfolio();
+        if (showingPortfolioChart)
+            await LoadPortfolioChart();
+        RefreshOrdersDisplay();
+    }
 
     private async void OnOpenMarkets()
     {
@@ -700,7 +977,38 @@ public class TradingUIController : MonoBehaviour
         try
         {
             var resp = await OrderAPI.GetPortfolioHistory(APIBootstrapper.EntityDbId);
-            cachedPortfolioHistory = resp.history;
+            var history = resp.history;
+
+            if (history != null && !string.IsNullOrEmpty(currentGameDate))
+            {
+                var livePoint = new NetWorthPointDTO
+                {
+                    date = currentGameDate + "T16:00",
+                    cash = cachedServerCash,
+                    holdings_value = cachedServerHoldingsValue,
+                    net_worth = cachedServerNetWorth
+                };
+
+                bool replaced = false;
+                for (int i = history.Length - 1; i >= 0; i--)
+                {
+                    if (history[i].date == livePoint.date)
+                    {
+                        history[i] = livePoint;
+                        replaced = true;
+                        break;
+                    }
+                }
+                if (!replaced)
+                {
+                    var extended = new NetWorthPointDTO[history.Length + 1];
+                    System.Array.Copy(history, extended, history.Length);
+                    extended[history.Length] = livePoint;
+                    history = extended;
+                }
+            }
+
+            cachedPortfolioHistory = history;
             ApplyPortfolioTimeframe();
         }
         catch
@@ -728,7 +1036,7 @@ public class TradingUIController : MonoBehaviour
             var filtered = System.Array.FindAll(cachedPortfolioHistory,
                 p => System.DateTime.TryParse(p.date, out var d) && d >= cutoff);
 
-            int max = CandleAggregator.MaxBars(selectedTimeframe);
+            int max = CandleAggregator.MaxPortfolioPoints(selectedTimeframe);
             if (filtered.Length > max)
             {
                 var trimmed = new NetWorthPointDTO[max];
@@ -846,13 +1154,37 @@ public class TradingUIController : MonoBehaviour
                 switch (currentPhase)
                 {
                     case GamePhase.PreMarket:
+                    case GamePhase.Day:
                         var todayResp = await MarketAPI.GetPrices(selectedTicker, currentGameDate, currentGameDate);
                         if (todayResp.rows != null && todayResp.rows.Length > 0)
                         {
                             double openPrice = todayResp.rows[0].open_price;
                             currentEstimatedPrice = openPrice;
-                            priceText.text = $"${FmtPrice(openPrice)}";
-                            SetTickerTradable(true);
+                            double dayChange = openPrice - prevClose.close_price;
+                            double dayChangePct = prevClose.close_price > 0
+                                ? dayChange / prevClose.close_price * 100.0 : 0;
+                            string sign = dayChange >= 0 ? "+" : "";
+                            string clr = dayChange >= 0 ? "#26BF59" : "#D93838";
+                            priceText.text = $"${FmtPrice(openPrice)}   <color={clr}>{sign}{FmtPrice(dayChange)} ({sign}{dayChangePct:F1}%)</color>";
+
+                            if (ohlcChart != null && !showingPortfolioChart)
+                            {
+                                var currentBar = new PriceRowDTO
+                                {
+                                    ticker_id = selectedTicker,
+                                    date = currentGameDate,
+                                    open_price = openPrice,
+                                    high_price = openPrice,
+                                    low_price = openPrice,
+                                    close_price = openPrice
+                                };
+                                var extended = new PriceRowDTO[chartData.Length + 1];
+                                System.Array.Copy(chartData, extended, chartData.Length);
+                                extended[chartData.Length] = currentBar;
+                                ohlcChart.SetData(extended);
+                            }
+
+                            SetTickerTradable(currentPhase == GamePhase.PreMarket);
                         }
                         else
                         {
@@ -861,16 +1193,12 @@ public class TradingUIController : MonoBehaviour
                         }
                         break;
 
-                    case GamePhase.Day:
-                        priceText.text = $"${FmtPrice(prevClose.close_price)}";
-                        SetTickerTradable(true);
-                        break;
-
                     case GamePhase.PostMarket:
                         var pmResp = await MarketAPI.GetPrices(selectedTicker, currentGameDate, currentGameDate);
                         if (pmResp.rows != null && pmResp.rows.Length > 0)
                         {
                             var today = pmResp.rows[0];
+                            currentEstimatedPrice = today.close_price;
                             double change = today.close_price - prevClose.close_price;
                             double changePct = prevClose.close_price > 0
                                 ? change / prevClose.close_price * 100.0 : 0;
@@ -921,7 +1249,7 @@ public class TradingUIController : MonoBehaviour
     private void SetTickerTradable(bool tradable)
     {
         tickerTradableToday = tradable;
-        if (currentPhase == GamePhase.PreMarket)
+        if (currentPhase == GamePhase.PreMarket || currentPhase == GamePhase.PostMarket)
         {
             buyButton.interactable = tradable;
             sellButton.interactable = tradable;
@@ -936,6 +1264,9 @@ public class TradingUIController : MonoBehaviour
             double cash = resp.entity.available_cash;
             cachedHoldings = resp.totals;
             cachedLots = resp.lots;
+            cachedServerNetWorth = resp.net_worth;
+            cachedServerCash = cash;
+            cachedServerHoldingsValue = resp.holdings_value;
 
             if (GamePhaseManager.Inst != null)
                 GamePhaseManager.Inst.SetServerCash(cash);
@@ -944,26 +1275,14 @@ public class TradingUIController : MonoBehaviour
 
             if (netWorthText != null)
             {
-                double holdingsValue = 0;
-                if (cachedHoldings != null && !string.IsNullOrEmpty(currentGameDate))
-                {
-                    foreach (var h in cachedHoldings)
-                    {
-                        try
-                        {
-                            var priceResp = await MarketAPI.GetPrices(h.ticker_id, currentGameDate, currentGameDate);
-                            if (priceResp.rows != null && priceResp.rows.Length > 0)
-                                holdingsValue += h.shares_held * priceResp.rows[0].close_price;
-                        }
-                        catch { }
-                    }
-                }
-                double effectiveCash = GamePhaseManager.Inst != null
-                    ? GamePhaseManager.Inst.EffectiveAvailableCash : cash;
-                double netWorth = effectiveCash + holdingsValue;
+                double reservedCost = GamePhaseManager.Inst != null
+                    ? GamePhaseManager.Inst.ReservedBuyCost : 0;
+                double netWorth = resp.net_worth - reservedCost;
                 string color = netWorth >= 10000 ? "#26BF59" : "#D93838";
                 netWorthText.text = $"Net Worth: <color={color}>${netWorth:N2}</color>";
             }
+
+            RefreshHoldingsDisplay();
         }
         catch
         {

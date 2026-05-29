@@ -13,24 +13,38 @@ public class SpeechBubble : MonoBehaviour
     [SerializeField] private Color promptColor = new(0.5f, 0.5f, 0.55f, 1f);
 
     private CanvasGroup canvasGroup;
+    private RectTransform bubbleRoot;
+    private RectTransform bgRect;
+    private GameObject speakerGO;
     private TMP_Text speakerText;
     private TMP_Text dialogueText;
+    private GameObject promptGO;
     private TMP_Text advancePrompt;
+
     private Transform followTarget;
     private Vector3 offset;
-    private Camera mainCam;
 
     private bool isTyping;
     private int totalChars;
     private float charAccumulator;
 
+    private bool isBark;
+    private float barkTimer;
+
+    private const float BubbleWidth = 340f;
+    private const float Padding = 14f;
+    private const float SpeakerHeight = 30f;
+    private const float PromptHeight = 22f;
+    private const float TailSize = 14f;
+    private const float FadeDuration = 0.5f;
+
     public bool IsTyping => isTyping;
+    public bool IsActive => canvasGroup != null && canvasGroup.alpha > 0f;
 
     public void Init(Transform target, Vector3 worldOffset)
     {
         followTarget = target;
         offset = worldOffset;
-        mainCam = Camera.main;
         BuildUI();
         canvasGroup.alpha = 0f;
     }
@@ -40,35 +54,55 @@ public class SpeechBubble : MonoBehaviour
         if (followTarget != null)
             transform.position = followTarget.position + offset;
 
-        if (mainCam == null)
-            mainCam = Camera.main;
-        if (mainCam != null)
-            transform.rotation = mainCam.transform.rotation;
-
-        if (!isTyping) return;
-
-        charAccumulator += Time.deltaTime * charsPerSecond;
-        int visible = Mathf.Min(totalChars, (int)charAccumulator);
-        dialogueText.maxVisibleCharacters = visible;
-
-        if (visible >= totalChars)
+        if (isTyping)
         {
-            isTyping = false;
-            advancePrompt.gameObject.SetActive(true);
+            charAccumulator += Time.deltaTime * charsPerSecond;
+            int visible = Mathf.Min(totalChars, (int)charAccumulator);
+            dialogueText.maxVisibleCharacters = visible;
+
+            if (visible >= totalChars)
+            {
+                isTyping = false;
+                if (!isBark)
+                    promptGO.SetActive(true);
+            }
+        }
+
+        if (isBark && !isTyping && canvasGroup.alpha > 0f)
+        {
+            barkTimer -= Time.deltaTime;
+            if (barkTimer <= FadeDuration)
+                canvasGroup.alpha = Mathf.Clamp01(barkTimer / FadeDuration);
+            if (barkTimer <= 0f)
+            {
+                canvasGroup.alpha = 0f;
+                isBark = false;
+            }
         }
     }
 
     public void Show(string speaker, string text, Color speakerColor)
     {
+        isBark = false;
+        speakerGO.SetActive(true);
         speakerText.text = speaker;
         speakerText.color = speakerColor;
-        dialogueText.text = text;
-        dialogueText.ForceMeshUpdate();
-        totalChars = dialogueText.textInfo.characterCount;
-        dialogueText.maxVisibleCharacters = 0;
-        charAccumulator = 0f;
-        isTyping = true;
-        advancePrompt.gameObject.SetActive(false);
+        promptGO.SetActive(false);
+
+        BeginTypewriter(text);
+        ResizeBubble(true, true);
+        canvasGroup.alpha = 1f;
+    }
+
+    public void ShowBark(string text, float duration = 4f)
+    {
+        isBark = true;
+        barkTimer = duration;
+        speakerGO.SetActive(false);
+        promptGO.SetActive(false);
+
+        BeginTypewriter(text);
+        ResizeBubble(false, false);
         canvasGroup.alpha = 1f;
     }
 
@@ -76,13 +110,69 @@ public class SpeechBubble : MonoBehaviour
     {
         dialogueText.maxVisibleCharacters = totalChars;
         isTyping = false;
-        advancePrompt.gameObject.SetActive(true);
+        if (!isBark)
+            promptGO.SetActive(true);
+    }
+
+    public void SustainBark()
+    {
+        if (isBark)
+            barkTimer = Mathf.Max(barkTimer, FadeDuration + 0.5f);
     }
 
     public void Hide()
     {
         canvasGroup.alpha = 0f;
         isTyping = false;
+        isBark = false;
+    }
+
+    private void BeginTypewriter(string text)
+    {
+        dialogueText.text = text;
+        dialogueText.ForceMeshUpdate();
+        totalChars = dialogueText.textInfo.characterCount;
+        dialogueText.maxVisibleCharacters = 0;
+        charAccumulator = 0f;
+        isTyping = true;
+    }
+
+    private void ResizeBubble(bool showSpeaker, bool showPrompt)
+    {
+        float contentWidth = BubbleWidth - 2f * Padding;
+        float textHeight = dialogueText.GetPreferredValues(dialogueText.text, contentWidth, 0f).y;
+        textHeight = Mathf.Max(textHeight, 24f);
+
+        float totalHeight = Padding;
+        if (showSpeaker) totalHeight += SpeakerHeight;
+        totalHeight += textHeight;
+        if (showPrompt) totalHeight += PromptHeight;
+        totalHeight += Padding;
+
+        bgRect.sizeDelta = new Vector2(BubbleWidth, totalHeight);
+        bgRect.anchoredPosition = new Vector2(0f, TailSize * 0.35f);
+
+        float y = -Padding;
+
+        if (showSpeaker)
+        {
+            var spRect = speakerText.rectTransform;
+            spRect.anchoredPosition = new Vector2(Padding, y);
+            spRect.sizeDelta = new Vector2(contentWidth, SpeakerHeight);
+            y -= SpeakerHeight;
+        }
+
+        var dlgRect = dialogueText.rectTransform;
+        dlgRect.anchoredPosition = new Vector2(Padding, y);
+        dlgRect.sizeDelta = new Vector2(contentWidth, textHeight);
+
+        if (showPrompt)
+        {
+            var prRect = advancePrompt.rectTransform;
+            prRect.anchoredPosition = new Vector2(-Padding, Padding * 0.5f);
+        }
+
+        bubbleRoot.sizeDelta = new Vector2(BubbleWidth, totalHeight + TailSize);
     }
 
     private void BuildUI()
@@ -96,73 +186,80 @@ public class SpeechBubble : MonoBehaviour
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.sortingOrder = 50;
 
-        var rt = canvasGO.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(520, 200);
+        bubbleRoot = canvasGO.GetComponent<RectTransform>();
+        bubbleRoot.sizeDelta = new Vector2(BubbleWidth, 120f);
+        bubbleRoot.pivot = new Vector2(0.5f, 0f);
 
         canvasGroup = canvasGO.AddComponent<CanvasGroup>();
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
 
-        // Background
-        var bg = new GameObject("BG");
-        bg.transform.SetParent(canvasGO.transform, false);
-        var bgRect = bg.AddComponent<RectTransform>();
-        Stretch(bgRect);
-        bg.AddComponent<Image>().color = bgColor;
+        // Background panel
+        var bgGO = new GameObject("BG");
+        bgGO.transform.SetParent(canvasGO.transform, false);
+        bgRect = bgGO.AddComponent<RectTransform>();
+        bgRect.anchorMin = new Vector2(0.5f, 0f);
+        bgRect.anchorMax = new Vector2(0.5f, 0f);
+        bgRect.pivot = new Vector2(0.5f, 0f);
+        bgRect.sizeDelta = new Vector2(BubbleWidth, 100f);
+        bgRect.anchoredPosition = new Vector2(0f, TailSize * 0.35f);
+        bgGO.AddComponent<Image>().color = bgColor;
 
-        // Speaker name — top strip
-        speakerText = MakeText(bg, "Speaker", 24, FontStyles.Bold, TextAlignmentOptions.TopLeft);
-        var spRect = speakerText.rectTransform;
-        spRect.anchorMin = new Vector2(0, 1);
-        spRect.anchorMax = new Vector2(1, 1);
-        spRect.pivot = new Vector2(0, 1);
-        spRect.offsetMin = new Vector2(16, -36);
-        spRect.offsetMax = new Vector2(-16, -8);
+        // Tail pointer
+        var tailGO = new GameObject("Tail");
+        tailGO.transform.SetParent(canvasGO.transform, false);
+        var tailRect = tailGO.AddComponent<RectTransform>();
+        tailRect.anchorMin = new Vector2(0.5f, 0f);
+        tailRect.anchorMax = new Vector2(0.5f, 0f);
+        tailRect.pivot = new Vector2(0.5f, 0.5f);
+        tailRect.anchoredPosition = new Vector2(0f, TailSize * 0.25f);
+        tailRect.sizeDelta = new Vector2(TailSize, TailSize);
+        tailRect.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        tailGO.AddComponent<Image>().color = bgColor;
 
-        // Dialogue — middle fill
-        dialogueText = MakeText(bg, "Dialogue", 20, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+        // Speaker name (top of bg, hidden in bark mode)
+        speakerGO = new GameObject("Speaker");
+        speakerGO.transform.SetParent(bgGO.transform, false);
+        var spRect = speakerGO.AddComponent<RectTransform>();
+        spRect.anchorMin = new Vector2(0f, 1f);
+        spRect.anchorMax = new Vector2(0f, 1f);
+        spRect.pivot = new Vector2(0f, 1f);
+        speakerText = speakerGO.AddComponent<TextMeshProUGUI>();
+        speakerText.fontSize = 22;
+        speakerText.fontStyle = FontStyles.Bold;
+        speakerText.alignment = TextAlignmentOptions.TopLeft;
+        speakerText.enableWordWrapping = false;
+        speakerText.overflowMode = TextOverflowModes.Ellipsis;
+        speakerText.raycastTarget = false;
+
+        // Dialogue text (middle area)
+        var dlgGO = new GameObject("Dialogue");
+        dlgGO.transform.SetParent(bgGO.transform, false);
+        var dlgRect = dlgGO.AddComponent<RectTransform>();
+        dlgRect.anchorMin = new Vector2(0f, 1f);
+        dlgRect.anchorMax = new Vector2(0f, 1f);
+        dlgRect.pivot = new Vector2(0f, 1f);
+        dialogueText = dlgGO.AddComponent<TextMeshProUGUI>();
+        dialogueText.fontSize = 18;
         dialogueText.color = textColor;
+        dialogueText.alignment = TextAlignmentOptions.TopLeft;
         dialogueText.enableWordWrapping = true;
-        var dlgRect = dialogueText.rectTransform;
-        dlgRect.anchorMin = Vector2.zero;
-        dlgRect.anchorMax = Vector2.one;
-        dlgRect.offsetMin = new Vector2(16, 28);
-        dlgRect.offsetMax = new Vector2(-16, -42);
+        dialogueText.overflowMode = TextOverflowModes.Overflow;
+        dialogueText.raycastTarget = false;
 
-        // Advance prompt — bottom right
-        advancePrompt = MakeText(bg, "Prompt", 16, FontStyles.Normal, TextAlignmentOptions.BottomRight);
+        // Advance prompt (bottom-right, hidden in bark mode)
+        promptGO = new GameObject("Prompt");
+        promptGO.transform.SetParent(bgGO.transform, false);
+        var prRect = promptGO.AddComponent<RectTransform>();
+        prRect.anchorMin = new Vector2(1f, 0f);
+        prRect.anchorMax = new Vector2(1f, 0f);
+        prRect.pivot = new Vector2(1f, 0f);
+        advancePrompt = promptGO.AddComponent<TextMeshProUGUI>();
+        advancePrompt.fontSize = 14;
+        advancePrompt.alignment = TextAlignmentOptions.BottomRight;
         advancePrompt.color = promptColor;
-        advancePrompt.text = "E ▼";
-        var prRect = advancePrompt.rectTransform;
-        prRect.anchorMin = new Vector2(1, 0);
-        prRect.anchorMax = new Vector2(1, 0);
-        prRect.pivot = new Vector2(1, 0);
-        prRect.anchoredPosition = new Vector2(-12, 6);
-        prRect.sizeDelta = new Vector2(70, 22);
-        advancePrompt.gameObject.SetActive(false);
-    }
-
-    private static void Stretch(RectTransform rt)
-    {
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.sizeDelta = Vector2.zero;
-        rt.anchoredPosition = Vector2.zero;
-    }
-
-    private static TMP_Text MakeText(GameObject parent, string name, float size,
-        FontStyles style, TextAlignmentOptions align)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent.transform, false);
-        go.AddComponent<RectTransform>();
-        var tmp = go.AddComponent<TextMeshProUGUI>();
-        tmp.fontSize = size;
-        tmp.fontStyle = style;
-        tmp.alignment = align;
-        tmp.enableWordWrapping = true;
-        tmp.overflowMode = TextOverflowModes.Overflow;
-        tmp.raycastTarget = false;
-        return tmp;
+        advancePrompt.text = "E >";
+        advancePrompt.raycastTarget = false;
+        promptGO.SetActive(false);
     }
 }

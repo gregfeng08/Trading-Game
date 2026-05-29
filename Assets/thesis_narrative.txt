@@ -137,9 +137,11 @@ in action:
      - Talking point: "Every element in this city responds to the player's
        trading behavior and the current market context."
 
-  3. POST-MARKET PHASE
+  3. POST-MARKET PHASE ("the second before market closes")
      - Timer expires or player returns to Room.
      - Daily summary overlay: trades executed, P&L, market movers.
+     - Player can react to results by queuing and confirming orders at the
+       close price (same batch/confirm flow as pre-market, fills same day).
      - A knowledge graph trigger fires (e.g., first_profitable_sell after
        a winning trade). Notification appears.
      - Open knowledge graph — show the newly unlocked node with contextual

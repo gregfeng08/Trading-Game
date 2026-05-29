@@ -160,6 +160,7 @@ public class NPCSpawner : MonoBehaviour
 
                 var walker = EnsureWalker(npc);
                 walker.Init(routes[r], shouldDespawn: false);
+                SetupBark(npc);
             }
         }
     }
@@ -198,6 +199,7 @@ public class NPCSpawner : MonoBehaviour
 
         var walker = EnsureWalker(npc);
         walker.InitLeyline(shouldDespawn: true);
+        SetupBark(npc);
 
         activeLeylineWanderers++;
         trackedNPCs.Add(npc.transform);
@@ -232,6 +234,7 @@ public class NPCSpawner : MonoBehaviour
 
         var walker = EnsureWalker(npc);
         walker.InitLeyline(destTile, shouldDespawn: true);
+        SetupBark(npc);
 
         activeCommuters++;
         trackedNPCs.Add(npc.transform);
@@ -267,6 +270,7 @@ public class NPCSpawner : MonoBehaviour
 
         var walker = EnsureWalker(npc);
         walker.Init(orderedRoute, shouldDespawn: true);
+        SetupBark(npc);
 
         activePedestrians++;
         var tracker = npc.AddComponent<DespawnTracker>();
@@ -316,6 +320,12 @@ public class NPCSpawner : MonoBehaviour
             walker = npc.AddComponent<NPCWalker>();
 
         return walker;
+    }
+
+    private void SetupBark(GameObject npc)
+    {
+        var bark = npc.AddComponent<NPCBark>();
+        bark.Init();
     }
 }
 

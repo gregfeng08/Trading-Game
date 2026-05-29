@@ -16,10 +16,27 @@ WHAT'S FULLY BUILT AND WORKING
 -------------------------------
 
 CORE GAME LOOP
-- Three-phase day cycle: Pre-Market (queue orders) -> Day (timer countdown,
-  markets open) -> Post-Market (see results, P&L) -> Sleep -> next day
-- Order system: Queue buy/sell during pre-market, orders execute at open with
-  ACID transactions, FIFO lot tracking for portfolio
+- Three-phase day cycle with phase-aware pricing:
+
+  PRE-MARKET — "The second after market opens." Current price = today's OPEN.
+    Player queues orders at the open price. Orders execute when the player
+    confirms ("Confirm Trades" → OpenMarkets). The price the player sees is
+    the price they get.
+
+  DAY — Timer countdown. Markets are open, no new orders. Player explores the
+    city, talks to NPCs, checks the knowledge graph. Price display and portfolio
+    valuation use today's open price.
+
+  POST-MARKET — "The second before market closes." Current price = today's CLOSE.
+    Player sees the day's results (P&L, movers). Can queue and confirm orders
+    using the same batch flow as pre-market. Orders execute at today's close
+    price — same day, same price shown. What you see is what you get.
+
+  Sleep → AdvanceDay → next day's Pre-Market.
+
+- Order system: Queue buy/sell during pre-market (execute at open on confirm)
+  or post-market (execute at close on confirm). Same batch/confirm flow in
+  both phases. ACID transactions, FIFO lot tracking for portfolio
 - Trading terminal UI: Ticker dropdown, OHLC candlestick chart with 5 timeframes
   (1W/1M/3M/1Y/5Y), portfolio line chart tab, cash/net worth display, holdings +
   orders panel, phase-dependent controls

@@ -14,6 +14,14 @@ public class InteractionZone : MonoBehaviour
 
     private string overrideName;
 
+    public void Configure(InteractionType type, string name, UnityEngine.Events.UnityAction action)
+    {
+        interactionType = type;
+        interactionName = name;
+        if (action != null)
+            onInteract.AddListener(action);
+    }
+
     public void SetInteractionName(string name)
     {
         overrideName = name;

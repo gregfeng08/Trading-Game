@@ -58,7 +58,26 @@
       "Bash(xargs grep -l \"InteractionZone\")",
       "Bash(xargs grep -l \"fe6350c6523c506479828fc08798398d\")",
       "Bash(powershell *)",
-      "PowerShell(Test-Path *)"
+      "PowerShell(Test-Path *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\" -Recurse -Force)",
+      "Bash(dir *)",
+      "Bash(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\" -Filter \"*.cs\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\" -Recurse -Filter \"*.cs\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\" -Recurse -File -Name)",
+      "Bash(Find \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\" -type f -name \"*.cs\")",
+      "Bash(xargs grep -l \"Interaction\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\" -Recurse -Depth 2)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Select-Object -First 100)",
+      "Bash(Get-ChildItem *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\Trading-Game\" -Depth 2 -Name | Where-Object { $_ -match '\\\\.\\(csproj|json|sln|cs\\)$' -and $_ -notmatch 'Library|Packages|obj|bin' } | Select-Object -First 30)",
+      "Bash(sqlite3 database.db \"SELECT * FROM trade_history ORDER BY history_id;\")",
+      "PowerShell($dbPath = \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\Data\\\\database.db\"; Invoke-RestMethod -Uri \"http://127.0.0.1:5000/trade_history?entityId=1\" | ConvertTo-Json -Depth 5)",
+      "PowerShell(Remove-Item *)",
+      "Bash(grep -r \"stop\" C:\\\\\\\\Users\\\\\\\\gregf\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\VSCode\\\\\\\\Trading-Game\\\\\\\\Trading-Game-DOTNET\\\\\\\\Services --include=\"*.cs\")",
+      "Bash(grep *)"
     ]
   }
 }
