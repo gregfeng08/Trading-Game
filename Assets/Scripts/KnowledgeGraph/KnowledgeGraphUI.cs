@@ -741,7 +741,8 @@ public class KnowledgeGraphUI : MonoBehaviour
 
             body += node.content ?? node.description;
 
-            FetchPersonalizedContent(node.id);
+            if (node.type == "adaptive")
+                FetchPersonalizedContent(node.id);
 
             var featureLabel = ProgressionGates.GetFeatureLabel(node.id);
             if (featureLabel != null)
