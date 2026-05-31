@@ -75,6 +75,19 @@ public class KnowledgeGraphUI : MonoBehaviour
     private Vector2 panTarget;
     private bool isPanAnimating;
 
+    // Casey dialogue box (screen-space, bottom of graph panel)
+    private GameObject caseyDialogueBox;
+    private TMP_Text caseyNameText;
+    private TMP_Text caseyBodyText;
+    private TMP_Text caseyPromptText;
+    private Button caseyTakeButton;
+    private string[] caseyLines;
+    private int caseyLineIndex;
+    private bool caseyIsTyping;
+    private int caseyTotalChars;
+    private float caseyCharAccum;
+    private const float CaseyCharsPerSec = 45f;
+
     void Awake()
     {
         if (Inst != null && Inst != this) { Destroy(gameObject); return; }
@@ -96,6 +109,14 @@ public class KnowledgeGraphUI : MonoBehaviour
     void Update()
     {
         if (graphPanel == null || !graphPanel.activeSelf) return;
+
+        UpdateCaseyTypewriter();
+
+        if (caseyDialogueBox != null && caseyDialogueBox.activeSelf)
+        {
+            HandleCaseyInput();
+            return;
+        }
 
         HandlePan();
         HandleZoom();
@@ -741,9 +762,6 @@ public class KnowledgeGraphUI : MonoBehaviour
 
             body += node.content ?? node.description;
 
-            if (node.type == "adaptive")
-                FetchPersonalizedContent(node.id);
-
             var featureLabel = ProgressionGates.GetFeatureLabel(node.id);
             if (featureLabel != null)
                 body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
@@ -776,6 +794,11 @@ public class KnowledgeGraphUI : MonoBehaviour
             : statusLabel;
 
         completeButton.gameObject.SetActive(node.status == "unlocked");
+
+        bool showCaseyButton = node.type == "adaptive" && node.status != "locked";
+        EnsureCaseyTakeButton();
+        if (caseyTakeButton != null)
+            caseyTakeButton.gameObject.SetActive(showCaseyButton);
     }
 
     private string BuildLockedContent(KnowledgeNodeStateDTO node)
@@ -814,41 +837,6 @@ public class KnowledgeGraphUI : MonoBehaviour
         return body;
     }
 
-    private async void FetchPersonalizedContent(string nodeId)
-    {
-        int entityId = APIBootstrapper.EntityDbId;
-        if (entityId <= 0) return;
-
-        try
-        {
-            var resp = await KnowledgeGraphAPI.GetNodeContent(entityId, nodeId);
-            if (resp != null && resp.is_personalized && selectedNode != null && selectedNode.id == nodeId)
-            {
-                string body = "";
-                if (selectedNode.type == "adaptive" && !string.IsNullOrEmpty(selectedNode.trigger_explanation))
-                {
-                    body += $"<color=#E8A838>{selectedNode.trigger_explanation}</color>\n\n";
-                    if (!string.IsNullOrEmpty(selectedNode.correct_action))
-                        body += $"<color=#6BC9D9>{selectedNode.correct_action}</color>\n\n";
-                }
-                body += resp.content;
-
-                var featureLabel = ProgressionGates.GetFeatureLabel(nodeId);
-                if (featureLabel != null)
-                    body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
-                else if (!string.IsNullOrEmpty(selectedNode.reward_mechanic))
-                    body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(selectedNode.reward_mechanic)}</color>";
-
-                if (detailContent != null)
-                    detailContent.text = body;
-            }
-        }
-        catch (System.Exception ex)
-        {
-            UnityEngine.Debug.LogWarning($"[KnowledgeGraphUI] Failed to fetch personalized content: {ex.Message}");
-        }
-    }
-
     private static string FormatMechanic(string mechanic)
     {
         return mechanic.Replace('_', ' ')
@@ -885,6 +873,222 @@ public class KnowledgeGraphUI : MonoBehaviour
 
         if (detailPanel != null)
             detailPanel.SetActive(false);
+        DismissCaseyDialogue();
+    }
+
+    // ── Casey's Take dialogue system ──
+
+    private void EnsureCaseyTakeButton()
+    {
+        if (caseyTakeButton != null) return;
+        if (detailPanel == null) return;
+
+        var btnGO = new GameObject("CaseyTakeButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        btnGO.transform.SetParent(detailPanel.transform, false);
+        var rt = btnGO.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 0f);
+        rt.anchorMax = new Vector2(1f, 0f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.anchoredPosition = new Vector2(0f, 8f);
+        rt.sizeDelta = new Vector2(-20f, 34f);
+
+        var img = btnGO.GetComponent<Image>();
+        img.color = new Color(0.15f, 0.35f, 0.3f, 0.95f);
+
+        var labelGO = new GameObject("Label", typeof(RectTransform));
+        labelGO.transform.SetParent(btnGO.transform, false);
+        var labelRT = labelGO.GetComponent<RectTransform>();
+        labelRT.anchorMin = Vector2.zero;
+        labelRT.anchorMax = Vector2.one;
+        labelRT.sizeDelta = Vector2.zero;
+        labelRT.offsetMin = Vector2.zero;
+        labelRT.offsetMax = Vector2.zero;
+        var label = labelGO.AddComponent<TextMeshProUGUI>();
+        label.text = "Casey's Take";
+        label.fontSize = 16;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color(0.4f, 0.85f, 0.7f);
+
+        caseyTakeButton = btnGO.GetComponent<Button>();
+        caseyTakeButton.onClick.AddListener(OnCaseyTakeClicked);
+    }
+
+    private void EnsureCaseyDialogueBox()
+    {
+        if (caseyDialogueBox != null) return;
+        if (graphPanel == null) return;
+
+        caseyDialogueBox = new GameObject("CaseyDialogueBox", typeof(RectTransform), typeof(Image));
+        caseyDialogueBox.transform.SetParent(graphPanel.transform, false);
+        caseyDialogueBox.transform.SetAsLastSibling();
+
+        var rt = caseyDialogueBox.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.1f, 0f);
+        rt.anchorMax = new Vector2(0.9f, 0f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.anchoredPosition = new Vector2(0f, 20f);
+        rt.sizeDelta = new Vector2(0f, 140f);
+
+        caseyDialogueBox.GetComponent<Image>().color = new Color(0.06f, 0.06f, 0.1f, 0.95f);
+
+        var nameGO = new GameObject("Name", typeof(RectTransform));
+        nameGO.transform.SetParent(caseyDialogueBox.transform, false);
+        var nameRT = nameGO.GetComponent<RectTransform>();
+        nameRT.anchorMin = new Vector2(0f, 1f);
+        nameRT.anchorMax = new Vector2(1f, 1f);
+        nameRT.pivot = new Vector2(0f, 1f);
+        nameRT.anchoredPosition = new Vector2(14f, -8f);
+        nameRT.sizeDelta = new Vector2(-28f, 24f);
+        caseyNameText = nameGO.AddComponent<TextMeshProUGUI>();
+        caseyNameText.text = "Casey";
+        caseyNameText.fontSize = 18;
+        caseyNameText.fontStyle = FontStyles.Bold;
+        caseyNameText.color = new Color(0.4f, 0.85f, 0.7f);
+        caseyNameText.raycastTarget = false;
+
+        var bodyGO = new GameObject("Body", typeof(RectTransform));
+        bodyGO.transform.SetParent(caseyDialogueBox.transform, false);
+        var bodyRT = bodyGO.GetComponent<RectTransform>();
+        bodyRT.anchorMin = new Vector2(0f, 0f);
+        bodyRT.anchorMax = new Vector2(1f, 1f);
+        bodyRT.offsetMin = new Vector2(14f, 28f);
+        bodyRT.offsetMax = new Vector2(-14f, -34f);
+        caseyBodyText = bodyGO.AddComponent<TextMeshProUGUI>();
+        caseyBodyText.fontSize = 15;
+        caseyBodyText.color = Color.white;
+        caseyBodyText.enableWordWrapping = true;
+        caseyBodyText.overflowMode = TextOverflowModes.Ellipsis;
+        caseyBodyText.raycastTarget = false;
+
+        var promptGO = new GameObject("Prompt", typeof(RectTransform));
+        promptGO.transform.SetParent(caseyDialogueBox.transform, false);
+        var promptRT = promptGO.GetComponent<RectTransform>();
+        promptRT.anchorMin = new Vector2(1f, 0f);
+        promptRT.anchorMax = new Vector2(1f, 0f);
+        promptRT.pivot = new Vector2(1f, 0f);
+        promptRT.anchoredPosition = new Vector2(-14f, 6f);
+        promptRT.sizeDelta = new Vector2(100f, 20f);
+        caseyPromptText = promptGO.AddComponent<TextMeshProUGUI>();
+        caseyPromptText.fontSize = 13;
+        caseyPromptText.color = new Color(0.5f, 0.5f, 0.55f);
+        caseyPromptText.alignment = TextAlignmentOptions.BottomRight;
+        caseyPromptText.raycastTarget = false;
+        caseyPromptText.text = "";
+
+        caseyDialogueBox.SetActive(false);
+    }
+
+    private async void OnCaseyTakeClicked()
+    {
+        if (selectedNode == null) return;
+        int entityId = APIBootstrapper.EntityDbId;
+        if (entityId <= 0) return;
+
+        EnsureCaseyDialogueBox();
+        caseyDialogueBox.SetActive(true);
+        caseyPromptText.text = "";
+        BeginCaseyTypewriter("Let me think about this...");
+
+        try
+        {
+            var resp = await KnowledgeGraphAPI.GetNodeContent(entityId, selectedNode.id);
+            var content = resp != null && !string.IsNullOrEmpty(resp.content) ? resp.content : selectedNode.content ?? selectedNode.description;
+
+            caseyLines = SplitIntoDialogueLines(content);
+            caseyLineIndex = 0;
+            BeginCaseyTypewriter(caseyLines[0]);
+            caseyPromptText.text = caseyLines.Length > 1 ? "E >" : "E to close";
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[KnowledgeGraphUI] Casey's Take failed: {ex.Message}");
+            caseyLines = new[] { selectedNode.content ?? selectedNode.description };
+            caseyLineIndex = 0;
+            BeginCaseyTypewriter(caseyLines[0]);
+            caseyPromptText.text = "E to close";
+        }
+    }
+
+    private void HandleCaseyInput()
+    {
+        if (caseyDialogueBox == null || !caseyDialogueBox.activeSelf) return;
+
+        if (Input.GetKeyDown(KeyCode.E) || Input.GetMouseButtonDown(0))
+        {
+            if (caseyIsTyping)
+            {
+                caseyBodyText.maxVisibleCharacters = caseyTotalChars;
+                caseyIsTyping = false;
+                caseyPromptText.text = (caseyLineIndex < caseyLines.Length - 1) ? "E >" : "E to close";
+            }
+            else
+            {
+                caseyLineIndex++;
+                if (caseyLineIndex >= caseyLines.Length)
+                {
+                    DismissCaseyDialogue();
+                }
+                else
+                {
+                    BeginCaseyTypewriter(caseyLines[caseyLineIndex]);
+                    caseyPromptText.text = "";
+                }
+            }
+        }
+    }
+
+    private void UpdateCaseyTypewriter()
+    {
+        if (!caseyIsTyping || caseyBodyText == null) return;
+
+        caseyCharAccum += Time.deltaTime * CaseyCharsPerSec;
+        int visible = Mathf.Min(caseyTotalChars, (int)caseyCharAccum);
+        caseyBodyText.maxVisibleCharacters = visible;
+
+        if (visible >= caseyTotalChars)
+        {
+            caseyIsTyping = false;
+            if (caseyLines != null)
+                caseyPromptText.text = (caseyLineIndex < caseyLines.Length - 1) ? "E >" : "E to close";
+        }
+    }
+
+    private void BeginCaseyTypewriter(string text)
+    {
+        caseyBodyText.text = text;
+        caseyBodyText.ForceMeshUpdate();
+        caseyTotalChars = caseyBodyText.textInfo.characterCount;
+        caseyBodyText.maxVisibleCharacters = 0;
+        caseyCharAccum = 0f;
+        caseyIsTyping = true;
+    }
+
+    private void DismissCaseyDialogue()
+    {
+        if (caseyDialogueBox != null)
+            caseyDialogueBox.SetActive(false);
+        caseyLines = null;
+        caseyIsTyping = false;
+    }
+
+    private string[] SplitIntoDialogueLines(string content)
+    {
+        var paragraphs = content.Split(new[] { "\n\n", "\r\n\r\n" }, System.StringSplitOptions.RemoveEmptyEntries);
+        if (paragraphs.Length <= 1)
+        {
+            var sentences = content.Split(new[] { ". " }, System.StringSplitOptions.RemoveEmptyEntries);
+            if (sentences.Length <= 2) return new[] { content };
+            var lines = new List<string>();
+            for (int i = 0; i < sentences.Length; i += 2)
+            {
+                var chunk = sentences[i].TrimEnd('.') + ".";
+                if (i + 1 < sentences.Length)
+                    chunk += " " + sentences[i + 1].TrimEnd('.') + ".";
+                lines.Add(chunk.Trim());
+            }
+            return lines.ToArray();
+        }
+        return paragraphs;
     }
 
     private Color GetNodeColor(KnowledgeNodeStateDTO node, KnowledgeNodeStateDTO[] allNodes)
