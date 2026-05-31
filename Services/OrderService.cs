@@ -11,15 +11,18 @@ public class OrderService
     private readonly EntityService _entities;
     private readonly GameStateService _gameState;
     private readonly KnowledgeGraphService _knowledgeGraph;
+    private readonly PlayerContextService _playerContext;
     private readonly NpcDialogueService? _dialogueService;
 
     public OrderService(Database db, EntityService entities, GameStateService gameState,
-        KnowledgeGraphService knowledgeGraph, NpcDialogueService? dialogueService = null)
+        KnowledgeGraphService knowledgeGraph, PlayerContextService playerContext,
+        NpcDialogueService? dialogueService = null)
     {
         _db = db;
         _entities = entities;
         _gameState = gameState;
         _knowledgeGraph = knowledgeGraph;
+        _playerContext = playerContext;
         _dialogueService = dialogueService;
     }
 
@@ -282,6 +285,7 @@ public class OrderService
 
             tx.Commit();
 
+            _playerContext.InvalidateCache(entityDbId.Value);
             var unlocked = _knowledgeGraph.EvaluateTriggers(entityDbId.Value, gameDate);
 
             if (_dialogueService is not null)
@@ -364,6 +368,7 @@ public class OrderService
 
             tx.Commit();
 
+            _playerContext.InvalidateCache(entityDbId.Value);
             var unlocked = _knowledgeGraph.EvaluateTriggers(entityDbId.Value, gameDate);
 
             if (_dialogueService is not null)

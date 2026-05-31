@@ -8,12 +8,15 @@ public class GameStateService
 {
     private readonly Database _db;
     private readonly EntityService _entities;
+    private PlayerContextService? _playerContext;
 
     public GameStateService(Database db, EntityService entities)
     {
         _db = db;
         _entities = entities;
     }
+
+    public void SetPlayerContextService(PlayerContextService pcs) => _playerContext = pcs;
 
     public GameDateResponse GetGameDate()
     {
@@ -69,6 +72,7 @@ public class GameStateService
             SnapshotNetWorth(conn, tx, entityDbId.Value, nextDate, "pre_market");
 
         tx.Commit();
+        _playerContext?.InvalidateCache();
 
         return new AdvanceDayResponse("ok", currentDate, nextDate, "pre_market", false, null)
         {
@@ -167,7 +171,7 @@ public class GameStateService
         using var conn = _db.Open();
         using var tx = conn.BeginTransaction();
 
-        foreach (var table in new[] { "arc_grades", "pending_orders", "newspaper", "knowledge_node_progress", "portfolio", "trade_history", "net_worth_history", "save_state", "dynamic_npc_dialogue" })
+        foreach (var table in new[] { "arc_grades", "pending_orders", "newspaper", "knowledge_node_progress", "portfolio", "trade_history", "net_worth_history", "save_state", "dynamic_npc_dialogue", "dynamic_node_content" })
         {
             using var del = conn.CreateCommand();
             del.Transaction = tx;
@@ -223,6 +227,7 @@ public class GameStateService
         }
 
         tx.Commit();
+        _playerContext?.InvalidateCache();
         return new NewGameResponse("ok", "New game started", gameStartDate, "pre_market");
     }
 

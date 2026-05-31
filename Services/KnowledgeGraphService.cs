@@ -11,6 +11,8 @@ public class KnowledgeGraphService
     private readonly Database _db;
     private readonly KnowledgeGraphConfig _config;
 
+    public event Action<int, string, string, string?>? OnNodeUnlocked;
+
     public KnowledgeGraphService(Database db, string configPath)
     {
         _db = db;
@@ -132,6 +134,7 @@ public class KnowledgeGraphService
             {
                 SetProgress(conn, entityId, node.Id, "unlocked", gameDate, null);
                 newlyUnlocked.Add(new UnlockedNodeDto(node.Id, node.Title, node.Priority, node.Category));
+                OnNodeUnlocked?.Invoke(entityId, node.Id, gameDate, node.TriggerExplanation);
             }
         }
 

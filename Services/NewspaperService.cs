@@ -11,6 +11,7 @@ public class NewspaperService
 {
     private readonly Database _db;
     private readonly GameStateService _gameState;
+    private readonly PlayerContextService _playerContext;
     private readonly HttpClient _httpClient;
     private readonly List<HistoricalEvent> _events;
     private readonly string? _apiKey;
@@ -18,10 +19,12 @@ public class NewspaperService
 
     private readonly ArcService? _arcService;
 
-    public NewspaperService(Database db, GameStateService gameState, string eventsPath, ArcService? arcService = null)
+    public NewspaperService(Database db, GameStateService gameState,
+        PlayerContextService playerContext, string eventsPath, ArcService? arcService = null)
     {
         _db = db;
         _gameState = gameState;
+        _playerContext = playerContext;
         _arcService = arcService;
         _httpClient = new HttpClient();
         _apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
@@ -31,7 +34,7 @@ public class NewspaperService
         _events = JsonSerializer.Deserialize<List<HistoricalEvent>>(json) ?? [];
     }
 
-    public async Task<NewspaperResponse> GetNewspaper(string? date)
+    public async Task<NewspaperResponse> GetNewspaper(string? date, int? entityId = null)
     {
         using var conn = _db.Open();
         date ??= _gameState.GetSaveValue(conn, "current_date")
@@ -39,7 +42,11 @@ public class NewspaperService
 
         var cached = GetCachedNewspaper(conn, date);
         if (cached is not null)
+        {
+            if (entityId.HasValue)
+                cached = cached with { PlayerSidebar = BuildPlayerSidebar(entityId.Value, date) };
             return cached;
+        }
 
         if (string.IsNullOrEmpty(_apiKey))
             throw new InvalidOperationException("ANTHROPIC_API_KEY environment variable is not set.");
@@ -48,7 +55,48 @@ public class NewspaperService
         var newspaper = await GenerateNewspaper(date, context);
 
         CacheNewspaper(conn, date, newspaper);
+
+        if (entityId.HasValue)
+            newspaper = newspaper with { PlayerSidebar = BuildPlayerSidebar(entityId.Value, date) };
+
         return newspaper;
+    }
+
+    private PlayerNewsSidebarDto? BuildPlayerSidebar(int entityId, string date)
+    {
+        try
+        {
+            var ctx = _playerContext.BuildContext(entityId, date, "pre_market");
+            if (ctx.Portfolio.Holdings.Count == 0)
+                return null;
+
+            var mentions = new List<string>();
+            var heldTickers = ctx.Portfolio.Holdings.ToDictionary(h => h.TickerId);
+
+            foreach (var gainer in ctx.Market.TopGainers)
+            {
+                if (heldTickers.TryGetValue(gainer.TickerId, out var holding))
+                    mentions.Add($"Your holding {gainer.TickerId} rose {gainer.ChangePct:+0.0}% today (you hold {holding.SharesHeld:F0} shares)");
+            }
+            foreach (var loser in ctx.Market.TopLosers)
+            {
+                if (heldTickers.TryGetValue(loser.TickerId, out var holding))
+                    mentions.Add($"Your holding {loser.TickerId} fell {loser.ChangePct:0.0}% today (you hold {holding.SharesHeld:F0} shares)");
+            }
+
+            string? impact = null;
+            if (ctx.Arc.ProjectedReturnPct.HasValue)
+                impact = $"Your portfolio is {(ctx.Arc.ProjectedReturnPct >= 0 ? "up" : "down")} {Math.Abs(ctx.Arc.ProjectedReturnPct.Value):F1}% this arc (projected grade: {ctx.Arc.ProjectedGrade ?? "?"})";
+
+            if (mentions.Count == 0 && impact is null)
+                return null;
+
+            return new PlayerNewsSidebarDto(mentions, impact);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private NewspaperContext BuildContext(SqliteConnection conn, string date)

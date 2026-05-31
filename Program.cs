@@ -1,5 +1,6 @@
 using TradingGame.Data;
 using TradingGame.Endpoints;
+using TradingGame.Models;
 using TradingGame.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,6 +27,7 @@ if (File.Exists(historicalEventsPath))
     builder.Services.AddSingleton(sp => new NewspaperService(
         sp.GetRequiredService<Database>(),
         sp.GetRequiredService<GameStateService>(),
+        sp.GetRequiredService<PlayerContextService>(),
         historicalEventsPath,
         sp.GetService<ArcService>()));
 
@@ -42,16 +44,27 @@ else
 {
     Console.WriteLine($"[WARNING] historical_events.json not found at {historicalEventsPath}. Newspaper endpoint disabled.");
 }
+builder.Services.AddSingleton(sp => new PlayerContextService(
+    sp.GetRequiredService<Database>(),
+    sp.GetRequiredService<KnowledgeGraphService>(),
+    sp.GetRequiredService<EntityService>(),
+    sp.GetService<ArcService>()));
+builder.Services.AddSingleton(sp => new DynamicNodeContentService(
+    sp.GetRequiredService<Database>(),
+    sp.GetRequiredService<PlayerContextService>(),
+    sp.GetRequiredService<KnowledgeGraphService>()));
 builder.Services.AddSingleton(sp => new NpcDialogueService(
     sp.GetRequiredService<Database>(),
     sp.GetRequiredService<GameStateService>(),
     sp.GetRequiredService<KnowledgeGraphService>(),
+    sp.GetRequiredService<PlayerContextService>(),
     sp.GetService<ArcService>()));
 builder.Services.AddSingleton(sp => new OrderService(
     sp.GetRequiredService<Database>(),
     sp.GetRequiredService<EntityService>(),
     sp.GetRequiredService<GameStateService>(),
     sp.GetRequiredService<KnowledgeGraphService>(),
+    sp.GetRequiredService<PlayerContextService>(),
     sp.GetService<NpcDialogueService>()));
 if (File.Exists(arcsPath))
 {
@@ -79,6 +92,23 @@ var app = builder.Build();
 
 app.UseCors();
 
+var gameState = app.Services.GetRequiredService<GameStateService>();
+gameState.SetPlayerContextService(app.Services.GetRequiredService<PlayerContextService>());
+
+var kg = app.Services.GetRequiredService<KnowledgeGraphService>();
+var dynContent = app.Services.GetService<DynamicNodeContentService>();
+if (dynContent is not null)
+{
+    kg.OnNodeUnlocked += (entityId, nodeId, gameDate, triggerDesc) =>
+    {
+        _ = Task.Run(async () =>
+        {
+            try { await dynContent.GeneratePersonalizedContent(entityId, nodeId, gameDate, triggerDesc); }
+            catch (Exception ex) { Console.WriteLine($"[DynamicContent] Background generation failed: {ex.Message}"); }
+        });
+    };
+}
+
 SystemEndpoints.Map(app);
 MarketEndpoints.Map(app);
 EntityEndpoints.Map(app);
@@ -89,5 +119,14 @@ GameEndpoints.Map(app);
 NewspaperEndpoints.Map(app);
 ArcEndpoints.Map(app);
 KnowledgeGraphEndpoints.Map(app);
+
+app.MapGet("/player_context", (int entityId, PlayerContextService ctx, GameStateService game) =>
+{
+    var dateResp = game.GetGameDate();
+    if (dateResp.CurrentDate is null)
+        return Results.Json(new ErrorResponse("error", "No active game"), statusCode: 400);
+    var phase = dateResp.GamePhase ?? "pre_market";
+    return Results.Ok(ctx.BuildContext(entityId, dateResp.CurrentDate, phase));
+});
 
 app.Run();

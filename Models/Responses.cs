@@ -272,6 +272,11 @@ public record NewspaperArticleDto(
     [property: JsonPropertyName("category")] string Category
 );
 
+public record PlayerNewsSidebarDto(
+    [property: JsonPropertyName("held_stock_mentions")] List<string> HeldStockMentions,
+    [property: JsonPropertyName("portfolio_impact")] string? PortfolioImpact
+);
+
 public record NewspaperResponse(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("date")] string Date,
@@ -280,7 +285,11 @@ public record NewspaperResponse(
     [property: JsonPropertyName("articles")] List<NewspaperArticleDto> Articles,
     [property: JsonPropertyName("market_recap")] string MarketRecap,
     [property: JsonPropertyName("from_cache")] bool FromCache
-);
+)
+{
+    [JsonPropertyName("player_sidebar")]
+    public PlayerNewsSidebarDto? PlayerSidebar { get; init; }
+};
 
 // ── Save State ──
 

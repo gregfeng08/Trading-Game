@@ -11,6 +11,7 @@ public class NpcDialogueService
     private readonly Database _db;
     private readonly GameStateService _gameState;
     private readonly KnowledgeGraphService _knowledgeGraph;
+    private readonly PlayerContextService _playerContext;
     private readonly ArcService? _arcService;
     private readonly HttpClient _httpClient;
     private readonly string? _apiKey;
@@ -49,11 +50,13 @@ public class NpcDialogueService
     };
 
     public NpcDialogueService(Database db, GameStateService gameState,
-        KnowledgeGraphService knowledgeGraph, ArcService? arcService = null)
+        KnowledgeGraphService knowledgeGraph, PlayerContextService playerContext,
+        ArcService? arcService = null)
     {
         _db = db;
         _gameState = gameState;
         _knowledgeGraph = knowledgeGraph;
+        _playerContext = playerContext;
         _arcService = arcService;
         _httpClient = new HttpClient();
         _apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
@@ -122,7 +125,7 @@ public class NpcDialogueService
         score += volScore;
         if (volSignal is not null) signals.Add(volSignal);
 
-        var (moverScore, moverSignals) = ScoreTopMovers(conn, gameDate, entityId);
+        var (moverScore, moverSignals) = ScoreTopMovers(conn, gameDate, entityId, phase);
         score += moverScore;
         signals.AddRange(moverSignals);
 
@@ -132,7 +135,9 @@ public class NpcDialogueService
 
         if (entityId.HasValue)
         {
-            var (portfolioScore, portfolioSignals) = ScorePlayerEvents(conn, entityId.Value, gameDate);
+            var ctx = _playerContext.BuildContext(entityId.Value, gameDate, phase);
+
+            var (portfolioScore, portfolioSignals) = ScorePlayerEvents(ctx);
             score += portfolioScore;
             signals.AddRange(portfolioSignals);
 
@@ -171,7 +176,7 @@ public class NpcDialogueService
             $"Average stock movement: {avgChange:F1}%", score));
     }
 
-    private (double, List<EventSignal>) ScoreTopMovers(SqliteConnection conn, string gameDate, int? entityId)
+    private (double, List<EventSignal>) ScoreTopMovers(SqliteConnection conn, string gameDate, int? entityId, string? phase = null)
     {
         var signals = new List<EventSignal>();
 
@@ -210,9 +215,10 @@ public class NpcDialogueService
             score = 0.1;
         }
 
-        if (entityId.HasValue)
+        if (entityId.HasValue && phase is not null)
         {
-            var heldTickers = GetHeldTickers(conn, entityId.Value);
+            var ctx = _playerContext.BuildContext(entityId.Value, gameDate, phase);
+            var heldTickers = ctx.Portfolio.Holdings.Select(h => h.TickerId).ToHashSet();
             foreach (var m in movers.Where(m => heldTickers.Contains(m.Ticker) && Math.Abs(m.Pct) >= 3))
             {
                 score += 0.05;
@@ -258,49 +264,22 @@ public class NpcDialogueService
         return (0, null);
     }
 
-    private (double, List<EventSignal>) ScorePlayerEvents(SqliteConnection conn, int entityId, string gameDate)
+    private (double, List<EventSignal>) ScorePlayerEvents(PlayerContext ctx)
     {
         var signals = new List<EventSignal>();
         double score = 0;
 
-        using (var cmd = conn.CreateCommand())
+        int tradesToday = ctx.RecentTrades.TodaysTrades.Count;
+        if (tradesToday > 0)
         {
-            cmd.CommandText = "SELECT COUNT(*) FROM trade_history WHERE entity_id = @eid AND trade_date = @d;";
-            cmd.Parameters.AddWithValue("@eid", entityId);
-            cmd.Parameters.AddWithValue("@d", gameDate);
-            int tradesToday = Convert.ToInt32(cmd.ExecuteScalar());
-            if (tradesToday > 0)
-            {
-                score += 0.05;
-                signals.Add(new EventSignal("player_traded", $"You made {tradesToday} trade(s) today", 0.05));
-            }
+            score += 0.05;
+            signals.Add(new EventSignal("player_traded", $"You made {tradesToday} trade(s) today", 0.05));
         }
 
-        using (var cmd = conn.CreateCommand())
+        if (ctx.Portfolio.NetWorth > 0 && ctx.Portfolio.CashRatioPct < 10)
         {
-            cmd.CommandText = """
-                SELECT available_cash FROM entity WHERE entity_id = @eid;
-                """;
-            cmd.Parameters.AddWithValue("@eid", entityId);
-            var cash = Convert.ToDouble(cmd.ExecuteScalar() ?? 0);
-
-            using var posCmd = conn.CreateCommand();
-            posCmd.CommandText = """
-                SELECT COALESCE(SUM(pf.shares_held * tp.close_price), 0)
-                FROM portfolio pf
-                JOIN ticker_prices tp ON tp.ticker_id = pf.ticker_id AND tp.date = @date
-                WHERE pf.entity_id = @eid AND pf.shares_held > 0;
-                """;
-            posCmd.Parameters.AddWithValue("@eid", entityId);
-            posCmd.Parameters.AddWithValue("@date", gameDate);
-            var holdingsValue = Convert.ToDouble(posCmd.ExecuteScalar() ?? 0);
-
-            double total = cash + holdingsValue;
-            if (total > 0 && cash / total < 0.1)
-            {
-                score += 0.05;
-                signals.Add(new EventSignal("low_cash", $"Cash reserves at {cash / total * 100:F0}% of portfolio", 0.05));
-            }
+            score += 0.05;
+            signals.Add(new EventSignal("low_cash", $"Cash reserves at {ctx.Portfolio.CashRatioPct:F0}% of portfolio", 0.05));
         }
 
         return (Math.Min(score, 0.2), signals);
@@ -311,12 +290,16 @@ public class NpcDialogueService
     private string BuildFactSheet(SqliteConnection conn, string npcType, string gameDate,
         string phase, List<EventSignal> signals, int? entityId)
     {
+        PlayerContext? ctx = null;
+        if (entityId.HasValue)
+            ctx = _playerContext.BuildContext(entityId.Value, gameDate, phase);
+
         var sb = new StringBuilder();
         sb.AppendLine($"GAME DATE: {gameDate}");
         sb.AppendLine($"MARKET PHASE: {phase}");
         sb.AppendLine();
 
-        var arcTone = GetArcTone(gameDate);
+        var arcTone = ctx?.Arc.ArcTone ?? GetArcTone(gameDate);
         if (arcTone is not null)
             sb.AppendLine($"MARKET ERA MOOD: {arcTone}");
 
@@ -343,17 +326,50 @@ public class NpcDialogueService
             sb.AppendLine();
         }
 
-        if (entityId.HasValue && npcType is "analyst" or "broker")
+        if (ctx is not null && npcType is "analyst" or "broker")
         {
             sb.AppendLine("── PLAYER PORTFOLIO ──");
-            AppendPlayerPortfolio(conn, entityId.Value, gameDate, sb);
+            sb.AppendLine($"  Cash: ${ctx.Portfolio.Cash:F2}");
+            foreach (var h in ctx.Portfolio.Holdings)
+                sb.AppendLine($"  {h.TickerId}: {h.SharesHeld:F0} shares @ avg ${h.AvgCostBasis:F2}, now ${h.CurrentPrice:F2} ({h.UnrealizedPnlPct:+0.0;-0.0}%)");
+            if (ctx.Concentration.MaxTicker is not null)
+                sb.AppendLine($"  Concentration: {ctx.Concentration.MaxSingleTickerPct:F0}% in {ctx.Concentration.MaxTicker}");
             sb.AppendLine();
         }
 
-        if (entityId.HasValue && npcType == "trader")
+        if (ctx is not null && npcType == "trader")
         {
             sb.AppendLine("── PLAYER'S RECENT ACTIVITY ──");
-            AppendRecentTrades(conn, entityId.Value, gameDate, sb);
+            if (ctx.RecentTrades.TodaysTrades.Count > 0)
+            {
+                foreach (var t in ctx.RecentTrades.TodaysTrades)
+                {
+                    var side = t.Shares > 0 ? "Bought" : "Sold";
+                    sb.AppendLine($"  {side} {Math.Abs(t.Shares):F0} {t.TickerId} @ ${t.Price:F2}");
+                }
+            }
+            else
+                sb.AppendLine("  No trades today.");
+            sb.AppendLine();
+        }
+
+        if (ctx is not null)
+        {
+            sb.AppendLine("── PLAYER KNOWLEDGE ──");
+            sb.AppendLine($"  Learning progress: {ctx.Knowledge.CompletedCount}/{ctx.Knowledge.TotalNodes} concepts completed");
+            if (ctx.Knowledge.RecentlyUnlocked.Count > 0)
+            {
+                sb.AppendLine("  Recently unlocked:");
+                foreach (var node in ctx.Knowledge.RecentlyUnlocked)
+                    sb.AppendLine($"    • {node.Title}");
+            }
+            if (ctx.Knowledge.CompletedNodes.Count > 0)
+            {
+                var recent = ctx.Knowledge.CompletedNodes.TakeLast(3);
+                sb.AppendLine("  Recently learned:");
+                foreach (var node in recent)
+                    sb.AppendLine($"    • {node.Title}");
+            }
             sb.AppendLine();
         }
 
@@ -411,63 +427,6 @@ public class NpcDialogueService
         }
     }
 
-    private void AppendPlayerPortfolio(SqliteConnection conn, int entityId, string gameDate, StringBuilder sb)
-    {
-        using var cashCmd = conn.CreateCommand();
-        cashCmd.CommandText = "SELECT available_cash FROM entity WHERE entity_id = @eid;";
-        cashCmd.Parameters.AddWithValue("@eid", entityId);
-        var cash = Convert.ToDouble(cashCmd.ExecuteScalar() ?? 0);
-        sb.AppendLine($"  Cash: ${cash:F2}");
-
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT pf.ticker_id, SUM(pf.shares_held) as shares,
-                   tp.close_price,
-                   SUM(pf.shares_held * pf.price) / SUM(pf.shares_held) as avg_cost
-            FROM portfolio pf
-            LEFT JOIN ticker_prices tp ON tp.ticker_id = pf.ticker_id AND tp.date = @date
-            WHERE pf.entity_id = @eid AND pf.shares_held > 0
-            GROUP BY pf.ticker_id;
-            """;
-        cmd.Parameters.AddWithValue("@eid", entityId);
-        cmd.Parameters.AddWithValue("@date", gameDate);
-
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            var ticker = reader.GetString(0);
-            var shares = reader.GetDouble(1);
-            var close = reader.IsDBNull(2) ? 0.0 : reader.GetDouble(2);
-            var avgCost = reader.GetDouble(3);
-            var pnlPct = avgCost > 0 ? (close - avgCost) / avgCost * 100 : 0;
-            sb.AppendLine($"  {ticker}: {shares:F0} shares @ avg ${avgCost:F2}, now ${close:F2} ({pnlPct:+0.0;-0.0}%)");
-        }
-    }
-
-    private void AppendRecentTrades(SqliteConnection conn, int entityId, string gameDate, StringBuilder sb)
-    {
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT ticker_id, shares, price_paid FROM trade_history
-            WHERE entity_id = @eid AND trade_date = @d
-            ORDER BY history_id DESC LIMIT 3;
-            """;
-        cmd.Parameters.AddWithValue("@eid", entityId);
-        cmd.Parameters.AddWithValue("@d", gameDate);
-
-        using var reader = cmd.ExecuteReader();
-        bool any = false;
-        while (reader.Read())
-        {
-            any = true;
-            var ticker = reader.GetString(0);
-            var shares = reader.GetDouble(1);
-            var price = reader.GetDouble(2);
-            var side = shares > 0 ? "Bought" : "Sold";
-            sb.AppendLine($"  {side} {Math.Abs(shares):F0} {ticker} @ ${price:F2}");
-        }
-        if (!any) sb.AppendLine("  No trades today.");
-    }
 
     // ── LLM generation ──
 
@@ -646,18 +605,6 @@ public class NpcDialogueService
     }
 
     // ── Helpers ──
-
-    private HashSet<string> GetHeldTickers(SqliteConnection conn, int entityId)
-    {
-        var tickers = new HashSet<string>();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT DISTINCT ticker_id FROM portfolio WHERE entity_id = @eid AND shares_held > 0;";
-        cmd.Parameters.AddWithValue("@eid", entityId);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-            tickers.Add(reader.GetString(0));
-        return tickers;
-    }
 
     private string? GetArcTone(string gameDate)
     {

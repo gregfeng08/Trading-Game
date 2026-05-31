@@ -44,5 +44,21 @@ public static class KnowledgeGraphEndpoints
 
         app.MapGet("/knowledge_graph/config", (KnowledgeGraphService kg) =>
             Results.Ok(kg.Config));
+
+        app.MapGet("/knowledge_graph/node_content", async (int entityId, string nodeId,
+            DynamicNodeContentService? dynContent, KnowledgeGraphService kg, GameStateService game) =>
+        {
+            var dateResp = game.GetGameDate();
+            var gameDate = dateResp.CurrentDate ?? "1970-01-01";
+
+            if (dynContent is not null)
+            {
+                var content = await dynContent.GetContentWithFallback(entityId, nodeId, gameDate);
+                return Results.Ok(new { status = "ok", node_id = nodeId, content, is_personalized = dynContent.GetCachedContent(entityId, nodeId) is not null });
+            }
+
+            var node = kg.Config.Nodes.FirstOrDefault(n => n.Id == nodeId);
+            return Results.Ok(new { status = "ok", node_id = nodeId, content = node?.Content ?? "", is_personalized = false });
+        });
     }
 }

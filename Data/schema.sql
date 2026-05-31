@@ -153,6 +153,17 @@ CREATE TABLE IF NOT EXISTS net_worth_history (
     FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
 );
 
+-- Dynamic knowledge node content (personalized via LLM)
+CREATE TABLE IF NOT EXISTS dynamic_node_content (
+    entity_id INTEGER NOT NULL,
+    node_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    trigger_context TEXT,
+    generated_at TEXT NOT NULL,
+    PRIMARY KEY (entity_id, node_id),
+    FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
+);
+
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_ticker_prices_ticker_date ON ticker_prices(ticker_id, date);
 CREATE INDEX IF NOT EXISTS idx_portfolio_entity_ticker ON portfolio(entity_id, ticker_id);

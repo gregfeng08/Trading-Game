@@ -7,14 +7,14 @@ public static class NewspaperEndpoints
 {
     public static void Map(WebApplication app)
     {
-        app.MapGet("/newspaper", async (string? date, NewspaperService? newspaper) =>
+        app.MapGet("/newspaper", async (string? date, int? entityId, NewspaperService? newspaper) =>
         {
             if (newspaper is null)
                 return Results.Json(new ErrorResponse("error", "Newspaper service unavailable (historical_events.json not found)"), statusCode: 503);
 
             try
             {
-                return Results.Ok(await newspaper.GetNewspaper(date));
+                return Results.Ok(await newspaper.GetNewspaper(date, entityId));
             }
             catch (InvalidOperationException ex)
             {
