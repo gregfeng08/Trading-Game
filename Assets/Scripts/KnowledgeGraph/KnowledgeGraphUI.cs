@@ -87,6 +87,7 @@ public class KnowledgeGraphUI : MonoBehaviour
     private int caseyTotalChars;
     private float caseyCharAccum;
     private const float CaseyCharsPerSec = 45f;
+    private bool caseyTakeShowCompleteAfter;
 
     void Awake()
     {
@@ -740,6 +741,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         detailPanel.SetActive(true);
         detailTitle.text = node.title;
         detailTitle.textWrappingMode = TextWrappingModes.Normal;
+        detailTitle.margin = new Vector4(0f, 0f, 30f, 0f);
 
         detailContent.textWrappingMode = TextWrappingModes.Normal;
         detailContent.overflowMode = TextOverflowModes.Overflow;
@@ -793,12 +795,23 @@ public class KnowledgeGraphUI : MonoBehaviour
             ? $"{catLabel}  ·  {statusLabel}"
             : statusLabel;
 
-        completeButton.gameObject.SetActive(node.status == "unlocked");
+        bool isAdaptiveUnlocked = node.type == "adaptive" && node.status == "unlocked";
+        bool showCaseyFirst = isAdaptiveUnlocked;
+        bool showCaseyOnCompleted = node.type == "adaptive" && node.status == "completed";
 
-        bool showCaseyButton = node.type == "adaptive" && node.status != "locked";
         EnsureCaseyTakeButton();
-        if (caseyTakeButton != null)
-            caseyTakeButton.gameObject.SetActive(showCaseyButton);
+        if (showCaseyFirst)
+        {
+            completeButton.gameObject.SetActive(false);
+            caseyTakeButton.gameObject.SetActive(true);
+            caseyTakeShowCompleteAfter = true;
+        }
+        else
+        {
+            completeButton.gameObject.SetActive(node.status == "unlocked");
+            caseyTakeButton.gameObject.SetActive(showCaseyOnCompleted);
+            caseyTakeShowCompleteAfter = false;
+        }
     }
 
     private string BuildLockedContent(KnowledgeNodeStateDTO node)
@@ -923,11 +936,11 @@ public class KnowledgeGraphUI : MonoBehaviour
         caseyDialogueBox.transform.SetAsLastSibling();
 
         var rt = caseyDialogueBox.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.1f, 0f);
-        rt.anchorMax = new Vector2(0.9f, 0f);
-        rt.pivot = new Vector2(0.5f, 0f);
-        rt.anchoredPosition = new Vector2(0f, 20f);
-        rt.sizeDelta = new Vector2(0f, 140f);
+        rt.anchorMin = new Vector2(0.02f, 0.02f);
+        rt.anchorMax = new Vector2(0.55f, 0.22f);
+        rt.pivot = new Vector2(0f, 0f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = Vector2.zero;
 
         caseyDialogueBox.GetComponent<Image>().color = new Color(0.06f, 0.06f, 0.1f, 0.95f);
 
@@ -1069,6 +1082,14 @@ public class KnowledgeGraphUI : MonoBehaviour
             caseyDialogueBox.SetActive(false);
         caseyLines = null;
         caseyIsTyping = false;
+
+        if (caseyTakeShowCompleteAfter && selectedNode != null && selectedNode.status == "unlocked")
+        {
+            completeButton.gameObject.SetActive(true);
+            if (caseyTakeButton != null)
+                caseyTakeButton.gameObject.SetActive(false);
+        }
+        caseyTakeShowCompleteAfter = false;
     }
 
     private string[] SplitIntoDialogueLines(string content)
