@@ -299,7 +299,9 @@ public class KnowledgeGraphUI : MonoBehaviour
 
         if (graphCanvasGroup == null)
         {
-            graphCanvasGroup = graphContainer.GetComponent<CanvasGroup>() ?? graphContainer.gameObject.AddComponent<CanvasGroup>();
+            graphCanvasGroup = graphContainer.GetComponent<CanvasGroup>();
+            if (graphCanvasGroup == null)
+                graphCanvasGroup = graphContainer.gameObject.AddComponent<CanvasGroup>();
             graphCanvasGroup.blocksRaycasts = true;
             graphCanvasGroup.interactable = true;
         }
