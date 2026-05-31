@@ -302,6 +302,13 @@ POST-DEMO TODO (Designed, Not Yet Implemented)
   The interestingness scoring system already exists in NpcDialogueService.
   Using it to control time is another manifestation of "the game reacts to
   the player." Post-defense complexity — shelved for now.
+- Casey's Take personalization levels: Add per-node personalization_level hint
+  (high/low) to knowledge_graph.json or derive from trigger type. High-
+  personalization nodes (diversification, first_loss, low_cash_ratio) get
+  prompts focused on the player's specific trades and portfolio. Low-
+  personalization nodes (market_wide_decline, market_hours) get concept-first
+  explanations with a brief connection to the player's position. Currently
+  all nodes use the same system prompt weight.
 - Newspaper/NPC knowledge triggers: new player_events DB table tracking
   newspaper reads (deduped per day) and NPC interactions. Two new trigger types
   (newspaper_read, npc_interaction) in KnowledgeGraphService.
