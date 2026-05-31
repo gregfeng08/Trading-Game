@@ -43,6 +43,20 @@ public class OHLCChart : MaskableGraphic
     public float MinPrice { get; private set; }
     public float MaxPrice { get; private set; }
 
+    private bool _showWicks = true;
+    public bool ShowWicks
+    {
+        get => _showWicks;
+        set
+        {
+            if (_showWicks == value) return;
+            _showWicks = value;
+            ComputeRange();
+            SetVerticesDirty();
+            UpdateLabels();
+        }
+    }
+
     public void SetData(PriceRowDTO[] priceData)
     {
         data = priceData;
@@ -66,8 +80,18 @@ public class OHLCChart : MaskableGraphic
         if (data == null) return;
         foreach (var p in data)
         {
-            if ((float)p.low_price < MinPrice) MinPrice = (float)p.low_price;
-            if ((float)p.high_price > MaxPrice) MaxPrice = (float)p.high_price;
+            if (_showWicks)
+            {
+                if ((float)p.low_price < MinPrice) MinPrice = (float)p.low_price;
+                if ((float)p.high_price > MaxPrice) MaxPrice = (float)p.high_price;
+            }
+            else
+            {
+                float lo = Mathf.Min((float)p.open_price, (float)p.close_price);
+                float hi = Mathf.Max((float)p.open_price, (float)p.close_price);
+                if (lo < MinPrice) MinPrice = lo;
+                if (hi > MaxPrice) MaxPrice = hi;
+            }
         }
 
         float range = MaxPrice - MinPrice;
@@ -148,8 +172,11 @@ public class OHLCChart : MaskableGraphic
             bool bull = c.close_price >= c.open_price;
             Color col = bull ? bullColor : bearColor;
 
-            AddQuad(vh, new Vector2(cx - halfWick, yLow),
-                        new Vector2(cx + halfWick, yHigh), col);
+            if (_showWicks)
+            {
+                AddQuad(vh, new Vector2(cx - halfWick, yLow),
+                            new Vector2(cx + halfWick, yHigh), col);
+            }
 
             float bTop = Mathf.Max(yOpen, yClose);
             float bBot = Mathf.Min(yOpen, yClose);

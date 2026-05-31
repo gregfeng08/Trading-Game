@@ -1,259 +1,314 @@
-HIGHSIGHT FINANCIAL — NARRATIVE DESIGN DOCUMENT
-================================================
-Last updated: 2026-05-26
+HINDSIGHT FINANCIAL - NARRATIVE DESIGN DOCUMENT
+===============================================
+Last updated: 2026-05-29
 
 
 THESIS CONNECTION
 -----------------
 This document describes the in-game narrative and world design. The narrative
-serves the thesis: adaptive experience-driven financial education. Every design
-choice below exists to make learning feel like living, not studying. The mystery
-of Highsight Financial is what keeps students playing long enough for the
-adaptive knowledge graph and LLM-generated content to do their pedagogical work.
-See thesis_narrative.txt for the academic framing.
+serves the thesis: adaptive experience-driven financial education through
+historical market replay.
+
+The player knowingly relives the 2007-2009 financial crisis through Hindsight
+Financial's training program. The story exists to make the adaptive learning
+loop feel embodied: trade, experience consequence, receive contextual
+instruction, and progress.
+
+The central design rule:
+  The player knows the historical era, but not tomorrow.
 
 
 SETTING
 -------
-Highsight Financial exists outside of time. It is an institution that trades on
-already-happened markets — not to profit, but to train. The player does not know
-why they are here or what the endgame is. That mystery is the long-term hook.
+Hindsight Financial is a real institution that trains analysts by reconstructing
+historical markets as playable, lived simulations. Its headquarters sits inside
+a controlled financial district/campus: part office complex, part city block,
+part training environment.
 
-The tone is: cozy trading life sim (90%) with slow-building uncanny dread (10%).
-Think Stardew Valley meets The Stanley Parable in a corporate liminal space.
+The city is real enough to walk through and work in. Its NPCs are Hindsight
+employees, analysts, brokers, media staff, trainees, and commuters attached to
+the institution. They know the player is in a training cycle, and they treat
+historical crisis as ordinary professional curriculum.
+
+The uncanny tone comes from the institution's calm certainty. Hindsight does
+not hide that the player is reliving 2007-2009. Instead, it quietly insists
+that knowing the broad ending will not prevent panic, greed, overconfidence, or
+bad risk management.
+
+Core institutional line:
+  "You know how this ends. That will not help you as much as you think."
+
+Tone:
+  - 80% cozy trading life sim / workplace routine.
+  - 15% historical pressure and market anxiety.
+  - 5% institutional uncanniness.
 
 
 CORE CHARACTERS
 ---------------
 
 THE PLAYER
-- Cannot remember how they arrived.
-- Was "selected" — not randomly.
-- Starts as a new hire on Floor 1.
-- Progression through trading skill IS narrative progression.
+- A new Hindsight trainee entering the 2007-2009 historical replay program.
+- Knows the broad historical period and that a crisis is coming.
+- Does not receive future dates, future prices, or event spoilers.
+- Learns that hindsight is not the same as process.
+- Progression through trading skill is narrative progression.
 
 THE PRINCIPAL
-- Runs Highsight Financial.
-- Features never resolve visually — silhouetted or blurred, not shadowed.
-- Voice is warm but wrong in a way you can't name.
-- Appears rarely. Always knows more than they should.
-- Never threatening. Always accommodating. That's what's unsettling.
+- Runs Hindsight Financial.
+- Warm, formal, and completely certain.
+- Appears rarely, mostly around arc transitions and institutional reviews.
+- Never threatens the player. The unsettling quality is confidence, not menace.
+- Treats historical catastrophe as an educational instrument.
+- Signature idea: knowing the ending does not exempt the player from discipline.
 
-CASEY (Mentor)
+CASEY (MENTOR)
 - Friendly, slightly harried, clearly human.
 - Genuinely believes in teaching the player.
-- Works on Floor 1. Has never been past Floor 3.
-- Serves as tutorial guide and recurring friendly face.
-- Does NOT know the institution's true nature.
+- Works on Floor 1 / the training floor.
+- Serves as tutorial guide, recurring mentor, and performance debrief voice.
+- Understands the training program, but not the full institutional agenda.
+
+RECURRING NPC ARCHETYPES
+- Analyst: careful, data-driven, explains numbers.
+- Broker: sentiment-focused, persuasive, thinks in client psychology.
+- Trader: short, direct, practical, emotionally honest about price action.
+- Anchor: polished, formal, frames events like financial media.
+
+These archetypes should eventually become named recurring characters rather
+than anonymous barks. The thesis benefits when the same market event is
+interpreted by distinct voices.
 
 
 SEQUENCE OF EVENTS
 ------------------
 
 1. MAIN MENU
-   - Player model stands on a small floating platform (fragment of sidewalk,
-     a piece of the "real world" suspended in void).
-   - Ambient city sounds, distant and muffled.
-   - On pressing Play: platform crumbles. Player falls silently, weightlessly
-     into a spiraling black hole. Screen compresses to a point of light.
+   - The player sees the Hindsight Financial title.
+   - Visual direction: clean corporate interface with subtle historical-market
+     artifacts: ticker tape, newspaper texture, terminal glow, 2007 date stamp.
+   - Primary promise:
+     "Relive 2007-2009. Trade with hindsight. Learn why it still is not easy."
 
-2. THE ARRIVAL (Clouds Scene)
-   - Explodes outward into: a sea of luminous clouds.
-   - Slow-drifting constellations that don't match any real sky.
-   - Player stands on a glass-like surface with no visible bottom.
-   - In the far distance: a structure — angular, impossibly tall, faintly
-     glowing at its edges. Looks like a skyscraper designed by someone who
-     only had one described to them.
-   - Player internal monologue (dialogue boxes):
-     "..."
-     "Where is this?"
-     "I was just... I was on my way to..."
-     "...I can't remember."
-   - Player walks toward the building. No other direction exists.
-   - As they approach, details resolve: glass doors, reception desk, warm light.
-     It looks almost normal. Almost welcoming.
+2. ORIENTATION / ARRIVAL
+   - Player enters Hindsight's training district or lobby.
+   - The space is real, polished, and slightly too orderly.
+   - Screens show the current program:
+     "Historical Replay Cycle: 2007-2009 Financial Crisis"
+   - The player is not confused about the premise. They are being onboarded.
 
-3. THE HIRING (Lobby)
-   - Pristine, too-clean lobby. Marble that seems to hum. Single elevator.
-   - No receptionist. Elevator opens on its own.
-   - Top floor: a room. Backlit. A desk. The Principal sits behind it.
-   - The Principal speaks:
-     "You're early. That's good. We value punctuality at Highsight."
-     "You've been selected. Not randomly — we don't do random here."
-     "Your position begins immediately. Floor 1. Your mentor is waiting."
-     "Oh — and welcome to Highsight Financial. You'll do well here.
-      Everyone does."
-   - No interview. No explanation. No option to refuse.
-   - Elevator takes player down.
+3. THE PRINCIPAL'S BRIEFING
+   - The Principal appears through an office, screen, or staged orientation.
+   - Suggested dialogue:
+     "Welcome to Hindsight Financial."
+     "You are entering the 2007-2009 market cycle."
+     "You know the shape of the story. You do not know tomorrow."
+     "That distinction is where learning begins."
+     "Your task is not to predict history. Your task is to survive it with
+      discipline."
+   - The player is assigned to Floor 1 / the trainee desk.
 
-4. CASEY'S TUTORIAL (Floor 1 — The Bullpen)
-   - Doors open to something warmer: soft lighting, plants, hum of work.
-   - Casey turns and waves.
-   - Casey dialogue:
-     "Hey! New hire, right? Don't worry, everyone has that look their
-      first day."
-     "I'm Casey. I'll be showing you the ropes. Come on, let me show
-      you your desk."
+4. CASEY'S TUTORIAL
+   - The elevator or hallway opens into a warmer training floor.
+   - Casey greets the player as a new trainee.
+   - Casey dialogue direction:
+     "Hey, new cycle? Do not worry. Everyone thinks hindsight will make this
+      easy their first week."
+     "It helps. It also makes people reckless."
+     "Let me show you the rhythm before the market teaches it the hard way."
 
    Casey teaches three things:
 
    A) THE DAY CYCLE
-      "We work in phases here. Pre-market is when you plan. Market hours
-       are when things move. Post-market is when you see how you did.
-       Then you rest. Simple rhythm."
+      Pre-market is planning. Market hours are observation. Post-market is
+      review and response. Then the player rests and advances.
 
-   B) THE KNOWLEDGE LATTICE (their name for the knowledge graph)
-      "See this? It's your progression map. As you trade and learn, new
-       concepts unlock. Some you study yourself. Others... find you,
-       when you're ready."
-      [Player sees first 3 nodes: What is a Company > What is a Stock >
-       Market Buy/Sell]
+   B) THE KNOWLEDGE LATTICE
+      The graph is Hindsight's adaptive curriculum. It unlocks concepts when
+      the player's behavior makes them relevant.
 
    C) FIRST TRADE
-      "Don't overthink it. Your first trade is never your best.
-       That's the point."
-      [Guided walkthrough: select ticker, set quantity, queue buy order,
-       open markets]
+      The first trade is not framed as a test of market knowledge. It is the
+      first data point in the player's learning profile.
 
 5. DAILY LOOP BEGINS
-   - After tutorial, the normal game cycle starts.
-   - Player has freedom: trade, explore Floor 1, check lattice.
-   - Casey remains available for optional dialogue hints.
+   - Player trades, reads the newspaper, walks the Hindsight district, hears NPC
+     commentary, checks the Knowledge Lattice, and sleeps to advance.
+   - The city and UI reinforce that this is a historical replay program.
 
 
 POST-TUTORIAL NARRATIVE BEATS
 -----------------------------
 
-WEEK 1 COMPLETE:
-- Casey mentions other floors.
-  "You'll get access eventually. Everyone moves up."
-- Player notices an elevator button that's grayed out.
+FIRST ADAPTIVE NODE UNLOCK
+- A Hindsight memo, desk note, or lattice alert appears.
+- It should reference what the player did.
+- Casey can soften the moment, but the institution should own the formal
+  educational language.
 
-FIRST ADAPTIVE NODE UNLOCK (e.g., Volatility):
-- Casey is NOT the one who explains it.
-- A typed note appears on the player's desk. No signature.
-- The knowledge content feels different — more clinical.
+Suggested note tone:
+  "Observation: portfolio concentration exceeded safe training thresholds.
+   Related concept unlocked: Diversification."
 
-AFTER 10+ TRADING DAYS:
-- Player spots another new hire in the lobby.
-- They have the same confused look.
-- The Principal greets them with the exact same words.
+FIRST LOSS
+- Casey frames loss as tuition, not failure.
+- The Principal's voice can be colder:
+  "Loss is only expensive when it teaches nothing."
 
-LATE GAME (Floor 3+):
-- Higher floors unlock as player masters concepts.
-- Trading gets harder. Knowledge graph branches into territory Casey
-  doesn't understand.
-- Casey: "I've never been past Floor 3. I don't know what's up there."
+WEEK 1 COMPLETE
+- Casey reflects on the player's behavior, not only their return.
+- The player sees other trainees entering different historical cycles.
+- This establishes Hindsight as an institution, not a dream.
 
-ENDGAME (not yet designed):
-- The player's mastery of markets reveals something about what Highsight
-  actually is.
-- The Principal's true purpose becomes clear.
-- Leave open for now — the mystery sustains engagement.
+ARC TRANSITION: BULL MARKET TO THE UNRAVELING
+- The city should become subtly less confident.
+- NPC barks shift from optimism to uncertainty.
+- The Principal reminds the player that knowing "a crisis is coming" is not the
+  same as knowing what to do today.
+
+ARC TRANSITION: THE UNRAVELING TO MELTDOWN
+- The city becomes quieter, colder, more operational.
+- Media NPCs and analyst NPCs become more urgent.
+- Grading should emphasize survival, liquidity, and process.
+
+ENDGAME DIRECTION
+- The player completes the 2007-2009 cycle.
+- Hindsight evaluates more than returns: discipline, diversification, cash
+  management, loss control, and completed lessons.
+- The final reflection should ask what hindsight actually gave the player.
+- Leave the Principal's broader agenda ambiguous, but not random.
 
 
 DESIGN PRINCIPLES
 -----------------
 
-1. LEARNING IS THE PLOT
-   The player's progression through trading concepts IS their narrative
-   progression through the building. Every floor corresponds to deeper
-   financial knowledge.
+1. HINDSIGHT IS THE HOOK AND THE TRAP
+   The player knows the broad history. The game teaches that broad history does
+   not replace disciplined process.
 
-2. NEVER BREAK THE COZY
-   The uncanny elements are background radiation, not jump scares. The
-   player should feel safe to learn and experiment. Dread is seasoning,
-   not the main course.
+2. LEARNING IS THE PLOT
+   The player's progression through trading concepts is narrative progression.
+   The Knowledge Lattice is not a side menu. It is the institution's curriculum
+   reacting to the player's behavior.
 
-3. SHOW, DON'T GATE
-   Narrative beats are triggered by player actions (trades, node completions,
-   days elapsed) — never by forced cutscenes that block gameplay. The player
-   can always choose to keep trading.
+3. THE CITY IS AN INFORMATION ENVIRONMENT
+   NPCs, newspapers, HUDs, terminals, and arc ambience should all interpret the
+   same market from different angles. The player is surrounded by partial
+   information, sentiment, pressure, and hindsight bias.
 
-4. THE INSTITUTION IS THE ANTAGONIST (MAYBE)
-   Keep it ambiguous. Highsight might be benevolent (genuinely training
-   people). It might be exploitative (using trained traders for something).
-   Don't resolve this early. Let players theorize.
+4. KEEP THE COZY WORKPLACE RHYTHM
+   The player needs enough comfort to experiment. The day cycle, room, Casey,
+   and routine make the project approachable.
 
-5. CASEY IS REAL
-   Casey is not a plant. She genuinely cares. If the institution turns out
-   to be sinister, Casey is as much a victim as the player. Protect this
-   character's authenticity.
+5. LET THE UNCANNY STAY QUIET
+   The institution should feel strange because it is too calm about crisis, not
+   because it is openly hostile. No jump scares. No heavy surrealism unless it
+   directly supports the training premise.
+
+6. SHOW, DON'T LECTURE
+   Narrative beats should arise from trades, node completions, arc transitions,
+   days elapsed, and portfolio outcomes. Avoid long forced cutscenes after the
+   initial orientation.
+
+7. CASEY IS REAL
+   Casey genuinely cares. If Hindsight has a hidden agenda, Casey is not simply
+   a fake guide. Her sincerity protects the game's warmth.
 
 
-IMPLEMENTATION STATUS (as of 2026-05-26)
------------------------------------------
+IMPLEMENTATION STATUS (as of 2026-05-29)
+----------------------------------------
 
 IMPLEMENTED:
-- Main Menu scene (functional, no player model/platform yet)
-- Onboarding scene with Casey dialogue (6 lines, camera lock, transitions)
-- Room scene (player home, bed interaction for sleep/advance day)
-- City Scene (3D city with NPC pathfinding, interaction zones, terminals)
-- Trading terminal UI (full OHLC charts, order placement, portfolio view)
-- Knowledge graph UI (pannable/zoomable, color-coded nodes, detail popups)
-- Day cycle (Pre-Market → Day → Post-Market with timer)
-- Arc transitions (cinematic overlays with grade reveal)
+- Main Menu scene.
+- Onboarding scene with Casey dialogue, camera lock, and transition.
+- Room scene with bed interaction for sleep/advance day.
+- City Scene with 3D city, NPC pathfinding, barks, interaction zones, and
+  terminals.
+- Trading terminal UI with OHLC charts, order placement, portfolio, and history.
+- Knowledge graph UI with pannable/zoomable graph and detail popups.
+- Day cycle: Pre-Market -> Day -> Post-Market.
+- Arc transitions with grade reveal and Principal quotes.
+- Newspaper system and in-game viewer.
 
-NOT YET IMPLEMENTED (deferred — see thesis_narrative.txt "Future Work"):
-- Black Hole Drop / Clouds Arrival scenes (aspirational intro sequence)
-- The Lobby / Principal's Office scenes
-- Floor progression (multi-floor building)
-- Casey as recurring NPC with dynamic dialogue
-- Late-game / endgame narrative beats
-- The Principal as in-game character beyond arc transition quotes
-
-These deferred elements are narrative polish. The core educational loop
-(trade → learn → progress) is complete without them.
-
-
-SCENE MAP (Implementation)
----------------------------
-
-Main Menu          → Menu scene (existing). Add player model + platform.
-Black Hole Drop    → Transition animation/VFX between scenes.         [DEFERRED]
-Clouds Arrival     → New scene: "Arrival". Skybox + cloud plane.      [DEFERRED]
-The Lobby          → New scene or zone: "Lobby". Minimal, clean.      [DEFERRED]
-Principal's Office → Sub-area of Lobby. Cutscene-driven.              [DEFERRED]
-Floor 1 Bullpen    → Repurpose existing "Room" scene.                 [BUILT as Room]
-Trading Terminal   → Existing Trading UI prefab, interaction zone.    [BUILT]
-Knowledge Lattice  → Existing Knowledge Graph UI.                     [BUILT]
-City/Exterior      → Existing "City Scene" — main hub.                [BUILT]
+NOT YET IMPLEMENTED / NEEDS ALIGNMENT:
+- Canonical Hindsight naming across all docs/UI/data.
+- Orientation that explicitly tells the player they are entering 2007-2009.
+- Hindsight lobby / institutional campus framing.
+- Principal briefing as historical-replay orientation.
+- Recurring Casey beyond onboarding.
+- Named recurring NPCs mapped to analyst/broker/trader/anchor archetypes.
+- Arc-reactive city ambience.
+- Final cycle review that grades process as well as return.
 
 
-KNOWLEDGE LATTICE — FIRST 3 NODES (Tutorial)
----------------------------------------------
+SCENE MAP
+---------
+
+Main Menu            -> Hindsight title and historical replay promise.
+Orientation/Lobby    -> Hindsight training program briefing.       [DEFERRED]
+Principal Briefing   -> Establishes "era, not tomorrow" rule.      [DEFERRED]
+Floor 1 / Room       -> Current Room scene as trainee workspace.    [BUILT]
+Trading Terminal     -> Existing Trading UI prefab.                 [BUILT]
+Knowledge Lattice    -> Existing Knowledge Graph UI, renamed in UI. [BUILT]
+City District        -> Existing City Scene as Hindsight campus.    [BUILT]
+Arc Review           -> Existing arc overlay, should stay Principal-led.
+
+
+KNOWLEDGE LATTICE - FIRST 3 NODES
+---------------------------------
 
 Node 1: "What is a Company"
-  - Casey explains: businesses, ownership, why companies exist.
-  - Unlocked at game start (root node).
+  - Casey explains businesses, ownership, and why companies exist.
+  - Unlocked at game start.
 
 Node 2: "What is a Stock"
-  - Casey explains: shares, ownership stakes, why prices move.
+  - Casey explains shares, ownership stakes, and why prices move.
   - Unlocked after completing Node 1.
 
 Node 3: "Market Buy / Sell"
   - Casey walks player through their first actual trade.
-  - Unlocked after completing Node 2.
-  - Completing this node ends the tutorial and begins free play.
+  - Completing this node ends the guided tutorial and begins free play.
+
+The first three nodes should feel like Casey's warm training. Later adaptive
+nodes can feel more institutional and analytical.
 
 
 DIALOGUE STYLE GUIDE
----------------------
+--------------------
 
-- Casey: Casual, warm, uses contractions. Slight humor. Never condescending.
-  Example: "Yeah, I lost money my first week too. Everyone does. The trick
-  is figuring out WHY you lost it."
+CASEY
+- Casual, warm, uses contractions.
+- Honest about mistakes and pressure.
+- Never condescending.
+- Example:
+  "Yeah, hindsight helps. It also makes people overconfident. Ask me how I
+   learned that."
 
-- The Principal: Formal but not stiff. Short sentences. Declarative. No
-  questions — only statements. Unnerving politeness.
-  Example: "You'll understand in time. Everyone does."
+THE PRINCIPAL
+- Formal but not stiff.
+- Short declarative sentences.
+- Does not ask questions; states conclusions.
+- Unnerving because of calm certainty.
+- Example:
+  "You know the ending. Good. Now prove you understand the path."
 
-- Player (internal): Fragmented. Trailing off. Uncertain. Gets more
-  confident as days pass.
-  Example early: "I don't... why can't I remember?"
-  Example later: "Something about this place doesn't add up."
+PLAYER INTERNAL VOICE
+- Less amnesia, more reflective uncertainty.
+- The player understands the premise but questions their own decisions.
+- Example early:
+  "I know what happens in 2008. Why does this still feel like guessing?"
+- Example later:
+  "Maybe knowing the crash is coming was the easy part."
 
-- Typed Notes (anonymous): Clinical. Precise. Educational but cold.
-  No warmth. Pure information delivery.
-  Example: "Volatility measures the degree of variation in price over time.
-  High volatility implies high risk. You experienced this today."
+TYPED NOTES / HINDSIGHT MEMOS
+- Clinical, precise, educational, lightly institutional.
+- No warmth. Pure analysis.
+- Example:
+  "Volatility measures variation in price over time. Your position exceeded the
+   daily movement threshold. Related risk concept unlocked."
+
+NPC ARCHETYPES
+- Analyst: measured, numerical, explanatory.
+- Broker: sentiment and client psychology.
+- Trader: short, emotional, price-action focused.
+- Anchor: broadcast-style market framing.

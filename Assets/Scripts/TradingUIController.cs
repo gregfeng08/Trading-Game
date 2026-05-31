@@ -94,6 +94,8 @@ public class TradingUIController : MonoBehaviour
     private double cachedServerCash;
     private double cachedServerHoldingsValue;
     private NetWorthPointDTO[] cachedPortfolioHistory;
+    private string prevCloseCacheDate;
+    private readonly Dictionary<string, double> prevCloseCache = new Dictionary<string, double>();
 
     private GameObject dismissBg;
 
@@ -120,6 +122,7 @@ public class TradingUIController : MonoBehaviour
         }
 
         SetChartVisibility();
+        ProgressionGates.OnGatesChanged += ApplyProgressionGates;
 
         _ = LoadInitialData();
     }
@@ -144,6 +147,7 @@ public class TradingUIController : MonoBehaviour
             tickerSearchInput.onDeselect.RemoveAllListeners();
             CloseSearchResults();
         }
+        ProgressionGates.OnGatesChanged -= ApplyProgressionGates;
         UnbindTimeframeButtons();
         UnbindChartTabs();
         UnbindBottomTabs();
@@ -263,6 +267,7 @@ public class TradingUIController : MonoBehaviour
         }
 
         ApplyPhaseUI();
+        ApplyProgressionGates();
         SwitchTab(activeTab);
         SetStatus("Ready");
     }
@@ -579,6 +584,40 @@ public class TradingUIController : MonoBehaviour
         }
     }
 
+    // ── Progression Gating ──
+
+    private void ApplyProgressionGates()
+    {
+        if (netWorthText != null)
+            netWorthText.gameObject.SetActive(ProgressionGates.ShowNetWorth);
+
+        if (ohlcChart != null)
+            ohlcChart.ShowWicks = ProgressionGates.ShowWicks;
+
+        if (portfolioChartButton != null)
+            portfolioChartButton.gameObject.SetActive(ProgressionGates.ShowPortfolioChart);
+
+        if (!ProgressionGates.ShowPortfolioChart && showingPortfolioChart)
+        {
+            showingPortfolioChart = false;
+            SetChartVisibility();
+        }
+
+        ApplyTimeframeGates();
+    }
+
+    private void ApplyTimeframeGates()
+    {
+        bool all = ProgressionGates.ShowAllTimeframes;
+        if (btn1W != null) btn1W.gameObject.SetActive(all);
+        if (btn3M != null) btn3M.gameObject.SetActive(all);
+        if (btn1Y != null) btn1Y.gameObject.SetActive(all);
+        if (btn5Y != null) btn5Y.gameObject.SetActive(all);
+
+        if (!all && selectedTimeframe != ChartTimeframe.Month1)
+            SetTimeframe(ChartTimeframe.Month1);
+    }
+
     // ── Trade Tab: Orders Display ──
 
     private void RefreshOrdersDisplay()
@@ -693,6 +732,33 @@ public class TradingUIController : MonoBehaviour
                 break;
         }
 
+        if (cachedHoldings != null && cachedHoldings.Length > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("<color=#666D78>─────────────────────────</color>");
+            sb.AppendLine("<b><color=#666D78>POSITIONS</color></b>");
+            double totalDayPnl = 0;
+            foreach (var h in cachedHoldings)
+            {
+                prevCloseCache.TryGetValue(h.ticker_id, out double prevClose);
+                double dayChange = prevClose > 0 ? h.current_price - prevClose : 0;
+                double dayChangePct = prevClose > 0 ? (dayChange / prevClose) * 100 : 0;
+                double posDayPnl = dayChange * h.shares_held;
+                totalDayPnl += posDayPnl;
+
+                string arrow = dayChange >= 0 ? "▲" : "▼";
+                string changeColor = dayChange >= 0 ? "#26BF59" : "#D93838";
+                string sign = dayChange >= 0 ? "+" : "";
+
+                sb.AppendLine($"<b>{h.ticker_id}</b>  {h.shares_held:F0} shares  ${FmtPrice(h.current_price)}");
+                if (prevClose > 0)
+                    sb.AppendLine($"  <color={changeColor}>{arrow} {sign}{dayChangePct:F1}%  {sign}${FmtPrice(posDayPnl)}</color>");
+            }
+            string ptColor = totalDayPnl >= 0 ? "#26BF59" : "#D93838";
+            string ptSign = totalDayPnl >= 0 ? "+" : "";
+            sb.AppendLine($"\n<b>Positions P&L:  <color={ptColor}>{ptSign}${FmtPrice(totalDayPnl)}</color></b>");
+        }
+
         ordersText.text = sb.ToString().TrimEnd();
     }
 
@@ -711,33 +777,36 @@ public class TradingUIController : MonoBehaviour
                 sb.AppendLine($"<b>{h.ticker_id}</b>");
                 sb.Append($"  {h.shares_held:F0} shares");
 
-                double totalCost = 0, totalShares = 0;
-                if (cachedLots != null)
+                if (ProgressionGates.ShowCostBasis)
                 {
-                    foreach (var lot in cachedLots)
+                    double totalCost = 0, totalShares = 0;
+                    if (cachedLots != null)
                     {
-                        if (lot.ticker_id == h.ticker_id)
+                        foreach (var lot in cachedLots)
                         {
-                            totalCost += lot.shares_held * lot.price;
-                            totalShares += lot.shares_held;
+                            if (lot.ticker_id == h.ticker_id)
+                            {
+                                totalCost += lot.shares_held * lot.price;
+                                totalShares += lot.shares_held;
+                            }
+                        }
+                        if (totalShares > 0)
+                        {
+                            double avg = totalCost / totalShares;
+                            sb.Append($"  ·  Avg ${FmtPrice(avg)}");
                         }
                     }
-                    if (totalShares > 0)
-                    {
-                        double avg = totalCost / totalShares;
-                        sb.Append($"  ·  Avg ${FmtPrice(avg)}");
-                    }
-                }
 
-                if (h.market_value > 0)
-                {
-                    sb.Append($"  ·  Val ${h.market_value:N2}");
-                    if (totalCost > 0)
+                    if (h.market_value > 0)
                     {
-                        double gain = h.market_value - totalCost;
-                        string gainColor = gain >= 0 ? "#26BF59" : "#D93838";
-                        string gainSign = gain >= 0 ? "+" : "";
-                        sb.Append($"  <color={gainColor}>{gainSign}${gain:N2}</color>");
+                        sb.Append($"  ·  Val ${h.market_value:N2}");
+                        if (totalCost > 0)
+                        {
+                            double gain = h.market_value - totalCost;
+                            string gainColor = gain >= 0 ? "#26BF59" : "#D93838";
+                            string gainSign = gain >= 0 ? "+" : "";
+                            sb.Append($"  <color={gainColor}>{gainSign}${gain:N2}</color>");
+                        }
                     }
                 }
                 sb.AppendLine();
@@ -878,6 +947,8 @@ public class TradingUIController : MonoBehaviour
         if (showingPortfolioChart)
             await LoadPortfolioChart();
         RefreshOrdersDisplay();
+
+        Close();
     }
 
     private async void OnOpenMarkets()
@@ -1122,11 +1193,12 @@ public class TradingUIController : MonoBehaviour
         try
         {
             string chartEndDate = currentGameDate;
-            if (currentPhase == GamePhase.Day)
+            if (currentPhase == GamePhase.PreMarket || currentPhase == GamePhase.Day)
             {
                 if (System.DateTime.TryParse(currentGameDate, out var dt))
                     chartEndDate = dt.AddDays(-1).ToString("yyyy-MM-dd");
             }
+            // PostMarket: chartEndDate stays as currentGameDate to include today's full OHLC
 
             int lookback = CandleAggregator.LookbackCalendarDays(selectedTimeframe);
             string startDate = null;
@@ -1165,7 +1237,9 @@ public class TradingUIController : MonoBehaviour
                                 ? dayChange / prevClose.close_price * 100.0 : 0;
                             string sign = dayChange >= 0 ? "+" : "";
                             string clr = dayChange >= 0 ? "#26BF59" : "#D93838";
-                            priceText.text = $"${FmtPrice(openPrice)}   <color={clr}>{sign}{FmtPrice(dayChange)} ({sign}{dayChangePct:F1}%)</color>";
+                            priceText.text = ProgressionGates.ShowPriceChange
+                                ? $"${FmtPrice(openPrice)}   <color={clr}>{sign}{FmtPrice(dayChange)} ({sign}{dayChangePct:F1}%)</color>"
+                                : $"${FmtPrice(openPrice)}";
 
                             if (ohlcChart != null && !showingPortfolioChart)
                             {
@@ -1194,32 +1268,37 @@ public class TradingUIController : MonoBehaviour
                         break;
 
                     case GamePhase.PostMarket:
-                        var pmResp = await MarketAPI.GetPrices(selectedTicker, currentGameDate, currentGameDate);
-                        if (pmResp.rows != null && pmResp.rows.Length > 0)
+                        var todayRow = resp.rows[resp.rows.Length - 1];
+                        var yesterdayClose = resp.rows.Length >= 2
+                            ? resp.rows[resp.rows.Length - 2].close_price
+                            : todayRow.open_price;
+                        if (todayRow.date == currentGameDate)
                         {
-                            var today = pmResp.rows[0];
-                            currentEstimatedPrice = today.close_price;
-                            double change = today.close_price - prevClose.close_price;
-                            double changePct = prevClose.close_price > 0
-                                ? change / prevClose.close_price * 100.0 : 0;
+                            currentEstimatedPrice = todayRow.close_price;
+                            double change = todayRow.close_price - yesterdayClose;
+                            double changePct = yesterdayClose > 0
+                                ? change / yesterdayClose * 100.0 : 0;
                             string sign = change >= 0 ? "+" : "";
                             string color = change >= 0 ? "#26BF59" : "#D93838";
-                            priceText.text = $"${FmtPrice(today.close_price)}   <color={color}>{sign}{FmtPrice(change)} ({sign}{changePct:F1}%)</color>";
+                            priceText.text = ProgressionGates.ShowPriceChange
+                                ? $"${FmtPrice(todayRow.close_price)}   <color={color}>{sign}{FmtPrice(change)} ({sign}{changePct:F1}%)</color>"
+                                : $"${FmtPrice(todayRow.close_price)}";
 
                             if (ohlcChart != null && !showingPortfolioChart)
                             {
-                                var fullResp = await MarketAPI.GetPrices(selectedTicker, startDate, currentGameDate);
-                                if (fullResp.rows == null || fullResp.rows.Length < MinChartDataPoints)
+                                var closeBar = new PriceRowDTO
                                 {
-                                    var allFull = await MarketAPI.GetPrices(selectedTicker, null, currentGameDate);
-                                    if (allFull.rows != null && allFull.rows.Length > (fullResp.rows?.Length ?? 0))
-                                        fullResp = allFull;
-                                }
-                                if (fullResp.rows != null && fullResp.rows.Length > 0)
-                                {
-                                    var fullData = CandleAggregator.Aggregate(fullResp.rows, selectedTimeframe);
-                                    ohlcChart.SetData(fullData);
-                                }
+                                    ticker_id = selectedTicker,
+                                    date = currentGameDate,
+                                    open_price = todayRow.close_price,
+                                    high_price = todayRow.close_price,
+                                    low_price = todayRow.close_price,
+                                    close_price = todayRow.close_price
+                                };
+                                var extended = new PriceRowDTO[chartData.Length + 1];
+                                System.Array.Copy(chartData, extended, chartData.Length);
+                                extended[chartData.Length] = closeBar;
+                                ohlcChart.SetData(extended);
                             }
                         }
                         else
@@ -1279,10 +1358,19 @@ public class TradingUIController : MonoBehaviour
                     ? GamePhaseManager.Inst.ReservedBuyCost : 0;
                 double netWorth = resp.net_worth - reservedCost;
                 string color = netWorth >= 10000 ? "#26BF59" : "#D93838";
-                netWorthText.text = $"Net Worth: <color={color}>${netWorth:N2}</color>";
+                if (ProgressionGates.ShowCashBreakdown)
+                    netWorthText.text = $"Net Worth: <color={color}>${netWorth:N2}</color>  (Holdings ${cachedServerHoldingsValue:N2})";
+                else
+                    netWorthText.text = $"Net Worth: <color={color}>${netWorth:N2}</color>";
             }
 
             RefreshHoldingsDisplay();
+
+            if (currentGameDate != prevCloseCacheDate)
+            {
+                await FetchPrevClosePrices();
+                prevCloseCacheDate = currentGameDate;
+            }
         }
         catch
         {
@@ -1290,6 +1378,26 @@ public class TradingUIController : MonoBehaviour
             if (netWorthText != null) netWorthText.text = "Net Worth: ---";
             cachedHoldings = null;
             cachedLots = null;
+        }
+    }
+
+    private async Task FetchPrevClosePrices()
+    {
+        prevCloseCache.Clear();
+        if (cachedHoldings == null || string.IsNullOrEmpty(currentGameDate)) return;
+
+        foreach (var h in cachedHoldings)
+        {
+            try
+            {
+                string startDate = currentGameDate;
+                if (System.DateTime.TryParse(currentGameDate, out var dt))
+                    startDate = dt.AddDays(-10).ToString("yyyy-MM-dd");
+                var resp = await MarketAPI.GetPrices(h.ticker_id, startDate, currentGameDate);
+                if (resp.rows != null && resp.rows.Length >= 2)
+                    prevCloseCache[h.ticker_id] = resp.rows[resp.rows.Length - 2].close_price;
+            }
+            catch { }
         }
     }
 

@@ -115,7 +115,7 @@ public class ExhaustionOverlay : MonoBehaviour
         bgRect.anchorMax = Vector2.one;
         bgRect.sizeDelta = Vector2.zero;
         bgRect.anchoredPosition = Vector2.zero;
-        bg.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+        bg.AddComponent<Image>().color = new Color(0f, 0f, 0f, 1f);
 
         var textGO = new GameObject("Message");
         textGO.transform.SetParent(overlayCanvas.transform, false);

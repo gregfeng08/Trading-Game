@@ -1,0 +1,198 @@
+HINDSIGHT FINANCIAL — AGENT CONTEXT PROMPT
+===========================================
+Paste this at the start of any agent conversation to provide full project context.
+Last updated: 2026-05-31
+
+
+PROJECT OVERVIEW
+----------------
+Hindsight Financial is an adaptive game-based trading simulation for experiential
+financial literacy education. The player knowingly relives the 2007-2009 financial
+crisis through a fictional training institution called "Hindsight Financial." The
+central design rule: the player knows the historical era, but not tomorrow.
+
+The thesis contribution is one integrated system with three mutually dependent parts:
+  1. GAME LOOP as the EXPERIENCE GENERATOR — Three-phase day cycle (Pre-Market /
+     Day / Post-Market), trading terminal, arc system, city hub, and portfolio
+     consequences create lived financial experiences.
+  2. REACTIVE KNOWLEDGE GRAPH as the PEDAGOGICAL MECHANISM — Detects meaningful
+     player behavior via 13 behavioral triggers and unlocks instruction at the
+     moment it is most relevant. This is the core thesis mechanism.
+  3. LLM-GENERATED CONTENT as the CONTEXTUALIZATION LAYER — Newspapers, NPC
+     dialogue, and adaptive lesson language make the world respond to the player's
+     current market date, portfolio, and recent trades.
+
+
+TECH STACK
+----------
+- Frontend: Unity 6 (URP, new Input System, C#)
+  Repo: C:\Users\gregf\Trading-Game
+- Backend: ASP.NET Core (.NET 10), SQLite (WAL mode), Claude API
+  Repo: C:\Users\gregf\OneDrive\Desktop\VSCode\Trading-Game\Trading-Game-DOTNET
+- Communication: REST API over HTTP on http://127.0.0.1:5000
+- AI: Anthropic Claude (newspaper generation, NPC dialogue generation)
+- Newspaper rendering: Puppeteer (HTML -> PNG)
+- Market data: Real 2007-2009 OHLC from Yahoo Finance (250 symbols)
+
+
+GAME LOOP (THREE-PHASE DAY CYCLE)
+----------------------------------
+PRE-MARKET: Price = today's OPEN. Player queues buy/sell orders. "Confirm Trades"
+  executes all queued orders atomically at open price.
+DAY: 6-minute timer. Markets open, no new orders. Player explores city, talks to
+  NPCs, checks knowledge graph. Price display frozen at today's open.
+POST-MARKET: Price = today's CLOSE. Daily summary overlay shows trades, P&L,
+  movers, portfolio state. Player can queue additional orders at close price.
+  "End Day" advances to next trading day.
+Sleep -> AdvanceDay -> next day's Pre-Market.
+
+
+ARC (SEASON) SYSTEM
+--------------------
+Three arcs corresponding to historical market phases:
+  1. Bull Market (Apr-Oct 2007) — Easy mode. S-grade >= +10%.
+  2. The Unraveling (Nov 2007-Sep 2008) — Medium. S-grade >= +5%.
+  3. Meltdown (Sep 2008-Mar 2009) — Hard. S-grade >= 0% (survival = success).
+Grading: S/A/B/C/D based on return % with per-arc thresholds.
+Cash multiplier: Grade determines bonus/penalty carried into next arc (e.g.,
+  S-grade in Meltdown = 1.3x cash, D-grade = 0.7x).
+Arc transitions include cinematic overlay with grade reveal, Principal quotes,
+  and next arc preview.
+
+
+KNOWLEDGE GRAPH (REACTIVE / ADAPTIVE)
+--------------------------------------
+14 nodes across 7 categories. Two node types:
+  - Knowledge (3 foundational): prerequisite-based, auto-complete on dismiss.
+    Chain: what_is_a_company -> what_is_a_stock -> market_buy_sell
+  - Adaptive (11): triggered by player trading behavior + prerequisites.
+
+13 behavioral triggers (server-side evaluation):
+  trade_count, held_stock_daily_change, portfolio_concentration,
+  first_profitable_sell, first_losing_sell, same_ticker_multiple_buys,
+  unrealized_gain_pct, unrealized_loss_pct, bought_after_decline,
+  low_cash_ratio, market_wide_decline, traded_both_phases, held_overnight_gap
+
+Progression Gates: Node completion cascades UI feature visibility. Examples:
+  what_is_a_stock -> reveals net worth display
+  market_buy_sell -> reveals price change % indicators
+  volatility -> reveals candlestick wicks (high/low)
+  limit_buy_sell -> reveals limit order UI (not yet wired)
+
+
+NPC SYSTEM
+----------
+- Leyline-based A* pathfinding, 9 NPC variant prefabs, phase-based population.
+- NPCBark: proximity-based one-liners (5-unit hint, 2.5-unit trigger).
+- DialogueAPI: fetches static + Claude-generated dialogue per date/phase.
+- NPC archetypes defined but not yet embodied: Analyst, Broker, Trader, Anchor.
+- Dialogue generation uses "interestingness scoring" (0-1.0) based on market
+  volatility, player actions, knowledge triggers to decide how many NPCs get
+  AI-generated lines vs static fallback.
+
+
+NEWSPAPER SYSTEM
+-----------------
+- AI-generated per game-day via Claude API with arc tone injection.
+- Context: 100+ real historical events (2007-2009), top market movers, arc mood.
+- Rendered to PNG via Puppeteer with styled HTML template ("The Market Tribune").
+- Cached in DB (each date generates once).
+
+
+KEY BACKEND SERVICES
+--------------------
+  EntityService — Player/NPC CRUD, cash management
+  GameStateService — Day/phase state machine, day advancement
+  TradingService — Immediate trade execution (market + limit orders)
+  OrderService — Order queuing + batch execution (open/close markets)
+  MarketDataService — Ticker queries, OHLC data, market movers
+  KnowledgeGraphService — Node state, trigger evaluation, prerequisite chaining
+  NpcDialogueService — Claude dialogue generation with personality system
+  NewspaperService — Claude newspaper generation with historical context
+  ArcService — Arc progression, grading, cash multipliers
+  TradingDbOps — Low-level DB operations for trades (FIFO lot tracking)
+
+
+KEY FRONTEND SCRIPTS
+---------------------
+  GamePhaseManager.cs — Day cycle state machine, order lifecycle, phase transitions
+  TradingUIController.cs — Trading terminal UI (1400 LOC, needs refactoring)
+  KnowledgeGraphManager.cs — Singleton managing node state + trigger checking
+  KnowledgeGraphUI.cs — Interactive pannable/zoomable graph viewer
+  ProgressionGates.cs — Maps node completion -> UI feature visibility
+  OHLCChart.cs — Custom candlestick chart renderer
+  NPCBark.cs — Proximity-based NPC one-liner system
+  NPCWalker.cs / NPCSpawner.cs — Pathfinding + spawning
+  DailySummaryOverlay.cs — Post-market recap (trades, P&L, movers, alerts)
+  DayCycleHUD.cs — Top-left date/phase/timer/arc info display
+  ExhaustionOverlay.cs — Day timer expiry message
+  APIBootstrapper.cs — Startup sequence (launch backend, ping, init DB, etc.)
+  APIClient.cs — Static HttpClient wrapper for all API calls
+  MainMenuController.cs — Bootstrap polling + retry on failure
+
+
+API ENDPOINTS (44 total across 9 groups)
+-----------------------------------------
+  System: /, /ping, /status, /init_db, /load_tickers, /db_reset
+  Market: /tickers, /prices, /get_daily_data, /market_movers
+  Entity: /register_entity, /entity_create, /entity, /resolve_entity
+  Trade: /post_trade, /trade, /portfolio, /trade_history
+  Orders: /queue_order, /pending_orders, /open_markets, /close_markets, /portfolio_history
+  Game: /get_game_date, /advance_day, /get_game_phase, /advance_phase, /new_game
+  Dialogue: /dialogue, /dialogue/generate
+  Newspaper: /newspaper, /newspaper/image
+  Knowledge: /knowledge_graph, /knowledge_graph/complete, /knowledge_graph/init,
+             /knowledge_graph/check_triggers, /knowledge_graph/unlocks, /knowledge_graph/config
+  Arcs: /arc/status, /arc/advance, /arc/grades, /arc/all
+
+
+NARRATIVE DESIGN
+-----------------
+Setting: Hindsight Financial is a fictional training institution that reconstructs
+  historical markets as lived simulations. The city is a controlled financial
+  district/campus with employees, analysts, trainees.
+Tone: 80% cozy trading life sim, 15% historical pressure, 5% institutional
+  uncanniness.
+Core line: "You know how this ends. That will not help you as much as you think."
+Characters:
+  - The Principal: Runs Hindsight. Warm, formal, certain. Treats crisis as
+    curriculum. Appears at arc transitions.
+  - Casey (mentor, male): Friendly, harried, genuine. Tutorial guide and
+    recurring mentor. Currently only appears in onboarding (6 hardcoded lines).
+  - Player: New Hindsight trainee entering 2007-2009 cycle.
+
+
+KNOWN ISSUES
+-------------
+- Company names NULL in ticker DB (backend bug).
+- Player animator controller empty (no walk/idle).
+- MinimapController references deleted script.
+- Limit order UI not wired (backend supports it, frontend doesn't expose it).
+- No periodic network health checks after bootstrap.
+- No HttpClient timeout set (default 100s).
+- Fire-and-forget async tasks can hang silently.
+- NewspaperAPI creates its own HttpClient instead of reusing APIClient.
+- NPC dialogue not yet personalized to player portfolio/knowledge state.
+- Newspaper not yet personalized to player context.
+- Knowledge node content is static (not dynamically generated).
+
+
+WHAT'S NOT YET BUILT (DESIGNED)
+--------------------------------
+- Dynamic knowledge node content (Claude-generated, referencing player's trades)
+- Player portfolio context in newspaper generation
+- Knowledge graph state fed into NPC dialogue prompts
+- NPC quest system (typed NPCs unlock specific knowledge nodes)
+- Limit order UI (gated behind limit_buy_sell node)
+- Stop orders
+- Guided tutorial beyond Casey's 6-line opening
+- Principal briefing scene
+- Recurring Casey for arc debriefs
+- Arc-reactive city ambience (lighting, NPC density by arc)
+- Newspaper/NPC knowledge triggers (newspaper_read, npc_interaction)
+
+
+SCENES
+-------
+Main Menu -> Onboarding (Casey tutorial) -> Room (bed, terminals) <-> City (NPCs,
+  exploration, interactions) | Knowledge Graph (overlay)

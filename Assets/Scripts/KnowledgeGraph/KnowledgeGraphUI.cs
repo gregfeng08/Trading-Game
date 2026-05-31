@@ -59,6 +59,9 @@ public class KnowledgeGraphUI : MonoBehaviour
     private KnowledgeNodeStateDTO selectedNode;
     private Dictionary<string, RectTransform> nodePositions = new();
     private Dictionary<string, KnowledgeNodeStateDTO> nodeLookup = new();
+    private Dictionary<string, Image> nodeImages = new();
+    private Dictionary<string, HashSet<string>> neighbors = new();
+    private List<(string fromId, string toId, GameObject edgeGO)> edgeRegistry = new();
 
     private bool isDragging;
     private Vector2 lastMousePos;
@@ -354,9 +357,11 @@ public class KnowledgeGraphUI : MonoBehaviour
             }
 
             nodePositions[node.id] = rt;
+            if (bg != null) nodeImages[node.id] = bg;
             spawnedNodes.Add(go);
         }
 
+        BuildNeighborMap(nodes);
         DrawEdges(nodes);
         StartCoroutine(AutoSelectDeferred(nodes));
     }
@@ -582,8 +587,28 @@ public class KnowledgeGraphUI : MonoBehaviour
         return positions;
     }
 
+    private void BuildNeighborMap(KnowledgeNodeStateDTO[] nodes)
+    {
+        neighbors.Clear();
+        foreach (var n in nodes)
+            neighbors[n.id] = new HashSet<string>();
+
+        foreach (var n in nodes)
+        {
+            if (n.prerequisites == null) continue;
+            foreach (var pid in n.prerequisites)
+            {
+                if (neighbors.ContainsKey(pid))
+                    neighbors[pid].Add(n.id);
+                if (neighbors.ContainsKey(n.id))
+                    neighbors[n.id].Add(pid);
+            }
+        }
+    }
+
     private void DrawEdges(KnowledgeNodeStateDTO[] nodes)
     {
+        edgeRegistry.Clear();
         foreach (var node in nodes)
         {
             if (node.prerequisites == null) continue;
@@ -595,12 +620,13 @@ public class KnowledgeGraphUI : MonoBehaviour
 
                 var from = nodePositions[prereqId];
                 var to = nodePositions[node.id];
-                DrawLine(from.anchoredPosition, to.anchoredPosition);
+                var edgeGO = DrawLine(from.anchoredPosition, to.anchoredPosition);
+                edgeRegistry.Add((prereqId, node.id, edgeGO));
             }
         }
     }
 
-    private void DrawLine(Vector2 from, Vector2 to)
+    private GameObject DrawLine(Vector2 from, Vector2 to)
     {
         var go = new GameObject("Edge", typeof(RectTransform), typeof(Image));
         go.transform.SetParent(graphContainer, false);
@@ -620,6 +646,50 @@ public class KnowledgeGraphUI : MonoBehaviour
         rt.pivot = new Vector2(0.5f, 0.5f);
 
         spawnedEdges.Add(go);
+        return go;
+    }
+
+    private void HighlightNeighbors(string nodeId)
+    {
+        var nodes = KnowledgeGraphManager.Inst?.Nodes;
+        if (nodes == null) return;
+
+        bool hasSelection = nodeId != null && neighbors.ContainsKey(nodeId);
+        var neighborSet = hasSelection ? neighbors[nodeId] : null;
+
+        foreach (var n in nodes)
+        {
+            if (!nodeImages.TryGetValue(n.id, out var img)) continue;
+            var baseColor = GetNodeColor(n, nodes);
+
+            if (hasSelection && n.id != nodeId && (neighborSet == null || !neighborSet.Contains(n.id)))
+            {
+                baseColor.r *= 0.4f;
+                baseColor.g *= 0.4f;
+                baseColor.b *= 0.4f;
+            }
+
+            img.color = baseColor;
+        }
+
+        foreach (var (fromId, toId, edgeGO) in edgeRegistry)
+        {
+            if (edgeGO == null) continue;
+            var img = edgeGO.GetComponent<Image>();
+            var rt = edgeGO.GetComponent<RectTransform>();
+
+            bool connected = hasSelection && (fromId == nodeId || toId == nodeId);
+            if (connected)
+            {
+                if (img != null) img.color = new Color(0.7f, 0.7f, 0.7f, 0.85f);
+                if (rt != null) rt.sizeDelta = new Vector2(rt.sizeDelta.x, 3f);
+            }
+            else
+            {
+                if (img != null) img.color = edgeColor;
+                if (rt != null) rt.sizeDelta = new Vector2(rt.sizeDelta.x, 2f);
+            }
+        }
     }
 
     private void OnNodeClicked(KnowledgeNodeStateDTO node)
@@ -633,6 +703,7 @@ public class KnowledgeGraphUI : MonoBehaviour
     private void ShowDetail(KnowledgeNodeStateDTO node)
     {
         selectedNode = node;
+        HighlightNeighbors(node.id);
         if (detailPanel == null) return;
 
         detailPanel.SetActive(true);
@@ -660,7 +731,10 @@ public class KnowledgeGraphUI : MonoBehaviour
 
             body += node.content ?? node.description;
 
-            if (!string.IsNullOrEmpty(node.reward_mechanic))
+            var featureLabel = ProgressionGates.GetFeatureLabel(node.id);
+            if (featureLabel != null)
+                body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
+            else if (!string.IsNullOrEmpty(node.reward_mechanic))
                 body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(node.reward_mechanic)}</color>";
         }
 
@@ -721,6 +795,9 @@ public class KnowledgeGraphUI : MonoBehaviour
             body += "<color=#888888>Complete the prerequisites above to unlock.</color>\n";
         }
 
+        if (!string.IsNullOrEmpty(node.reward_mechanic))
+            body += $"\n<color=#888888>Unlocks: {FormatMechanic(node.reward_mechanic)}</color>\n";
+
         return body;
     }
 
@@ -747,6 +824,7 @@ public class KnowledgeGraphUI : MonoBehaviour
     private void DismissDetail()
     {
         selectedNode = null;
+        HighlightNeighbors(null);
 
         if (detailPanel != null)
             detailPanel.SetActive(false);
@@ -804,5 +882,8 @@ public class KnowledgeGraphUI : MonoBehaviour
         spawnedEdges.Clear();
         nodePositions.Clear();
         nodeLookup.Clear();
+        nodeImages.Clear();
+        neighbors.Clear();
+        edgeRegistry.Clear();
     }
 }

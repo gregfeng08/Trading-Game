@@ -39,6 +39,7 @@ public class KnowledgeGraphManager : MonoBehaviour
             await RefreshGraphAsync();
             await RefreshUnlocksAsync();
             IsInitialized = true;
+            ProgressionGates.Initialize();
             OnInitialized?.Invoke();
         }
         catch (Exception ex)
@@ -113,6 +114,14 @@ public class KnowledgeGraphManager : MonoBehaviour
     }
 
     public bool HasMechanic(string mechanic) => unlockedMechanics.Contains(mechanic);
+
+    public bool IsNodeCompleted(string nodeId)
+    {
+        if (Nodes == null) return false;
+        foreach (var n in Nodes)
+            if (n.id == nodeId && n.status == "completed") return true;
+        return false;
+    }
 
     public IReadOnlyCollection<string> UnlockedMechanics => unlockedMechanics;
 

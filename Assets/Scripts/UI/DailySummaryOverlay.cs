@@ -36,6 +36,9 @@ public class DailySummaryOverlay : MonoBehaviour
     private TMP_Text tradesHeader;
     private TMP_Text tradesBody;
     private TMP_Text pnlText;
+    private GameObject dividerPositions;
+    private TMP_Text positionsHeader;
+    private TMP_Text positionsBody;
     private GameObject divider2;
     private TMP_Text moversHeader;
     private TMP_Text moversBody;
@@ -52,12 +55,16 @@ public class DailySummaryOverlay : MonoBehaviour
     private bool showInProgress;
     private Action onDismissed;
 
+    private ScrollRect scrollRect;
+
     // Captured data (snapshot before advance)
     private List<TradeResult> capturedResults;
     private ForcedLiquidationDTO[] capturedLiquidations;
     private MarketMoversResponse capturedMovers;
     private double capturedNetWorth;
     private double capturedPrevNetWorth;
+    private PortfolioTotalDTO[] capturedHoldings;
+    private readonly Dictionary<string, double> capturedPrevClose = new Dictionary<string, double>();
 
     void Awake()
     {
@@ -131,6 +138,34 @@ public class DailySummaryOverlay : MonoBehaviour
             capturedPrevNetWorth = 0;
         }
 
+        try
+        {
+            var portfolioResp = await TradeAPI.GetPortfolio(APIBootstrapper.EntityDbId);
+            capturedHoldings = portfolioResp.totals;
+
+            capturedPrevClose.Clear();
+            if (capturedHoldings != null)
+            {
+                foreach (var h in capturedHoldings)
+                {
+                    try
+                    {
+                        string startDate = date;
+                        if (DateTime.TryParse(date, out var dt))
+                            startDate = dt.AddDays(-10).ToString("yyyy-MM-dd");
+                        var priceResp = await MarketAPI.GetPrices(h.ticker_id, startDate, date);
+                        if (priceResp.rows != null && priceResp.rows.Length >= 2)
+                            capturedPrevClose[h.ticker_id] = priceResp.rows[priceResp.rows.Length - 2].close_price;
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch
+        {
+            capturedHoldings = null;
+        }
+
         activeSequence = StartCoroutine(SummarySequence());
     }
 
@@ -140,6 +175,7 @@ public class DailySummaryOverlay : MonoBehaviour
         LockPlayer();
         HideAll();
         canvasGroup.blocksRaycasts = true;
+        if (scrollRect != null) scrollRect.verticalNormalizedPosition = 1f;
 
         // Fade to black
         yield return Fade(0f, 1f, fadeToBlackDuration);
@@ -185,6 +221,39 @@ public class DailySummaryOverlay : MonoBehaviour
             string totalColor = totalPnl >= 0 ? ColorHex(gainColor) : ColorHex(lossColor);
             string totalSign = totalPnl >= 0 ? "+" : "";
             SetText(pnlText, $"Day P&L:  <color={totalColor}>{totalSign}${TradingUIController.FmtPrice(totalPnl)}</color>", bodyColor);
+            yield return new WaitForSeconds(staggerDelay);
+        }
+
+        // Positions section
+        if (capturedHoldings != null && capturedHoldings.Length > 0)
+        {
+            dividerPositions.SetActive(true);
+            SetText(positionsHeader, "POSITIONS", dimColor);
+
+            var sb = new System.Text.StringBuilder();
+            double totalPosPnl = 0;
+            foreach (var h in capturedHoldings)
+            {
+                capturedPrevClose.TryGetValue(h.ticker_id, out double prevClose);
+                double dayChange = prevClose > 0 ? h.current_price - prevClose : 0;
+                double dayChangePct = prevClose > 0 ? (dayChange / prevClose) * 100 : 0;
+                double posDayPnl = dayChange * h.shares_held;
+                totalPosPnl += posDayPnl;
+
+                string arrow = dayChange >= 0 ? "▲" : "▼";
+                string changeColor = dayChange >= 0 ? ColorHex(gainColor) : ColorHex(lossColor);
+                string sign = dayChange >= 0 ? "+" : "";
+
+                sb.AppendLine($"<b>{h.ticker_id}</b>  {h.shares_held:F0} shares  ${TradingUIController.FmtPrice(h.current_price)}");
+                if (prevClose > 0)
+                    sb.AppendLine($"  <color={changeColor}>{arrow} {sign}{dayChangePct:F1}%  {sign}${TradingUIController.FmtPrice(posDayPnl)}</color>");
+            }
+
+            string ptColor = totalPosPnl >= 0 ? ColorHex(gainColor) : ColorHex(lossColor);
+            string ptSign = totalPosPnl >= 0 ? "+" : "";
+            sb.AppendLine($"\nPositions P&L:  <color={ptColor}>{ptSign}${TradingUIController.FmtPrice(totalPosPnl)}</color>");
+
+            SetText(positionsBody, sb.ToString().TrimEnd(), bodyColor);
             yield return new WaitForSeconds(staggerDelay);
         }
 
@@ -318,6 +387,9 @@ public class DailySummaryOverlay : MonoBehaviour
         tradesHeader.gameObject.SetActive(false);
         tradesBody.gameObject.SetActive(false);
         pnlText.gameObject.SetActive(false);
+        dividerPositions.SetActive(false);
+        positionsHeader.gameObject.SetActive(false);
+        positionsBody.gameObject.SetActive(false);
         divider2.SetActive(false);
         moversHeader.gameObject.SetActive(false);
         moversBody.gameObject.SetActive(false);
@@ -375,13 +447,28 @@ public class DailySummaryOverlay : MonoBehaviour
         bg.transform.SetParent(canvasGO.transform, false);
         var bgRect = bg.AddComponent<RectTransform>();
         Stretch(bgRect);
-        bg.AddComponent<Image>().color = new Color(0.02f, 0.02f, 0.04f, 0.96f);
+        bg.AddComponent<Image>().color = new Color(0f, 0f, 0f, 1f);
+
+        var scrollGO = new GameObject("Scroll");
+        scrollGO.transform.SetParent(bg.transform, false);
+        var scrollRT = scrollGO.AddComponent<RectTransform>();
+        Stretch(scrollRT);
+        scrollRT.offsetMin = new Vector2(0, 30);
+        scrollRT.offsetMax = new Vector2(0, -30);
+
+        var viewport = new GameObject("Viewport");
+        viewport.transform.SetParent(scrollGO.transform, false);
+        var viewportRT = viewport.AddComponent<RectTransform>();
+        Stretch(viewportRT);
+        viewport.AddComponent<Image>().color = Color.clear;
+        viewport.AddComponent<Mask>().showMaskGraphic = false;
 
         contentRoot = new GameObject("Content");
-        contentRoot.transform.SetParent(bg.transform, false);
+        contentRoot.transform.SetParent(viewport.transform, false);
         var contentRect = contentRoot.AddComponent<RectTransform>();
-        contentRect.anchorMin = new Vector2(0.5f, 0.5f);
-        contentRect.anchorMax = new Vector2(0.5f, 0.5f);
+        contentRect.anchorMin = new Vector2(0.5f, 1f);
+        contentRect.anchorMax = new Vector2(0.5f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);
         contentRect.sizeDelta = new Vector2(700, 0);
         contentRect.anchoredPosition = Vector2.zero;
 
@@ -397,6 +484,14 @@ public class DailySummaryOverlay : MonoBehaviour
         var csf = contentRoot.AddComponent<ContentSizeFitter>();
         csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
+        scrollRect = scrollGO.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.scrollSensitivity = 30f;
+        scrollRect.viewport = viewportRT;
+        scrollRect.content = contentRect;
+
         sleepLabel   = MakeText("SleepLabel", 20, FontStyles.Bold, TextAlignmentOptions.Center);
         dateHeader   = MakeText("DateHeader", 32, FontStyles.Bold, TextAlignmentOptions.Center);
         MakeSpacer(8);
@@ -404,6 +499,9 @@ public class DailySummaryOverlay : MonoBehaviour
         tradesHeader = MakeText("TradesHeader", 16, FontStyles.Bold, TextAlignmentOptions.Center);
         tradesBody   = MakeText("TradesBody", 16, FontStyles.Normal, TextAlignmentOptions.Center);
         pnlText      = MakeText("PnL", 20, FontStyles.Bold, TextAlignmentOptions.Center);
+        dividerPositions = MakeDivider();
+        positionsHeader = MakeText("PositionsHeader", 16, FontStyles.Bold, TextAlignmentOptions.Center);
+        positionsBody = MakeText("PositionsBody", 16, FontStyles.Normal, TextAlignmentOptions.Center);
         divider2     = MakeDivider();
         moversHeader = MakeText("MoversHeader", 16, FontStyles.Bold, TextAlignmentOptions.Center);
         moversBody   = MakeText("MoversBody", 16, FontStyles.Normal, TextAlignmentOptions.Center);

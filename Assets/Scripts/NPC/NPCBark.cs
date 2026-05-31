@@ -2,6 +2,9 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using Game.API;
+using Game.API.DTO;
 
 public class NPCBark : MonoBehaviour
 {
@@ -9,7 +12,8 @@ public class NPCBark : MonoBehaviour
     private CanvasGroup hintGroup;
     private Transform hintRoot;
     private NPCWalker walker;
-    private string[] lines;
+    private string[] customLines;
+    private string assignedNpcType;
     private int lastIndex = -1;
     private Transform playerTransform;
     private bool hasBarkedThisVisit;
@@ -22,7 +26,12 @@ public class NPCBark : MonoBehaviour
     private static readonly Vector3 BubbleOffset = new(0f, 2.1f, 0f);
     private static readonly Vector3 HintOffset = new(0f, 2.0f, 0f);
 
-    private static readonly string[] MarketBarks =
+    private static readonly Dictionary<string, List<string>> fetchedByType = new();
+    private static readonly List<string> fetchedAll = new();
+    private static string fetchedDate;
+    private static bool fetchInProgress;
+
+    private static readonly string[] FallbackMarketBarks =
     {
         "Markets are wild today...",
         "I should have sold yesterday.",
@@ -37,7 +46,7 @@ public class NPCBark : MonoBehaviour
         "Don't put all your eggs in one basket.",
     };
 
-    private static readonly string[] AmbientBarks =
+    private static readonly string[] FallbackAmbientBarks =
     {
         "Nice weather we're having.",
         "Running late again...",
@@ -55,10 +64,61 @@ public class NPCBark : MonoBehaviour
         "I swear this commute gets longer every day.",
     };
 
-    public void Init(string[] barkLines = null)
+    public static async Task RefreshDialogue(string date)
     {
-        lines = barkLines ?? PickRandomBarks(3);
+        if (date == fetchedDate || fetchInProgress) return;
+        fetchInProgress = true;
+        try
+        {
+            try
+            {
+                var entityId = APIBootstrapper.EntityExternalId;
+                await DialogueAPI.Generate(entityId);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[NPCBark] Dialogue generation skipped: {ex.Message}");
+            }
+
+            var resp = await DialogueAPI.GetDialogue(date);
+            fetchedByType.Clear();
+            fetchedAll.Clear();
+            if (resp.dialogue != null)
+            {
+                foreach (var d in resp.dialogue)
+                {
+                    if (string.IsNullOrEmpty(d.text)) continue;
+                    fetchedAll.Add(d.text);
+                    if (!string.IsNullOrEmpty(d.npc_type))
+                    {
+                        if (!fetchedByType.ContainsKey(d.npc_type))
+                            fetchedByType[d.npc_type] = new List<string>();
+                        fetchedByType[d.npc_type].Add(d.text);
+                    }
+                }
+            }
+            fetchedDate = date;
+            Debug.Log($"[NPCBark] Fetched {fetchedAll.Count} dialogue lines for {date} ({fetchedByType.Count} types)");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[NPCBark] Dialogue fetch failed, using fallback barks: {ex.Message}");
+        }
+        finally
+        {
+            fetchInProgress = false;
+        }
+    }
+
+    public void Init(string[] barkLines = null, string npcType = null)
+    {
+        customLines = barkLines;
+        assignedNpcType = npcType;
         walker = GetComponent<NPCWalker>();
+
+        string currentDate = GamePhaseManager.Inst?.CurrentDate;
+        if (!string.IsNullOrEmpty(currentDate) && currentDate != fetchedDate && !fetchInProgress)
+            _ = RefreshDialogue(currentDate);
 
         var bubbleGO = new GameObject("SpeechBubble");
         bubbleGO.transform.SetParent(transform);
@@ -117,20 +177,45 @@ public class NPCBark : MonoBehaviour
 
     private void TriggerBark()
     {
-        if (bubble == null || lines == null || lines.Length == 0) return;
+        if (bubble == null) return;
 
-        int index;
-        do { index = Random.Range(0, lines.Length); }
-        while (lines.Length > 1 && index == lastIndex);
-        lastIndex = index;
+        string line = PickRandomLine();
+        if (line == null) return;
 
-        bubble.ShowBark(lines[index]);
+        bubble.ShowBark(line);
 
         if (walker != null)
         {
             walker.Pause();
             isPausedForBark = true;
         }
+    }
+
+    private string PickRandomLine()
+    {
+        if (customLines != null && customLines.Length > 0)
+            return PickFrom(customLines);
+
+        if (!string.IsNullOrEmpty(assignedNpcType)
+            && fetchedByType.TryGetValue(assignedNpcType, out var typed)
+            && typed.Count > 0)
+            return PickFrom(typed);
+
+        if (fetchedAll.Count > 0)
+            return PickFrom(fetchedAll);
+
+        bool pickMarket = Random.value < 0.4f;
+        return pickMarket ? PickFrom(FallbackMarketBarks) : PickFrom(FallbackAmbientBarks);
+    }
+
+    private string PickFrom(IList<string> pool)
+    {
+        if (pool.Count == 0) return null;
+        int index;
+        do { index = Random.Range(0, pool.Count); }
+        while (pool.Count > 1 && index == lastIndex);
+        lastIndex = index;
+        return pool[index];
     }
 
     private void BuildHint()
@@ -180,26 +265,5 @@ public class NPCBark : MonoBehaviour
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = new Color(0.7f, 0.7f, 0.7f, 1f);
         tmp.raycastTarget = false;
-    }
-
-    private static string[] PickRandomBarks(int count)
-    {
-        var market = new List<string>(MarketBarks);
-        var ambient = new List<string>(AmbientBarks);
-        var result = new List<string>();
-
-        for (int i = 0; i < count; i++)
-        {
-            bool pickMarket = Random.value < 0.4f && market.Count > 0;
-            var source = pickMarket ? market : ambient;
-            if (source.Count == 0) source = pickMarket ? ambient : market;
-            if (source.Count == 0) break;
-
-            int idx = Random.Range(0, source.Count);
-            result.Add(source[idx]);
-            source.RemoveAt(idx);
-        }
-
-        return result.ToArray();
     }
 }

@@ -70,9 +70,16 @@ public class DayCycleHUD : MonoBehaviour
         {
             if (gpm.ArcName != null && gpm.ArcDaysRemaining >= 0)
             {
-                string grade = gpm.ArcProjectedGrade ?? "-";
-                string ret = gpm.ArcReturnPct >= 0 ? $"+{gpm.ArcReturnPct:F1}%" : $"{gpm.ArcReturnPct:F1}%";
-                arcText.text = $"{gpm.ArcName}  |  {gpm.ArcDaysRemaining}d left  |  {ret} ({grade})";
+                if (ProgressionGates.ShowExtendedArcInfo)
+                {
+                    string grade = gpm.ArcProjectedGrade ?? "-";
+                    string ret = gpm.ArcReturnPct >= 0 ? $"+{gpm.ArcReturnPct:F1}%" : $"{gpm.ArcReturnPct:F1}%";
+                    arcText.text = $"{gpm.ArcName}  |  {gpm.ArcDaysRemaining}d left  |  {ret} ({grade})";
+                }
+                else
+                {
+                    arcText.text = gpm.ArcName;
+                }
             }
             else
             {

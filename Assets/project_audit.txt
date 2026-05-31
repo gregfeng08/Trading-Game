@@ -181,6 +181,28 @@ DEMO PRIORITIES (June 2 — 1 week)
 - NPC dialogue generation via Claude API should work (even if basic)
 - Arc transition overlay and daily summary must be polished
 
+PRE-DEMO TODO
+- Limit order UI: Add order type dropdown (market/limit) and limit price input
+  to trading terminal. Wire through GamePhaseManager.QueueOrder (needs orderType
+  + limitPrice params). Backend already supports limit orders. Gated behind
+  ProgressionGates.ShowLimitOrders (limit_buy_sell node). Strong demo moment:
+  player learns volatility → limit orders appear → "learning IS progression."
+- Minimap: MinimapController.cs script is complete but not wired. Needs: a
+  RenderTexture, an orthographic camera (top-down), a RawImage on the HUD, and
+  MinimapController component with references assigned. All editor work.
+- Player prefab missing script: "== Player ==" prefab has a red "Missing Script"
+  component from a deleted script. Open prefab in Inspector, remove the broken
+  component.
+- Casey onboarding scene expansion: Currently 6 hardcoded lines. Needs to be a
+  guided tutorial that walks the player through core systems: Casey introduces
+  the knowledge graph ("this is your lattice — it tracks what you've learned"),
+  walks player to the trading terminal ("let's place your first trade"),
+  explains the day cycle/phases, and shows the newspaper. Each step should
+  auto-complete the foundational knowledge nodes (what_is_a_company,
+  what_is_a_stock, market_buy_sell) which triggers ProgressionGates reveals
+  in real time — net worth appears, price change % appears. The onboarding
+  IS the first progression moment. (Note: Casey is male.)
+
 PRESENTATION PRIORITIES (June 9 — 2 weeks)
 - Architecture diagrams (reusable in paper)
 - Recorded backup demo video
@@ -219,6 +241,42 @@ MEDIUM EFFORT, THESIS-STRENGTHENING
 - Consequence environment: Your room changes based on arc grade. S grade = nicer
   furniture, D grade = bare minimum. Small visual reward that reinforces the
   "living it" thesis.
+
+POST-DEMO TODO (Designed, Not Yet Implemented)
+- Newspaper/NPC knowledge triggers: new player_events DB table tracking
+  newspaper reads (deduped per day) and NPC interactions. Two new trigger types
+  (newspaper_read, npc_interaction) in KnowledgeGraphService. Changes
+  what_is_a_market and historical_crashes from knowledge→adaptive (gated by
+  newspaper reading). Adds market_sentiment and herd_behavior nodes (gated by
+  NPC interactions). Full design spec in agent output from 2026-05-29 session.
+- NPC quest system: Typed NPCs (Historian, Quant, Risk Manager, Floor Trader)
+  that unlock specific knowledge nodes through conversation. Historian →
+  historical_crashes, market_cycles. Quant → SMA, limit orders, technical
+  indicators. Risk Manager → diversification, position_sizing, stop_loss.
+  Casey → foundational nodes. Some nodes unlock via EITHER trading triggers
+  OR NPC quests (dual pathway: experiential + guided learning).
+- Limit order UI: Backend fully supports limit orders (OHLC range checking,
+  fill logic). Frontend needs: order type selector dropdown, limit price input
+  field, wire through GamePhaseManager.QueueOrder. Gated behind limit_buy_sell
+  knowledge node (ProgressionGates.ShowLimitOrders).
+- Stop orders: Not implemented anywhere. Needs stop_price DB field, execution
+  logic in OrderService, new knowledge node, UI elements.
+- Dynamic knowledge node content: Call Claude API when a node unlocks to
+  generate personalized explanations referencing the player's actual trades
+  (e.g., "You concentrated 82% in NVDA, which dropped 5% — here's why
+  diversification matters"). Currently nodes have static pre-authored content.
+- Player portfolio context in newspaper: Add player's top holdings, recent
+  trades, and concentration to NewspaperService.BuildContext() so Claude can
+  reference them in articles. Currently newspapers are market-contextual but
+  not player-personalized.
+- Knowledge graph state in NPC dialogue: Feed completed/unlocked nodes into
+  NpcDialogueService prompts so NPCs can reference what the player has learned
+  (e.g., "You just learned about diversification but you're still 80% in one
+  stock").
+- Refactoring: TradingUIController (1400 LOC) → split into TickerSearch,
+  TradingChart, TradingView controllers. Extract BaseOverlayUI from
+  DailySummaryOverlay + ArcTransitionOverlay (~120 LOC shared). Deduplicate
+  SnapshotNetWorth across OrderService + GameStateService.
 
 POST-DEFENSE (Future Work)
 - Classroom deployment: Teacher dashboard showing which students unlocked which

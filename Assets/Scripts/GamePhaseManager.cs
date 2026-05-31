@@ -118,6 +118,7 @@ public class GamePhaseManager : MonoBehaviour
         }
 
         await RefreshArcStatus();
+        _ = NPCBark.RefreshDialogue(CurrentDate);
     }
 
     // ── Local Order Queue ──
@@ -406,6 +407,7 @@ public class GamePhaseManager : MonoBehaviour
 
             await CheckArcAdvance();
             await RefreshArcStatus();
+            _ = NPCBark.RefreshDialogue(CurrentDate);
 
             CurrentPhase = GamePhase.PreMarket;
             OnPhaseChanged?.Invoke(CurrentPhase);

@@ -4,6 +4,8 @@ using System.Collections.Generic;
 public class NPCSpawner : MonoBehaviour
 {
     [Header("Prefabs")]
+    [SerializeField] private NPCVariant[] npcVariants;
+    [Tooltip("Legacy fallback: used if npcVariants is empty")]
     [SerializeField] private GameObject[] npcPrefabs;
 
     [Header("Routes (Legacy - manual waypoint mode)")]
@@ -52,9 +54,32 @@ public class NPCSpawner : MonoBehaviour
         SpawnInitialPopulation();
     }
 
+    private bool HasPrefabs => (npcVariants != null && npcVariants.Length > 0)
+                              || (npcPrefabs != null && npcPrefabs.Length > 0);
+
+    private (GameObject prefab, string npcType) PickWeightedPrefab()
+    {
+        if (npcVariants != null && npcVariants.Length > 0)
+        {
+            float total = 0f;
+            foreach (var v in npcVariants) total += v.weight;
+            float roll = Random.Range(0f, total);
+            float accum = 0f;
+            foreach (var v in npcVariants)
+            {
+                accum += v.weight;
+                if (roll <= accum)
+                    return (v.prefab, v.npcType);
+            }
+            var last = npcVariants[^1];
+            return (last.prefab, last.npcType);
+        }
+        return (npcPrefabs[Random.Range(0, npcPrefabs.Length)], null);
+    }
+
     void Update()
     {
-        if (npcPrefabs == null || npcPrefabs.Length == 0) return;
+        if (!HasPrefabs) return;
 
         float popScale = GetPhasePopulationScale();
 
@@ -91,7 +116,7 @@ public class NPCSpawner : MonoBehaviour
 
     private void SpawnInitialPopulation()
     {
-        if (npcPrefabs == null || npcPrefabs.Length == 0) return;
+        if (!HasPrefabs) return;
 
         float popScale = GetPhasePopulationScale();
 
@@ -142,7 +167,7 @@ public class NPCSpawner : MonoBehaviour
 
     private void SpawnPersistent()
     {
-        if (npcPrefabs == null || npcPrefabs.Length == 0) return;
+        if (!HasPrefabs) return;
         if (routes == null) return;
 
         for (int r = 0; r < routes.Length; r++)
@@ -152,15 +177,16 @@ public class NPCSpawner : MonoBehaviour
             for (int i = 0; i < persistentPerRoute; i++)
             {
                 int startIndex = Random.Range(0, routes[r].Length);
+                var (prefab, npcType) = PickWeightedPrefab();
                 var npc = Instantiate(
-                    npcPrefabs[Random.Range(0, npcPrefabs.Length)],
+                    prefab,
                     routes[r][startIndex].position,
                     Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
                 npc.name = $"NPC_Persistent_R{r}_{i}";
 
                 var walker = EnsureWalker(npc);
                 walker.Init(routes[r], shouldDespawn: false);
-                SetupBark(npc);
+                SetupBark(npc, npcType);
             }
         }
     }
@@ -191,15 +217,16 @@ public class NPCSpawner : MonoBehaviour
             spawnPos = graph.GridToWorld(graph.GetWeightedRandomTile());
         }
 
+        var (prefab, npcType) = PickWeightedPrefab();
         var npc = Instantiate(
-            npcPrefabs[Random.Range(0, npcPrefabs.Length)],
+            prefab,
             spawnPos,
             Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
         npc.name = $"NPC_Leyline_{Time.frameCount}";
 
         var walker = EnsureWalker(npc);
         walker.InitLeyline(shouldDespawn: true);
-        SetupBark(npc);
+        SetupBark(npc, npcType);
 
         activeLeylineWanderers++;
         trackedNPCs.Add(npc.transform);
@@ -226,15 +253,16 @@ public class NPCSpawner : MonoBehaviour
         if (graph.FindPath(startTile, destTile) == null)
             return;
 
+        var (prefab, npcType) = PickWeightedPrefab();
         var npc = Instantiate(
-            npcPrefabs[Random.Range(0, npcPrefabs.Length)],
+            prefab,
             startPos,
             Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
         npc.name = $"NPC_Commuter_{Time.frameCount}";
 
         var walker = EnsureWalker(npc);
         walker.InitLeyline(destTile, shouldDespawn: true);
-        SetupBark(npc);
+        SetupBark(npc, npcType);
 
         activeCommuters++;
         trackedNPCs.Add(npc.transform);
@@ -262,15 +290,16 @@ public class NPCSpawner : MonoBehaviour
             orderedRoute = route;
         }
 
+        var (prefab, npcType) = PickWeightedPrefab();
         var npc = Instantiate(
-            npcPrefabs[Random.Range(0, npcPrefabs.Length)],
+            prefab,
             orderedRoute[0].position,
             Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
         npc.name = $"NPC_Pedestrian_{Time.frameCount}";
 
         var walker = EnsureWalker(npc);
         walker.Init(orderedRoute, shouldDespawn: true);
-        SetupBark(npc);
+        SetupBark(npc, npcType);
 
         activePedestrians++;
         var tracker = npc.AddComponent<DespawnTracker>();
@@ -322,10 +351,10 @@ public class NPCSpawner : MonoBehaviour
         return walker;
     }
 
-    private void SetupBark(GameObject npc)
+    private void SetupBark(GameObject npc, string npcType = null)
     {
         var bark = npc.AddComponent<NPCBark>();
-        bark.Init();
+        bark.Init(npcType: npcType);
     }
 }
 
