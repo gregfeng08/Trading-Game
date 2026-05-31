@@ -731,6 +731,8 @@ public class KnowledgeGraphUI : MonoBehaviour
 
             body += node.content ?? node.description;
 
+            FetchPersonalizedContent(node.id);
+
             var featureLabel = ProgressionGates.GetFeatureLabel(node.id);
             if (featureLabel != null)
                 body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
@@ -799,6 +801,41 @@ public class KnowledgeGraphUI : MonoBehaviour
             body += $"\n<color=#888888>Unlocks: {FormatMechanic(node.reward_mechanic)}</color>\n";
 
         return body;
+    }
+
+    private async void FetchPersonalizedContent(string nodeId)
+    {
+        int entityId = APIBootstrapper.EntityDbId;
+        if (entityId <= 0) return;
+
+        try
+        {
+            var resp = await KnowledgeGraphAPI.GetNodeContent(entityId, nodeId);
+            if (resp != null && resp.is_personalized && selectedNode != null && selectedNode.id == nodeId)
+            {
+                string body = "";
+                if (selectedNode.type == "adaptive" && !string.IsNullOrEmpty(selectedNode.trigger_explanation))
+                {
+                    body += $"<color=#E8A838>{selectedNode.trigger_explanation}</color>\n\n";
+                    if (!string.IsNullOrEmpty(selectedNode.correct_action))
+                        body += $"<color=#6BC9D9>{selectedNode.correct_action}</color>\n\n";
+                }
+                body += resp.content;
+
+                var featureLabel = ProgressionGates.GetFeatureLabel(nodeId);
+                if (featureLabel != null)
+                    body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
+                else if (!string.IsNullOrEmpty(selectedNode.reward_mechanic))
+                    body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(selectedNode.reward_mechanic)}</color>";
+
+                if (detailContent != null)
+                    detailContent.text = body;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            UnityEngine.Debug.LogWarning($"[KnowledgeGraphUI] Failed to fetch personalized content: {ex.Message}");
+        }
     }
 
     private static string FormatMechanic(string mechanic)

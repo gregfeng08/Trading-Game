@@ -113,7 +113,27 @@ INFRASTRUCTURE
   state
 - BackendProcessLauncher: Auto-launches .NET exe in builds, no-op in Editor
 - BootstrapConfig: ScriptableObject for all startup settings
-- 44 API endpoints across 9 endpoint groups
+- 46 API endpoints across 10 endpoint groups
+
+PLAYER CONTEXT SERVICE (NEW — 2026-05-31)
+- PlayerContextService: Unified canonical player snapshot consumed by all
+  adaptive content services. Single source of truth for portfolio state,
+  knowledge graph progress, recent trades, concentration, arc position.
+- PlayerContext model: HoldingSnapshot, PortfolioSnapshot, ConcentrationSnapshot,
+  KnowledgeSnapshot, TradeSnapshot, RecentTradesSnapshot, ArcSnapshot,
+  MarketSnapshot. Data records, not formatted strings.
+- Consumed by: NpcDialogueService (fact sheets + knowledge section),
+  NewspaperService (player sidebar), DynamicNodeContentService (personalized
+  node explanations).
+- Cache: Per-request cache keyed on (entityId, date). Invalidated on trade
+  execution (OrderService) and day advance (GameStateService).
+- DynamicNodeContentService: Calls Claude on node unlock to generate
+  personalized explanation referencing the player's actual portfolio and trades.
+  Stored in dynamic_node_content table. Falls back to static content on failure.
+- GET /player_context: Debug endpoint returning full player context as JSON.
+- GET /knowledge_graph/node_content: Returns personalized or static content.
+- Newspaper player sidebar: Deterministic (no LLM), cross-references player
+  holdings with top movers. Separate from the cached newspaper body.
 
 
 WHAT'S BROKEN OR MISSING

@@ -97,4 +97,13 @@ namespace Game.API.DTO
         public string status;
         public string[] unlocked_nodes;
     }
+
+    [Serializable]
+    public class NodeContentResponse
+    {
+        public string status;
+        public string node_id;
+        public string content;
+        public bool is_personalized;
+    }
 }

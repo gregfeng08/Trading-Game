@@ -22,5 +22,8 @@ namespace Game.API
 
         public static Task<UnlockedMechanicsResponse> GetUnlocks(int entityId)
             => APIClient.GetAsync<UnlockedMechanicsResponse>($"knowledge_graph/unlocks?entityId={entityId}");
+
+        public static Task<NodeContentResponse> GetNodeContent(int entityId, string nodeId)
+            => APIClient.GetAsync<NodeContentResponse>($"knowledge_graph/node_content?entityId={entityId}&nodeId={nodeId}");
     }
 }
