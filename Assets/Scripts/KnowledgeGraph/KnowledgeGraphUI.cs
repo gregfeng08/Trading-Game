@@ -115,7 +115,11 @@ public class KnowledgeGraphUI : MonoBehaviour
         if (graphPanel == null || !graphPanel.activeSelf) return;
 
         if (graphCanvasGroup != null && graphCanvasGroup.alpha < graphFadeTarget)
+        {
             graphCanvasGroup.alpha = Mathf.MoveTowards(graphCanvasGroup.alpha, graphFadeTarget, GraphFadeSpeed * Time.deltaTime);
+            if (graphCanvasGroup.alpha >= 0.99f)
+                graphCanvasGroup.alpha = 1f;
+        }
 
         UpdateCaseyTypewriter();
 
@@ -294,8 +298,13 @@ public class KnowledgeGraphUI : MonoBehaviour
         graphContainer.localScale = Vector3.one;
 
         if (graphCanvasGroup == null)
+        {
             graphCanvasGroup = graphContainer.GetComponent<CanvasGroup>() ?? graphContainer.gameObject.AddComponent<CanvasGroup>();
+            graphCanvasGroup.blocksRaycasts = true;
+            graphCanvasGroup.interactable = true;
+        }
         graphCanvasGroup.alpha = 0f;
+        graphFadeTarget = 0f;
 
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.OpenUI(PlayerState.PAUSED, ClosePanel);
@@ -336,8 +345,15 @@ public class KnowledgeGraphUI : MonoBehaviour
 
     private async System.Threading.Tasks.Task RefreshAndRender()
     {
-        await KnowledgeGraphManager.Inst.RefreshGraphAsync();
-        RenderGraph();
+        try
+        {
+            await KnowledgeGraphManager.Inst.RefreshGraphAsync();
+            RenderGraph();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[KnowledgeGraphUI] RefreshAndRender failed: {ex.Message}");
+        }
         graphFadeTarget = 1f;
     }
 
