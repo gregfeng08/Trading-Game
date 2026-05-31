@@ -936,9 +936,27 @@ public class KnowledgeGraphUI : MonoBehaviour
         caseyDialogueBox.transform.SetAsLastSibling();
 
         var rt = caseyDialogueBox.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.02f, 0.02f);
-        rt.anchorMax = new Vector2(0.55f, 0.22f);
-        rt.pivot = new Vector2(0f, 0f);
+
+        float inspectorRight = 1f;
+        float inspectorLeft = 0.6f;
+        float inspectorPad = 0.02f;
+        if (detailPanel != null)
+        {
+            var dpRT = detailPanel.GetComponent<RectTransform>();
+            if (dpRT != null)
+            {
+                inspectorLeft = dpRT.anchorMin.x;
+                inspectorRight = dpRT.anchorMax.x;
+            }
+        }
+
+        float availableRight = inspectorLeft - inspectorPad;
+        float dialogueWidth = availableRight * 0.8f;
+        float dialogueLeft = (availableRight - dialogueWidth) / 2f;
+
+        rt.anchorMin = new Vector2(dialogueLeft, 0.02f);
+        rt.anchorMax = new Vector2(dialogueLeft + dialogueWidth, 0.22f);
+        rt.pivot = new Vector2(0.5f, 0f);
         rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = Vector2.zero;
 
