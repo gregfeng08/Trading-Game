@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using TMPro;
+using Game.API;
 using Game.API.DTO;
 
 public class KnowledgeGraphUI : MonoBehaviour

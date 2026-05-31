@@ -215,7 +215,7 @@ DESIGN PRINCIPLES
    a fake guide. Her sincerity protects the game's warmth.
 
 
-IMPLEMENTATION STATUS (as of 2026-05-29)
+IMPLEMENTATION STATUS (as of 2026-05-31)
 ----------------------------------------
 
 IMPLEMENTED:
@@ -229,6 +229,11 @@ IMPLEMENTED:
 - Day cycle: Pre-Market -> Day -> Post-Market.
 - Arc transitions with grade reveal and Principal quotes.
 - Newspaper system and in-game viewer.
+- PlayerContextService: unified player profiling for all adaptive content.
+- Dynamic knowledge node content: personalized explanations via Claude on
+  trigger, referencing the player's actual portfolio and trades.
+- NPC dialogue with PLAYER KNOWLEDGE section in fact sheets.
+- Newspaper player sidebar with held-stock mentions.
 
 NOT YET IMPLEMENTED / NEEDS ALIGNMENT:
 - Canonical Hindsight naming across all docs/UI/data.
@@ -239,6 +244,17 @@ NOT YET IMPLEMENTED / NEEDS ALIGNMENT:
 - Named recurring NPCs mapped to analyst/broker/trader/anchor archetypes.
 - Arc-reactive city ambience.
 - Final cycle review that grades process as well as return.
+
+DESIGNED, POST-DEMO:
+- Dual-path triggers: negative/positive/time-based paths to the same node.
+  Addresses failure-bias in current triggers. A careful player who diversifies
+  from day one should still unlock the diversification node via a positive
+  trigger ("You've maintained a balanced portfolio for 10 days").
+- Weekend review: "Let's review what happened this week." Server advances N
+  days with compressed summary. Narratively framed as Hindsight controlling
+  replay speed. Casey introduces: "We can fast-forward through the quiet
+  weeks if you want." Addresses pacing (148 days × 5 min = 12+ hours per
+  arc without this).
 
 
 SCENE MAP

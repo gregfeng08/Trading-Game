@@ -92,6 +92,49 @@ The behavioral triggers currently implemented include:
 Each trigger maps to a real pedagogical moment. This is not gamification for
 engagement alone. It is gameplay as curriculum delivery.
 
+DUAL-PATH TRIGGERS (DESIGNED, NOT YET IMPLEMENTED)
+The current triggers assume failure as the entry point for learning. But what
+if the player does well? What if they diversify from day one? The system should
+recognize both failure and success as pedagogical moments.
+
+Each adaptive node would support three trigger paths:
+  - NEGATIVE: Current failure-based triggers (e.g., concentration > 80%)
+  - POSITIVE: Success-based triggers (e.g., maintained diversification across
+    4+ stocks for N days, kept cash reserves above 20% for N days)
+  - TIME-BASED: Fallback unlock after N trading days to ensure curriculum
+    completeness regardless of player behavior
+
+Same node, same concept, different trigger_explanation and personalized
+content. The negative path says "You concentrated 82% in NVDA — here's why
+diversification matters." The positive path says "You've maintained a balanced
+portfolio across 4 sectors — here's the principle behind what you're already
+doing." The time-based path ensures no concept is permanently locked behind
+a behavior the player may never exhibit.
+
+This addresses a pedagogical gap: the system should teach through both
+corrective feedback (you made a mistake, here's why) and reinforcement
+(you're doing well, here's why that works). The architecture supports this
+without changes to PlayerContextService — it already provides the raw data
+that all three paths would evaluate against.
+
+
+UNIFIED PLAYER CONTEXT (IMPLEMENTED 2026-05-31)
+The three thesis layers (game loop, knowledge graph, LLM content) are connected
+through PlayerContextService — a unified snapshot of the player's trading
+behavior, portfolio state, and learning progress. This is the connective tissue
+that makes "one loop" real rather than aspirational.
+
+Each LLM consumer draws from the same canonical profile:
+  - NPC dialogue fact sheets include PLAYER KNOWLEDGE section
+  - DynamicNodeContentService generates personalized node explanations
+    referencing the player's actual trades and portfolio
+  - Newspaper player sidebar cross-references holdings with market movers
+
+The service assembles raw data blocks (market snapshot, portfolio, trades,
+knowledge state, arc info). Each consumer selects and formats what it needs.
+The service does not know about NPC personalities or newspaper editorial
+tone — it provides the data layer.
+
 
 WHY HISTORICAL HINDSIGHT WORKS
 ------------------------------
@@ -255,19 +298,34 @@ ABSTRACT
 - Server-authoritative state.
 - Trading engine and order pipeline.
 - Knowledge graph trigger evaluation.
-- LLM generation and caching.
+- PlayerContextService: unified player profiling as the connective tissue
+  between game loop, knowledge graph, and LLM content generation.
+- DynamicNodeContentService: personalized knowledge explanations generated
+  on trigger, referencing the player's actual portfolio and trades.
+- LLM generation, caching, and fallback strategies.
 
 5. DISCUSSION
 - Adaptive triggers versus linear curriculum.
+- Failure-biased vs dual-path triggers: current system assumes failure as
+  entry point for learning. Designed extension supports positive triggers
+  (recognizing good behavior) and time-based fallbacks (curriculum
+  completeness). Same architecture, different trigger descriptions.
 - Hindsight as advantage and trap.
 - LLM reliability and factual grounding.
 - Server authority and academic integrity.
+- Pacing tension: historical fidelity vs player time. 148 trading days
+  at 5 minutes each exceeds reasonable session length. Weekend review
+  (compressed weekly summaries) and adaptive day pacing (interestingness-
+  driven compression) as designed solutions.
 - AI-assisted development methodology.
 
 6. LIMITATIONS AND FUTURE WORK
 - No formal user study yet.
 - Single-player prototype.
 - Limited historical period and limited authored narrative.
+- Triggers are currently failure-biased; dual-path (positive/negative/time)
+  triggers designed but not implemented.
+- No skip-week or adaptive pacing; each day requires full play-through.
 - Future classroom dashboard, multi-student deployment, learning outcome
   measurement, procedural historical arcs.
 

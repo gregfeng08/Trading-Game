@@ -172,16 +172,27 @@ KNOWN ISSUES
 - No HttpClient timeout set (default 100s).
 - Fire-and-forget async tasks can hang silently.
 - NewspaperAPI creates its own HttpClient instead of reusing APIClient.
-- NPC dialogue not yet personalized to player portfolio/knowledge state.
-- Newspaper not yet personalized to player context.
-- Knowledge node content is static (not dynamically generated).
+RECENTLY COMPLETED (2026-05-31)
+- PlayerContextService: Unified player profiling. Canonical snapshot of
+  portfolio, knowledge graph progress, trades, concentration, arc position.
+  Consumed by NPC dialogue, newspaper, and dynamic node content services.
+- Dynamic knowledge node content: Claude-generated personalized explanations
+  on trigger, referencing the player's actual portfolio and trades.
+- NPC dialogue PLAYER KNOWLEDGE section: fact sheets include completed/
+  unlocked nodes so NPCs reference what the player has learned.
+- Newspaper player sidebar: deterministic, cross-references player holdings
+  with market movers. No extra LLM cost.
 
 
 WHAT'S NOT YET BUILT (DESIGNED)
 --------------------------------
-- Dynamic knowledge node content (Claude-generated, referencing player's trades)
-- Player portfolio context in newspaper generation
-- Knowledge graph state fed into NPC dialogue prompts
+- Dual-path triggers: negative/positive/time-based paths to each adaptive
+  node. Addresses failure-bias in current triggers. Architecture supports
+  this without PlayerContextService changes.
+- Weekend review: skip-week with compressed summary. Narratively framed as
+  Hindsight controlling replay speed. Addresses pacing (148 days per arc).
+- Adaptive day pacing: interestingness-driven day compression (extension
+  of weekend review).
 - NPC quest system (typed NPCs unlock specific knowledge nodes)
 - Limit order UI (gated behind limit_buy_sell node)
 - Stop orders

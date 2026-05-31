@@ -262,41 +262,57 @@ MEDIUM EFFORT, THESIS-STRENGTHENING
   furniture, D grade = bare minimum. Small visual reward that reinforces the
   "living it" thesis.
 
+RECENTLY COMPLETED (2026-05-31)
+- PlayerContextService: Unified player profiling consumed by all LLM services.
+  Portfolio, knowledge graph progress, trades, concentration, arc position in
+  one canonical snapshot. Cached per (entityId, date), invalidated on trades
+  and day advances.
+- Dynamic knowledge node content: DynamicNodeContentService calls Claude on
+  node unlock to generate personalized explanations referencing the player's
+  actual portfolio. Stored in dynamic_node_content table. Falls back to static
+  content if API unavailable. Verified working: "You concentrated 100% in AAPL"
+  → personalized diversification explanation.
+- Player portfolio context in newspaper: Deterministic player sidebar on
+  newspaper endpoint. Cross-references player holdings with market movers.
+  No extra LLM cost (sidebar is computed, not generated).
+- Knowledge graph state in NPC dialogue: Fact sheets now include PLAYER
+  KNOWLEDGE section with completed/unlocked nodes. Verified: analyst NPC
+  referenced "Your AAPL position is holding up" during a selloff day.
+
 POST-DEMO TODO (Designed, Not Yet Implemented)
+- Dual-path knowledge triggers: Each adaptive node would support three trigger
+  paths — negative (current failure-based triggers like concentration > 80%),
+  positive (success triggers like maintaining diversification across 4+ stocks
+  for N days), and time-based (fallback unlock after N trading days to ensure
+  curriculum completeness). Same node, different trigger_explanation and
+  personalized content per path. Requires: multiple trigger configs per node in
+  knowledge_graph.json, first-wins evaluation in KnowledgeGraphService. No
+  changes to PlayerContextService needed — it already provides the raw data
+  that all three paths would evaluate against.
+- Weekend review / skip-week: Player can choose to "review the week" instead
+  of playing each day. Server advances N days, auto-executing any standing
+  orders, and presents a compressed summary (daily P&L, movers, triggers that
+  fired). Narratively framed as Hindsight Financial's training program
+  controlling replay speed — Casey says "Let's review what happened this week."
+  Preserves the historical immersion while respecting player time. One Bull
+  Market arc (148 trading days × 5 min = 12+ hours) is too long without this.
+- Adaptive day pacing (future extension of weekend review): Days with low
+  interestingness scores (< 0.15) auto-compress with a brief summary card.
+  Active days (big market moves, trigger fires, arc transitions) play fully.
+  The interestingness scoring system already exists in NpcDialogueService.
+  Using it to control time is another manifestation of "the game reacts to
+  the player." Post-defense complexity — shelved for now.
 - Newspaper/NPC knowledge triggers: new player_events DB table tracking
   newspaper reads (deduped per day) and NPC interactions. Two new trigger types
-  (newspaper_read, npc_interaction) in KnowledgeGraphService. Changes
-  what_is_a_market and historical_crashes from knowledge→adaptive (gated by
-  newspaper reading). Adds market_sentiment and herd_behavior nodes (gated by
-  NPC interactions). Full design spec in agent output from 2026-05-29 session.
+  (newspaper_read, npc_interaction) in KnowledgeGraphService.
 - NPC quest system: Typed NPCs (Historian, Quant, Risk Manager, Floor Trader)
-  that unlock specific knowledge nodes through conversation. Historian →
-  historical_crashes, market_cycles. Quant → SMA, limit orders, technical
-  indicators. Risk Manager → diversification, position_sizing, stop_loss.
-  Casey → foundational nodes. Some nodes unlock via EITHER trading triggers
-  OR NPC quests (dual pathway: experiential + guided learning).
-- Limit order UI: Backend fully supports limit orders (OHLC range checking,
-  fill logic). Frontend needs: order type selector dropdown, limit price input
-  field, wire through GamePhaseManager.QueueOrder. Gated behind limit_buy_sell
-  knowledge node (ProgressionGates.ShowLimitOrders).
-- Stop orders: Not implemented anywhere. Needs stop_price DB field, execution
-  logic in OrderService, new knowledge node, UI elements.
-- Dynamic knowledge node content: Call Claude API when a node unlocks to
-  generate personalized explanations referencing the player's actual trades
-  (e.g., "You concentrated 82% in NVDA, which dropped 5% — here's why
-  diversification matters"). Currently nodes have static pre-authored content.
-- Player portfolio context in newspaper: Add player's top holdings, recent
-  trades, and concentration to NewspaperService.BuildContext() so Claude can
-  reference them in articles. Currently newspapers are market-contextual but
-  not player-personalized.
-- Knowledge graph state in NPC dialogue: Feed completed/unlocked nodes into
-  NpcDialogueService prompts so NPCs can reference what the player has learned
-  (e.g., "You just learned about diversification but you're still 80% in one
-  stock").
+  that unlock specific knowledge nodes through conversation.
+- Limit order UI: Backend fully supports limit orders. Frontend needs order
+  type selector dropdown, limit price input field. Gated behind limit_buy_sell
+  knowledge node.
+- Stop orders: Not implemented anywhere.
 - Refactoring: TradingUIController (1400 LOC) → split into TickerSearch,
-  TradingChart, TradingView controllers. Extract BaseOverlayUI from
-  DailySummaryOverlay + ArcTransitionOverlay (~120 LOC shared). Deduplicate
-  SnapshotNetWorth across OrderService + GameStateService.
+  TradingChart, TradingView controllers.
 
 POST-DEFENSE (Future Work)
 - Classroom deployment: Teacher dashboard showing which students unlocked which
@@ -308,12 +324,16 @@ POST-DEFENSE (Future Work)
 - User studies measuring learning outcomes vs. traditional curricula
 
 
-SYSTEM INVENTORY
------------------
+SYSTEM INVENTORY (updated 2026-05-31)
+--------------------------------------
 
-64 C# classes, 44 API endpoints, 15 DB tables, 0 TODOs in the codebase.
+67 C# classes, 46 API endpoints, 16 DB tables.
 
-The trading loop, knowledge graph, arc system, and newspaper are all end-to-end
-functional. The priority for the remaining 3 weeks is polish and presentation,
-not new features. The adaptive knowledge graph is the central thesis
-contribution; demo/presentation/paper should all center on it.
+The trading loop, knowledge graph, arc system, newspaper, and PlayerContextService
+are all end-to-end functional. The adaptive knowledge graph with unified player
+profiling is the central thesis contribution: player behavior → knowledge graph
+classification → personalized LLM content → all in one loop.
+
+Demo priority: golden-path walkthrough showing the adaptive loop firing end-to-end.
+  Main Menu → Onboarding → Room → City → Terminal → Trade → Knowledge trigger →
+  Personalized node content → NPC references player state → Arc grade display.
