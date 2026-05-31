@@ -22,9 +22,7 @@ public class DynamicNodeContentService
         _knowledgeGraph = knowledgeGraph;
         _httpClient = new HttpClient();
         _apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-        _model = Environment.GetEnvironmentVariable("ANTHROPIC_MODEL_DEEP")
-              ?? Environment.GetEnvironmentVariable("ANTHROPIC_MODEL")
-              ?? "claude-opus-4-20250514";
+        _model = Environment.GetEnvironmentVariable("ANTHROPIC_MODEL") ?? "claude-sonnet-4-20250514";
     }
 
     public async Task<string?> GeneratePersonalizedContent(
