@@ -14,7 +14,15 @@ obj/
 ## Rider
 .idea/
 
+## SQLite database (regenerated at runtime)
+Data/*.db
+Data/*.db-wal
+Data/*.db-shm
+
 ## OS files
 Thumbs.db
 desktop.ini
 .DS_Store
+
+## Visualkiro
+.visualkiro/

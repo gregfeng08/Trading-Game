@@ -396,29 +396,33 @@ public class MarketDataService
 
     private async Task<TickerMetadata?> DownloadMetadataAsync(string symbol)
     {
-        var url = $"https://query2.finance.yahoo.com/v7/finance/quote?symbols={Uri.EscapeDataString(symbol)}&fields=shortName,longName,longBusinessSummary&crumb={Uri.EscapeDataString(_crumb!)}";
-
         try
         {
-            var response = await _http.GetAsync(url);
-            if (!response.IsSuccessStatusCode) return null;
+            var url = $"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{Uri.EscapeDataString(symbol)}?modules=assetProfile,price&crumb={Uri.EscapeDataString(_crumb!)}";
+            var resp = await _http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode) return null;
 
-            var json = await response.Content.ReadAsStringAsync();
+            var json = await resp.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
+            var results = doc.RootElement.GetProperty("quoteSummary").GetProperty("result");
+            if (results.GetArrayLength() == 0) return null;
 
-            var result = doc.RootElement
-                .GetProperty("quoteResponse")
-                .GetProperty("result");
+            var modules = results[0];
 
-            if (result.GetArrayLength() == 0) return null;
-
-            var quote = result[0];
-            var name = quote.TryGetProperty("shortName", out var sn) ? sn.GetString()
-                     : quote.TryGetProperty("longName", out var ln) ? ln.GetString()
+            string? name = null;
+            if (modules.TryGetProperty("price", out var price))
+            {
+                name = price.TryGetProperty("shortName", out var sn) ? sn.GetString()
+                     : price.TryGetProperty("longName", out var ln) ? ln.GetString()
                      : null;
-            var desc = quote.TryGetProperty("longBusinessSummary", out var lbs) ? lbs.GetString() : null;
+            }
 
-            return new TickerMetadata(name, desc);
+            string? desc = null;
+            if (modules.TryGetProperty("assetProfile", out var ap)
+                && ap.TryGetProperty("longBusinessSummary", out var lbs))
+                desc = lbs.GetString();
+
+            return (name != null || desc != null) ? new TickerMetadata(name, desc) : null;
         }
         catch
         {
