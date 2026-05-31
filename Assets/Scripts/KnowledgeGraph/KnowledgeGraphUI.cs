@@ -88,6 +88,9 @@ public class KnowledgeGraphUI : MonoBehaviour
     private float caseyCharAccum;
     private const float CaseyCharsPerSec = 45f;
     private bool caseyTakeShowCompleteAfter;
+    private CanvasGroup graphCanvasGroup;
+    private float graphFadeTarget;
+    private const float GraphFadeSpeed = 4f;
 
     void Awake()
     {
@@ -110,6 +113,9 @@ public class KnowledgeGraphUI : MonoBehaviour
     void Update()
     {
         if (graphPanel == null || !graphPanel.activeSelf) return;
+
+        if (graphCanvasGroup != null && graphCanvasGroup.alpha < graphFadeTarget)
+            graphCanvasGroup.alpha = Mathf.MoveTowards(graphCanvasGroup.alpha, graphFadeTarget, GraphFadeSpeed * Time.deltaTime);
 
         UpdateCaseyTypewriter();
 
@@ -287,6 +293,10 @@ public class KnowledgeGraphUI : MonoBehaviour
         graphContainer.anchoredPosition = Vector2.zero;
         graphContainer.localScale = Vector3.one;
 
+        if (graphCanvasGroup == null)
+            graphCanvasGroup = graphContainer.GetComponent<CanvasGroup>() ?? graphContainer.gameObject.AddComponent<CanvasGroup>();
+        graphCanvasGroup.alpha = 0f;
+
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.OpenUI(PlayerState.PAUSED, ClosePanel);
 
@@ -328,6 +338,7 @@ public class KnowledgeGraphUI : MonoBehaviour
     {
         await KnowledgeGraphManager.Inst.RefreshGraphAsync();
         RenderGraph();
+        graphFadeTarget = 1f;
     }
 
     private void RenderGraph()
