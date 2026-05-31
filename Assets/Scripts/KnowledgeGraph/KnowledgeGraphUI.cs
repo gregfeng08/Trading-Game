@@ -629,25 +629,38 @@ public class KnowledgeGraphUI : MonoBehaviour
 
     private GameObject DrawLine(Vector2 from, Vector2 to)
     {
-        var go = new GameObject("Edge", typeof(RectTransform), typeof(Image));
-        go.transform.SetParent(graphContainer, false);
-        go.transform.SetAsFirstSibling();
-
-        var rt = go.GetComponent<RectTransform>();
-        var img = go.GetComponent<Image>();
-        img.color = edgeColor;
+        var parent = new GameObject("Edge", typeof(RectTransform));
+        parent.transform.SetParent(graphContainer, false);
+        parent.transform.SetAsFirstSibling();
 
         Vector2 dir = to - from;
         float distance = dir.magnitude;
         float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
 
-        rt.anchoredPosition = from + dir * 0.5f;
-        rt.sizeDelta = new Vector2(distance, 2f);
-        rt.localRotation = Quaternion.Euler(0, 0, angle);
-        rt.pivot = new Vector2(0.5f, 0.5f);
+        var line = new GameObject("Line", typeof(RectTransform), typeof(Image));
+        line.transform.SetParent(parent.transform, false);
+        var lineRT = line.GetComponent<RectTransform>();
+        var lineImg = line.GetComponent<Image>();
+        lineImg.color = edgeColor;
+        lineRT.anchoredPosition = from + dir * 0.5f;
+        lineRT.sizeDelta = new Vector2(distance, 2f);
+        lineRT.localRotation = Quaternion.Euler(0, 0, angle);
+        lineRT.pivot = new Vector2(0.5f, 0.5f);
 
-        spawnedEdges.Add(go);
-        return go;
+        float arrowSize = 8f;
+        Vector2 arrowPos = to - dir.normalized * 35f;
+        var arrow = new GameObject("Arrow", typeof(RectTransform), typeof(Image));
+        arrow.transform.SetParent(parent.transform, false);
+        var arrowRT = arrow.GetComponent<RectTransform>();
+        var arrowImg = arrow.GetComponent<Image>();
+        arrowImg.color = edgeColor;
+        arrowRT.anchoredPosition = arrowPos;
+        arrowRT.sizeDelta = new Vector2(arrowSize, arrowSize);
+        arrowRT.localRotation = Quaternion.Euler(0, 0, angle - 90f);
+        arrowRT.pivot = new Vector2(0.5f, 0.5f);
+
+        spawnedEdges.Add(parent);
+        return parent;
     }
 
     private void HighlightNeighbors(string nodeId)
@@ -676,20 +689,16 @@ public class KnowledgeGraphUI : MonoBehaviour
         foreach (var (fromId, toId, edgeGO) in edgeRegistry)
         {
             if (edgeGO == null) continue;
-            var img = edgeGO.GetComponent<Image>();
-            var rt = edgeGO.GetComponent<RectTransform>();
 
             bool connected = hasSelection && (fromId == nodeId || toId == nodeId);
-            if (connected)
-            {
-                if (img != null) img.color = new Color(0.7f, 0.7f, 0.7f, 0.85f);
-                if (rt != null) rt.sizeDelta = new Vector2(rt.sizeDelta.x, 3f);
-            }
-            else
-            {
-                if (img != null) img.color = edgeColor;
-                if (rt != null) rt.sizeDelta = new Vector2(rt.sizeDelta.x, 2f);
-            }
+            var highlightColor = connected ? new Color(0.7f, 0.7f, 0.7f, 0.85f) : edgeColor;
+
+            foreach (var img in edgeGO.GetComponentsInChildren<Image>())
+                img.color = highlightColor;
+
+            var lineRT = edgeGO.transform.Find("Line")?.GetComponent<RectTransform>();
+            if (lineRT != null)
+                lineRT.sizeDelta = new Vector2(lineRT.sizeDelta.x, connected ? 3f : 2f);
         }
     }
 
@@ -848,15 +857,24 @@ public class KnowledgeGraphUI : MonoBehaviour
 
     private async void OnCompleteLesson()
     {
-        if (selectedNode != null && selectedNode.status == "unlocked")
+        if (selectedNode == null) return;
+        if (selectedNode.status != "unlocked")
         {
-            await KnowledgeGraphManager.Inst.CompleteNodeAsync(selectedNode.id);
-            RenderGraph();
+            Debug.Log($"[KnowledgeGraphUI] Cannot complete '{selectedNode.id}' — status is '{selectedNode.status}', not 'unlocked'");
+            return;
         }
-        selectedNode = null;
 
+        var nodeId = selectedNode.id;
+        Debug.Log($"[KnowledgeGraphUI] Completing node: {nodeId}");
+
+        completeButton.gameObject.SetActive(false);
+        await KnowledgeGraphManager.Inst.CompleteNodeAsync(nodeId);
+
+        selectedNode = null;
         if (detailPanel != null)
             detailPanel.SetActive(false);
+
+        RenderGraph();
     }
 
     private void DismissDetail()
