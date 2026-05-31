@@ -15,6 +15,7 @@ public static class ProgressionGates
     public static bool ShowAllTimeframes { get; private set; }
 
     public static event Action OnGatesChanged;
+    public static event Action<string, string> OnFeatureUnlocked;
 
     private static readonly Dictionary<string, Action<bool>> GateMap = new()
     {
@@ -48,6 +49,8 @@ public static class ProgressionGates
 
         bool changed = false;
 
+        var newlyUnlocked = new System.Collections.Generic.List<string>();
+
         foreach (var kvp in GateMap)
         {
             bool completed = mgr.IsNodeCompleted(kvp.Key);
@@ -56,11 +59,20 @@ public static class ProgressionGates
             {
                 kvp.Value(completed);
                 changed = true;
+                if (completed)
+                    newlyUnlocked.Add(kvp.Key);
             }
         }
 
         if (changed)
             OnGatesChanged?.Invoke();
+
+        foreach (var nodeId in newlyUnlocked)
+        {
+            var label = GetFeatureLabel(nodeId);
+            if (label != null)
+                OnFeatureUnlocked?.Invoke(nodeId, label);
+        }
     }
 
     private static readonly Dictionary<string, string> FeatureLabels = new()

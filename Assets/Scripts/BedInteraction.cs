@@ -6,6 +6,9 @@ public class BedInteraction : MonoBehaviour
     private MeshRenderer meshRenderer;
     private Collider col;
     private bool subscribedToPhase;
+    private bool awaitingConfirm;
+    private float confirmTimer;
+    private string originalInteractionName;
 
     void Awake()
     {
@@ -31,6 +34,17 @@ public class BedInteraction : MonoBehaviour
     {
         if (!subscribedToPhase)
             TrySubscribe();
+
+        if (awaitingConfirm)
+        {
+            confirmTimer -= Time.deltaTime;
+            if (confirmTimer <= 0f)
+            {
+                awaitingConfirm = false;
+                if (zone != null && originalInteractionName != null)
+                    zone.SetInteractionName(originalInteractionName);
+            }
+        }
     }
 
     private void TrySubscribe()
@@ -70,6 +84,20 @@ public class BedInteraction : MonoBehaviour
     {
         if (GamePhaseManager.Inst == null) return;
         if (GamePhaseManager.Inst.CurrentPhase == GamePhase.PreMarket) return;
+
+        if (GameSettings.RequireDoubleConfirm && !awaitingConfirm)
+        {
+            awaitingConfirm = true;
+            confirmTimer = 3f;
+            if (zone != null)
+            {
+                originalInteractionName = GamePhaseManager.Inst.CurrentPhase == GamePhase.Day
+                    ? "Take a Nap" : "Sleep";
+                zone.SetInteractionName("Are you sure? (press E again)");
+            }
+            return;
+        }
+        awaitingConfirm = false;
 
         switch (GamePhaseManager.Inst.CurrentPhase)
         {

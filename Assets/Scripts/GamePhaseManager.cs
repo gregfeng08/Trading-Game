@@ -119,6 +119,21 @@ public class GamePhaseManager : MonoBehaviour
 
         await RefreshArcStatus();
         _ = NPCBark.RefreshDialogue(CurrentDate);
+        _ = FetchInitialPortfolio();
+    }
+
+    private async Task FetchInitialPortfolio()
+    {
+        try
+        {
+            var portfolio = await TradeAPI.GetPortfolio(APIBootstrapper.EntityDbId);
+            SetServerCash(portfolio.entity.available_cash);
+            SetServerNetWorth(portfolio.net_worth);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[GamePhaseManager] Initial portfolio fetch failed: {e.Message}");
+        }
     }
 
     // ── Local Order Queue ──
@@ -139,6 +154,9 @@ public class GamePhaseManager : MonoBehaviour
 
     private double serverCash;
     public void SetServerCash(double cash) => serverCash = cash;
+
+    public double ServerNetWorth { get; private set; }
+    public void SetServerNetWorth(double nw) => ServerNetWorth = nw;
 
     public double ReservedBuyCost
     {
@@ -200,6 +218,13 @@ public class GamePhaseManager : MonoBehaviour
         if (index < 0 || index >= localOrders.Count) return false;
         localOrders.RemoveAt(index);
         return true;
+    }
+
+    public void UpdateOrderQuantity(int index, int newQty)
+    {
+        if (index < 0 || index >= localOrders.Count) return;
+        if (newQty <= 0) { RemoveOrder(index); return; }
+        localOrders[index].quantity = newQty;
     }
 
     public void ClearLocalOrders() => localOrders.Clear();

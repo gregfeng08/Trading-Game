@@ -48,6 +48,9 @@ public class DailySummaryOverlay : MonoBehaviour
     private GameObject divider3;
     private TMP_Text alertsHeader;
     private TMP_Text alertsBody;
+    private GameObject dividerReview;
+    private TMP_Text reviewHeader;
+    private TMP_Text reviewBody;
     private TMP_Text continueText;
 
     private bool waitingForInput;
@@ -57,7 +60,7 @@ public class DailySummaryOverlay : MonoBehaviour
     private bool showInProgress;
     private Action onDismissed;
 
-    private ScrollRect scrollRect;
+    // scrollRect removed — using simple centered content like ArcTransitionOverlay
 
     // Captured data (snapshot before advance)
     private List<TradeResult> capturedResults;
@@ -221,6 +224,12 @@ public class DailySummaryOverlay : MonoBehaviour
         divider3.SetActive(alertsHeader.gameObject.activeSelf);
         alertsHeader.gameObject.SetActive(alertsHeader.text.Length > 0);
         alertsBody.gameObject.SetActive(alertsBody.text.Length > 0);
+        if (reviewHeader != null && reviewHeader.text.Length > 0)
+        {
+            dividerReview.SetActive(true);
+            reviewHeader.gameObject.SetActive(true);
+            reviewBody.gameObject.SetActive(true);
+        }
     }
 
     private IEnumerator SummarySequence()
@@ -229,7 +238,6 @@ public class DailySummaryOverlay : MonoBehaviour
         LockPlayer();
         HideAll();
         canvasGroup.blocksRaycasts = true;
-        if (scrollRect != null) scrollRect.verticalNormalizedPosition = 1f;
 
         yield return Fade(0f, 1f, fadeToBlackDuration);
 
@@ -237,6 +245,8 @@ public class DailySummaryOverlay : MonoBehaviour
         string date = GamePhaseManager.Inst?.CurrentDate ?? "---";
         SetText(sleepLabel, "END OF DAY", dimColor);
         SetText(dateHeader, FormatDate(date), headerColor);
+
+
 
         // Wait for data to arrive (with a timeout)
         float waitTime = 0f;
@@ -391,6 +401,46 @@ public class DailySummaryOverlay : MonoBehaviour
             }
         }
 
+        // To Review section
+        try
+        {
+            var reviewSb = new System.Text.StringBuilder();
+
+            if (KnowledgeGraphManager.Inst?.Nodes != null)
+            {
+                int pending = 0;
+                foreach (var n in KnowledgeGraphManager.Inst.Nodes)
+                {
+                    if (n.status == "unlocked")
+                        pending++;
+                }
+                if (pending > 0)
+                    reviewSb.AppendLine($"<color={ColorHex(new Color(0.9f, 0.75f, 0.2f))}>{pending} insight(s) available in the Knowledge Graph</color>");
+            }
+
+            if (capturedHoldings != null && capturedNetWorth > 0)
+            {
+                foreach (var h in capturedHoldings)
+                {
+                    double pct = h.market_value / capturedNetWorth * 100;
+                    if (pct > 50)
+                        reviewSb.AppendLine($"<color={ColorHex(new Color(0.9f, 0.6f, 0.2f))}>{h.ticker_id} is {pct:F0}% of your portfolio — consider diversifying</color>");
+                }
+            }
+
+            if (reviewSb.Length > 0)
+            {
+                dividerReview.SetActive(true);
+                SetText(reviewHeader, "TO REVIEW", dimColor);
+                SetText(reviewBody, reviewSb.ToString().TrimEnd(), bodyColor);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[DailySummary] Review section failed: {ex.Message}");
+        }
+        yield return Stagger();
+
         if (skipRequested) RevealAll();
 
         SetText(continueText, "Press any key to continue", dimColor);
@@ -461,6 +511,9 @@ public class DailySummaryOverlay : MonoBehaviour
         divider3.SetActive(false);
         alertsHeader.gameObject.SetActive(false);
         alertsBody.gameObject.SetActive(false);
+        if (dividerReview != null) dividerReview.SetActive(false);
+        if (reviewHeader != null) reviewHeader.gameObject.SetActive(false);
+        if (reviewBody != null) reviewBody.gameObject.SetActive(false);
         continueText.gameObject.SetActive(false);
     }
 
@@ -493,7 +546,7 @@ public class DailySummaryOverlay : MonoBehaviour
         canvasGO.transform.SetParent(transform);
         var canvas = canvasGO.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 99;
+        canvas.sortingOrder = 100;
 
         var scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -511,26 +564,11 @@ public class DailySummaryOverlay : MonoBehaviour
         Stretch(bgRect);
         bg.AddComponent<Image>().color = new Color(0f, 0f, 0f, 1f);
 
-        var scrollGO = new GameObject("Scroll");
-        scrollGO.transform.SetParent(bg.transform, false);
-        var scrollRT = scrollGO.AddComponent<RectTransform>();
-        Stretch(scrollRT);
-        scrollRT.offsetMin = new Vector2(0, 30);
-        scrollRT.offsetMax = new Vector2(0, -30);
-
-        var viewport = new GameObject("Viewport");
-        viewport.transform.SetParent(scrollGO.transform, false);
-        var viewportRT = viewport.AddComponent<RectTransform>();
-        Stretch(viewportRT);
-        viewport.AddComponent<Image>().color = Color.clear;
-        viewport.AddComponent<Mask>().showMaskGraphic = false;
-
         contentRoot = new GameObject("Content");
-        contentRoot.transform.SetParent(viewport.transform, false);
+        contentRoot.transform.SetParent(bg.transform, false);
         var contentRect = contentRoot.AddComponent<RectTransform>();
-        contentRect.anchorMin = new Vector2(0.5f, 1f);
-        contentRect.anchorMax = new Vector2(0.5f, 1f);
-        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.anchorMin = new Vector2(0.5f, 0.5f);
+        contentRect.anchorMax = new Vector2(0.5f, 0.5f);
         contentRect.sizeDelta = new Vector2(700, 0);
         contentRect.anchoredPosition = Vector2.zero;
 
@@ -545,14 +583,6 @@ public class DailySummaryOverlay : MonoBehaviour
 
         var csf = contentRoot.AddComponent<ContentSizeFitter>();
         csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        scrollRect = scrollGO.AddComponent<ScrollRect>();
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 30f;
-        scrollRect.viewport = viewportRT;
-        scrollRect.content = contentRect;
 
         sleepLabel   = MakeText("SleepLabel", 20, FontStyles.Bold, TextAlignmentOptions.Center);
         dateHeader   = MakeText("DateHeader", 32, FontStyles.Bold, TextAlignmentOptions.Center);
@@ -573,6 +603,9 @@ public class DailySummaryOverlay : MonoBehaviour
         divider3     = MakeDivider();
         alertsHeader = MakeText("AlertsHeader", 16, FontStyles.Bold, TextAlignmentOptions.Center);
         alertsBody   = MakeText("AlertsBody", 16, FontStyles.Normal, TextAlignmentOptions.Center);
+        dividerReview = MakeDivider();
+        reviewHeader = MakeText("ReviewHeader", 16, FontStyles.Bold, TextAlignmentOptions.Center);
+        reviewBody   = MakeText("ReviewBody", 16, FontStyles.Normal, TextAlignmentOptions.Center);
         MakeSpacer(20);
         continueText = MakeText("Continue", 14, FontStyles.Normal, TextAlignmentOptions.Center);
 

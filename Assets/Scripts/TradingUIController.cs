@@ -93,6 +93,10 @@ public class TradingUIController : MonoBehaviour
     private double cachedServerNetWorth;
     private double cachedServerCash;
     private double cachedServerHoldingsValue;
+
+    private bool confirmTradesPending;
+    private Coroutine confirmResetCoroutine;
+    private string savedAdvanceButtonText;
     private NetWorthPointDTO[] cachedPortfolioHistory;
     private string prevCloseCacheDate;
     private readonly Dictionary<string, double> prevCloseCache = new Dictionary<string, double>();
@@ -428,6 +432,23 @@ public class TradingUIController : MonoBehaviour
 
         string upper = string.IsNullOrEmpty(query) ? null : query.ToUpperInvariant();
         int count = 0;
+        int totalMatches = 0;
+
+        // Count total matches first
+        if (upper != null)
+        {
+            for (int i = 0; i < tickers.Length; i++)
+            {
+                var t = tickers[i];
+                bool match = (t.ticker_id != null && t.ticker_id.ToUpperInvariant().Contains(upper))
+                          || (t.company_name != null && t.company_name.ToUpperInvariant().Contains(upper));
+                if (match) totalMatches++;
+            }
+        }
+        else
+        {
+            totalMatches = tickers.Length;
+        }
 
         for (int i = 0; i < tickers.Length && count < searchResultLimit; i++)
         {
@@ -475,6 +496,25 @@ public class TradingUIController : MonoBehaviour
 
             searchResultItems.Add(itemGO);
             count++;
+        }
+
+        // Show truncation label if results were capped
+        if (totalMatches > searchResultLimit)
+        {
+            var countGO = new GameObject("ResultCount", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(UnityEngine.UI.LayoutElement));
+            countGO.transform.SetParent(searchResultsPanel.transform, false);
+            var cle = countGO.GetComponent<UnityEngine.UI.LayoutElement>();
+            cle.preferredHeight = 24;
+            var countText = countGO.AddComponent<TextMeshProUGUI>();
+            countText.font = sourceFont;
+            countText.fontSharedMaterial = sourceMat;
+            countText.fontSize = 12;
+            countText.alignment = TextAlignmentOptions.MidlineLeft;
+            countText.color = new Color(0.55f, 0.55f, 0.6f);
+            countText.text = $"  Showing {searchResultLimit} of {totalMatches} — keep typing to narrow";
+            countText.raycastTarget = false;
+            searchResultItems.Add(countGO);
         }
 
         searchResultsPanel.SetActive(count > 0);
@@ -921,6 +961,18 @@ public class TradingUIController : MonoBehaviour
     {
         if (GamePhaseManager.Inst == null) return;
 
+        bool isEndDay = GamePhaseManager.Inst.PendingOrders.Count == 0;
+        if (GameSettings.RequireDoubleConfirm && !confirmTradesPending)
+        {
+            confirmTradesPending = true;
+            savedAdvanceButtonText = advanceButtonText != null ? advanceButtonText.text : "";
+            SetAdvanceButtonText(isEndDay ? "Are you sure? Click again" : "Confirm? Click again");
+            if (confirmResetCoroutine != null) StopCoroutine(confirmResetCoroutine);
+            confirmResetCoroutine = StartCoroutine(ResetConfirmAfterDelay());
+            return;
+        }
+        ResetConfirmState();
+
         SetStatus("Confirming trades...");
         advanceDayButton.interactable = false;
 
@@ -955,6 +1007,17 @@ public class TradingUIController : MonoBehaviour
     {
         if (GamePhaseManager.Inst == null) return;
 
+        if (GameSettings.RequireDoubleConfirm && !confirmTradesPending)
+        {
+            confirmTradesPending = true;
+            savedAdvanceButtonText = advanceButtonText != null ? advanceButtonText.text : "";
+            SetAdvanceButtonText("Confirm? Click again");
+            if (confirmResetCoroutine != null) StopCoroutine(confirmResetCoroutine);
+            confirmResetCoroutine = StartCoroutine(ResetConfirmAfterDelay());
+            return;
+        }
+        ResetConfirmState();
+
         SetStatus("Confirming trades...");
         advanceDayButton.interactable = false;
 
@@ -987,6 +1050,27 @@ public class TradingUIController : MonoBehaviour
         SwitchTab(activeTab);
 
         Close();
+    }
+
+    private System.Collections.IEnumerator ResetConfirmAfterDelay()
+    {
+        yield return new UnityEngine.WaitForSeconds(3f);
+        ResetConfirmState();
+    }
+
+    private void ResetConfirmState()
+    {
+        confirmTradesPending = false;
+        if (confirmResetCoroutine != null)
+        {
+            StopCoroutine(confirmResetCoroutine);
+            confirmResetCoroutine = null;
+        }
+        if (savedAdvanceButtonText != null && advanceButtonText != null)
+        {
+            SetAdvanceButtonText(savedAdvanceButtonText);
+            savedAdvanceButtonText = null;
+        }
     }
 
     // ── Chart Tab Switching ──
@@ -1348,7 +1432,10 @@ public class TradingUIController : MonoBehaviour
             cachedServerHoldingsValue = resp.holdings_value;
 
             if (GamePhaseManager.Inst != null)
+            {
                 GamePhaseManager.Inst.SetServerCash(cash);
+                GamePhaseManager.Inst.SetServerNetWorth(resp.net_worth);
+            }
 
             RefreshCashDisplay();
 

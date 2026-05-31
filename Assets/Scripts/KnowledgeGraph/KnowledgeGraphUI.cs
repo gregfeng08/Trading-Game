@@ -61,6 +61,7 @@ public class KnowledgeGraphUI : MonoBehaviour
     private Dictionary<string, RectTransform> nodePositions = new();
     private Dictionary<string, KnowledgeNodeStateDTO> nodeLookup = new();
     private Dictionary<string, Image> nodeImages = new();
+    private Dictionary<string, Color> originalNodeColors = new();
     private Dictionary<string, HashSet<string>> neighbors = new();
     private List<(string fromId, string toId, GameObject edgeGO)> edgeRegistry = new();
 
@@ -187,9 +188,25 @@ public class KnowledgeGraphUI : MonoBehaviour
         else if (Input.GetKeyDown(KeyCode.DownArrow)) dir = Vector2.down;
         else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space))
         {
-            if (selectedNode != null && selectedNode.status == "unlocked")
-                OnCompleteLesson();
-            else if (focusedNodeId != null && nodeLookup.TryGetValue(focusedNodeId, out var node))
+            // If Casey dialogue is active, advance it
+            if (caseyDialogueBox != null && caseyDialogueBox.activeSelf)
+            {
+                HandleCaseyInput();
+                return;
+            }
+
+            // If detail panel is open, activate the visible button
+            if (selectedNode != null)
+            {
+                if (caseyTakeButton != null && caseyTakeButton.gameObject.activeSelf)
+                    OnCaseyTakeClicked();
+                else if (completeButton != null && completeButton.gameObject.activeSelf)
+                    OnCompleteLesson();
+                return;
+            }
+
+            // Otherwise, open detail for focused node
+            if (focusedNodeId != null && nodeLookup.TryGetValue(focusedNodeId, out var node))
             {
                 DismissDetail();
                 ShowDetail(node);
@@ -408,8 +425,27 @@ public class KnowledgeGraphUI : MonoBehaviour
                 btn.onClick.AddListener(() => OnNodeClicked(captured));
             }
 
+            // Hover effects
+            if (bg != null)
+            {
+                var capturedId = node.id;
+                var trigger = go.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+                var enterEntry = new UnityEngine.EventSystems.EventTrigger.Entry
+                    { eventID = UnityEngine.EventSystems.EventTriggerType.PointerEnter };
+                enterEntry.callback.AddListener((_) => OnNodeHoverEnter(capturedId));
+                trigger.triggers.Add(enterEntry);
+                var exitEntry = new UnityEngine.EventSystems.EventTrigger.Entry
+                    { eventID = UnityEngine.EventSystems.EventTriggerType.PointerExit };
+                exitEntry.callback.AddListener((_) => OnNodeHoverExit(capturedId));
+                trigger.triggers.Add(exitEntry);
+            }
+
             nodePositions[node.id] = rt;
-            if (bg != null) nodeImages[node.id] = bg;
+            if (bg != null)
+            {
+                nodeImages[node.id] = bg;
+                originalNodeColors[node.id] = bg.color;
+            }
             spawnedNodes.Add(go);
         }
 
@@ -1081,7 +1117,7 @@ public class KnowledgeGraphUI : MonoBehaviour
     {
         if (caseyDialogueBox == null || !caseyDialogueBox.activeSelf) return;
 
-        if (Input.GetKeyDown(KeyCode.E) || Input.GetMouseButtonDown(0))
+        if (Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
         {
             if (caseyIsTyping)
             {
@@ -1210,6 +1246,18 @@ public class KnowledgeGraphUI : MonoBehaviour
         return true;
     }
 
+    private void OnNodeHoverEnter(string nodeId)
+    {
+        if (nodeImages.TryGetValue(nodeId, out var img) && originalNodeColors.TryGetValue(nodeId, out var orig))
+            img.color = Color.Lerp(orig, Color.white, 0.2f);
+    }
+
+    private void OnNodeHoverExit(string nodeId)
+    {
+        if (nodeImages.TryGetValue(nodeId, out var img) && originalNodeColors.TryGetValue(nodeId, out var orig))
+            img.color = orig;
+    }
+
     private void ClearGraph()
     {
         foreach (var go in spawnedNodes) Destroy(go);
@@ -1220,6 +1268,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         nodePositions.Clear();
         nodeLookup.Clear();
         nodeImages.Clear();
+        originalNodeColors.Clear();
         neighbors.Clear();
         edgeRegistry.Clear();
     }

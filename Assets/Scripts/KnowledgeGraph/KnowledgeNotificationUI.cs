@@ -12,12 +12,14 @@ public class KnowledgeNotificationUI : MonoBehaviour
     private TMP_Text descriptionText;
     private Button learnMoreButton;
     private Button dismissButton;
-    private float autoDismissTime = 8f;
+    private float autoDismissTime = 12f;
+    private Image timerBar;
 
     private UnlockedNodeDTO currentNode;
     private UnlockedNodeDTO queuedNode;
     private float showTimer;
     private bool suppressGeneric;
+    private string queuedFeatureLabel;
 
     void Awake()
     {
@@ -41,6 +43,8 @@ public class KnowledgeNotificationUI : MonoBehaviour
         }
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.OnStateChanged += OnPlayerStateChanged;
+
+        ProgressionGates.OnFeatureUnlocked += OnFeatureUnlocked;
     }
 
     void OnDisable()
@@ -52,6 +56,8 @@ public class KnowledgeNotificationUI : MonoBehaviour
         }
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.OnStateChanged -= OnPlayerStateChanged;
+
+        ProgressionGates.OnFeatureUnlocked -= OnFeatureUnlocked;
     }
 
     void Update()
@@ -59,6 +65,8 @@ public class KnowledgeNotificationUI : MonoBehaviour
         if (notificationPanel == null || !notificationPanel.activeSelf) return;
 
         showTimer -= Time.deltaTime;
+        if (timerBar != null)
+            timerBar.fillAmount = Mathf.Clamp01(showTimer / autoDismissTime);
         if (showTimer <= 0f)
             Dismiss();
     }
@@ -101,7 +109,10 @@ public class KnowledgeNotificationUI : MonoBehaviour
         showTimer = autoDismissTime;
 
         if (titleText != null)
+        {
             titleText.text = $"New Insight: {node.title}";
+            titleText.color = new Color(0.9f, 0.75f, 0.2f, 1f);
+        }
         if (descriptionText != null)
         {
             string explanation = GetTriggerExplanation(node.node_id);
@@ -119,7 +130,10 @@ public class KnowledgeNotificationUI : MonoBehaviour
         showTimer = autoDismissTime;
 
         if (titleText != null)
+        {
             titleText.text = count == 1 ? "1 Insight Available" : $"{count} Insights Available";
+            titleText.color = new Color(0.9f, 0.75f, 0.2f, 1f);
+        }
         if (descriptionText != null)
             descriptionText.text = "Open the Knowledge Graph to review.";
 
@@ -151,6 +165,39 @@ public class KnowledgeNotificationUI : MonoBehaviour
         if (notificationPanel != null)
             notificationPanel.SetActive(false);
         currentNode = null;
+
+        if (queuedFeatureLabel != null)
+        {
+            var label = queuedFeatureLabel;
+            queuedFeatureLabel = null;
+            ShowFeatureUnlockDisplay(label);
+        }
+    }
+
+    private void OnFeatureUnlocked(string nodeId, string featureLabel)
+    {
+        if (notificationPanel != null && notificationPanel.activeSelf)
+        {
+            queuedFeatureLabel = featureLabel;
+            return;
+        }
+        ShowFeatureUnlockDisplay(featureLabel);
+    }
+
+    private void ShowFeatureUnlockDisplay(string featureLabel)
+    {
+        currentNode = null;
+        showTimer = autoDismissTime;
+
+        if (titleText != null)
+        {
+            titleText.text = "Feature Unlocked!";
+            titleText.color = new Color(0.83f, 0.63f, 1f, 1f);
+        }
+        if (descriptionText != null)
+            descriptionText.text = featureLabel;
+
+        notificationPanel.SetActive(true);
     }
 
     private void BuildUI()
@@ -226,6 +273,25 @@ public class KnowledgeNotificationUI : MonoBehaviour
         dismissButton = MakeButton("Dismiss", buttonRow.transform, "Dismiss",
             new Color(0.35f, 0.35f, 0.4f, 1f));
         dismissButton.onClick.AddListener(Dismiss);
+
+        // Countdown timer bar at bottom of panel
+        var barGO = new GameObject("TimerBar");
+        barGO.transform.SetParent(notificationPanel.transform, false);
+        var barRT = barGO.AddComponent<RectTransform>();
+        barRT.anchorMin = new Vector2(0f, 0f);
+        barRT.anchorMax = new Vector2(1f, 0f);
+        barRT.pivot = new Vector2(0f, 0f);
+        barRT.anchoredPosition = Vector2.zero;
+        barRT.sizeDelta = new Vector2(0f, 3f);
+        timerBar = barGO.AddComponent<Image>();
+        timerBar.color = new Color(0.9f, 0.75f, 0.2f, 0.5f);
+        timerBar.type = Image.Type.Filled;
+        timerBar.fillMethod = Image.FillMethod.Horizontal;
+        timerBar.fillAmount = 1f;
+        timerBar.raycastTarget = false;
+        // Exclude from layout so it overlays at the panel bottom edge
+        var barLE = barGO.AddComponent<LayoutElement>();
+        barLE.ignoreLayout = true;
 
         notificationPanel.SetActive(false);
     }

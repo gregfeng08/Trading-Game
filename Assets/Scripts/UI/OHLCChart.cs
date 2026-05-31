@@ -1,11 +1,12 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 using Game.API.DTO;
 using System.Collections.Generic;
 
 [RequireComponent(typeof(CanvasRenderer))]
-public class OHLCChart : MaskableGraphic
+public class OHLCChart : MaskableGraphic, IPointerMoveHandler, IPointerExitHandler
 {
     [Header("Candle Colors")]
     [SerializeField] private Color bullColor = new Color(0.15f, 0.75f, 0.35f);
@@ -315,5 +316,127 @@ public class OHLCChart : MaskableGraphic
         vh.AddVert(new Vector3(tr.x, bl.y), c, Vector2.right);
         vh.AddTriangle(idx, idx + 1, idx + 2);
         vh.AddTriangle(idx, idx + 2, idx + 3);
+    }
+
+    // ── Hover Tooltip ──
+
+    private GameObject tooltipGO;
+    private TMP_Text tooltipText;
+    private Image tooltipBg;
+    private Image crosshairLine;
+
+    public void OnPointerMove(PointerEventData eventData)
+    {
+        if (data == null || data.Length == 0) return;
+
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                rectTransform, eventData.position, eventData.pressEventCamera, out Vector2 localPoint))
+            return;
+
+        GetChartArea(out float cx0, out float cy0, out float cw, out float ch);
+        if (cw <= 0) return;
+
+        float slotW = cw / data.Length;
+        int index = Mathf.FloorToInt((localPoint.x - cx0) / slotW);
+        if (index < 0 || index >= data.Length)
+        {
+            HideTooltip();
+            return;
+        }
+
+        EnsureTooltip();
+
+        var c = data[index];
+        string date = FormatDate(c.date);
+        bool isFlat = c.open_price == c.high_price && c.open_price == c.low_price && c.open_price == c.close_price;
+        tooltipText.text = isFlat
+            ? $"{date}\n{FormatPrice((float)c.close_price)}"
+            : $"{date}\nO: {FormatPrice((float)c.open_price)}  H: {FormatPrice((float)c.high_price)}\nL: {FormatPrice((float)c.low_price)}  C: {FormatPrice((float)c.close_price)}";
+
+        // Vertical crosshair line at the candle center
+        float candleCenterX = cx0 + (index + 0.5f) * slotW;
+        var lineRT = crosshairLine.rectTransform;
+        lineRT.anchoredPosition = new Vector2(candleCenterX, cy0);
+        lineRT.sizeDelta = new Vector2(1f, ch);
+        crosshairLine.gameObject.SetActive(true);
+
+        // Position tooltip near mouse but clamped to chart
+        float tooltipW = tooltipText.preferredWidth + 16f;
+        float tooltipH = tooltipText.preferredHeight + 10f;
+        var bgRT = tooltipBg.rectTransform;
+        bgRT.sizeDelta = new Vector2(tooltipW, tooltipH);
+
+        float tx = localPoint.x + 15f;
+        float ty = localPoint.y + 15f;
+        Rect rect = GetPixelAdjustedRect();
+        tx = Mathf.Clamp(tx, rect.xMin, rect.xMax - tooltipW);
+        ty = Mathf.Clamp(ty, rect.yMin, rect.yMax - tooltipH);
+        bgRT.anchoredPosition = new Vector2(tx, ty);
+
+        tooltipGO.SetActive(true);
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        HideTooltip();
+    }
+
+    private void HideTooltip()
+    {
+        if (tooltipGO != null)
+            tooltipGO.SetActive(false);
+        if (crosshairLine != null)
+            crosshairLine.gameObject.SetActive(false);
+    }
+
+    private void EnsureTooltip()
+    {
+        if (tooltipGO != null) return;
+
+        // Vertical crosshair line (dashed via a semi-transparent thin image)
+        var lineGO = new GameObject("CrosshairLine");
+        lineGO.transform.SetParent(transform, false);
+        var clRT = lineGO.AddComponent<RectTransform>();
+        Vector2 pp = rectTransform.pivot;
+        clRT.anchorMin = pp;
+        clRT.anchorMax = pp;
+        clRT.pivot = new Vector2(0.5f, 0f);
+        crosshairLine = lineGO.AddComponent<Image>();
+        crosshairLine.color = new Color(1f, 1f, 1f, 0.3f);
+        crosshairLine.raycastTarget = false;
+        lineGO.SetActive(false);
+
+        tooltipGO = new GameObject("ChartTooltip");
+        tooltipGO.transform.SetParent(transform, false);
+
+        var rt = tooltipGO.AddComponent<RectTransform>();
+        // Use parent's pivot as anchor so localPoint coordinates align directly
+        Vector2 parentPivot = rectTransform.pivot;
+        rt.anchorMin = parentPivot;
+        rt.anchorMax = parentPivot;
+        rt.pivot = new Vector2(0f, 0f);
+
+        tooltipBg = tooltipGO.AddComponent<Image>();
+        tooltipBg.color = new Color(0.08f, 0.08f, 0.12f, 0.95f);
+        tooltipBg.raycastTarget = false;
+
+        var textGO = new GameObject("Text");
+        textGO.transform.SetParent(tooltipGO.transform, false);
+        var textRT = textGO.AddComponent<RectTransform>();
+        textRT.anchorMin = Vector2.zero;
+        textRT.anchorMax = Vector2.one;
+        textRT.offsetMin = new Vector2(8, 5);
+        textRT.offsetMax = new Vector2(-8, -5);
+
+        tooltipText = textGO.AddComponent<TextMeshProUGUI>();
+        tooltipText.fontSize = 12f;
+        tooltipText.color = new Color(0.9f, 0.9f, 0.95f);
+        tooltipText.alignment = TextAlignmentOptions.TopLeft;
+        tooltipText.enableWordWrapping = false;
+        tooltipText.overflowMode = TextOverflowModes.Overflow;
+        tooltipText.raycastTarget = false;
+        if (labelFont != null) tooltipText.font = labelFont;
+
+        tooltipGO.SetActive(false);
     }
 }

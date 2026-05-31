@@ -12,12 +12,18 @@ public class OnboardingController : MonoBehaviour
     private static readonly DialogueLine[] CaseyIntro =
     {
         new("Casey", "Hey! New hire, right? Don't worry, everyone has that look their first day."),
-        new("Casey", "I'm Casey. I'll be showing you the ropes."),
-        new("Casey", "We work in phases here. Pre-market is when you plan. Market hours are when things move. Post-market is when you see how you did. Then you rest. Simple rhythm."),
-        new("Casey", "See your progression map? As you trade and learn, new concepts unlock. Some you study yourself. Others... find you, when you're ready."),
-        new("Casey", "Don't overthink your first trade. It's never your best. That's the point."),
-        new("Casey", "Alright, settle in. Get some rest — big day tomorrow."),
+        new("Casey", "I'm Casey. I'll be showing you the ropes around Hindsight Financial."),
+        new("Casey", "We work in phases here. Pre-market is when you plan your trades. Market hours are when prices move. Post-market is when you see how you did. Then you rest. Simple rhythm."),
+        new("Casey", "Let me walk you through the basics before you jump in."),
+        new("Casey", "A company is a business — real people making real things. When a company goes public, it sells small pieces of ownership called stocks."),
+        new("Casey", "When you buy a stock, you own a tiny piece of that company. If the company does well, your piece becomes worth more. If it struggles, it's worth less."),
+        new("Casey", "Trading is simple in theory — you buy when you think a stock will go up, and sell when you want to lock in gains or cut losses. The hard part is knowing when."),
+        new("Casey", "Your Knowledge Graph tracks what you learn here. New concepts unlock as you trade. Some you study yourself. Others... find you, when you're ready."),
+        new("Casey", "Don't overthink your first trade. It's never your best one. That's the point."),
+        new("Casey", "Alright, settle in. Your terminal and Knowledge Graph are in your room. Get some rest — big day tomorrow."),
     };
+
+    private static readonly string[] foundationalNodes = { "what_is_a_company", "what_is_a_stock", "market_buy_sell" };
 
     private SpeechBubble activeBubble;
 
@@ -31,10 +37,49 @@ public class OnboardingController : MonoBehaviour
     void OnEnable() => SceneManager.sceneLoaded += OnSceneLoaded;
     void OnDisable() => SceneManager.sceneLoaded -= OnSceneLoaded;
 
+    private bool onboardingCompleted;
+
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        if (scene.name != "Onboarding") return;
-        StartCoroutine(RunOnboarding());
+        if (scene.name == "Onboarding")
+        {
+            StartCoroutine(RunOnboarding());
+            return;
+        }
+
+        if (scene.name == "Room" && !onboardingCompleted)
+        {
+            onboardingCompleted = true;
+            _ = CompleteFoundationalNodes();
+        }
+    }
+
+    private async System.Threading.Tasks.Task CompleteFoundationalNodes()
+    {
+        // Wait for KnowledgeGraphManager to initialize
+        float timeout = 5f;
+        while (KnowledgeGraphManager.Inst == null && timeout > 0f)
+        {
+            await System.Threading.Tasks.Task.Delay(100);
+            timeout -= 0.1f;
+        }
+        if (KnowledgeGraphManager.Inst == null) return;
+
+        if (!KnowledgeGraphManager.Inst.IsInitialized)
+        {
+            timeout = 5f;
+            while (!KnowledgeGraphManager.Inst.IsInitialized && timeout > 0f)
+            {
+                await System.Threading.Tasks.Task.Delay(100);
+                timeout -= 0.1f;
+            }
+        }
+
+        foreach (var nodeId in foundationalNodes)
+        {
+            if (!KnowledgeGraphManager.Inst.IsNodeCompleted(nodeId))
+                await KnowledgeGraphManager.Inst.CompleteNodeAsync(nodeId);
+        }
     }
 
     private IEnumerator RunOnboarding()
