@@ -40,63 +40,49 @@ public class NewspaperService
         date ??= _gameState.GetSaveValue(conn, "current_date")
             ?? throw new InvalidOperationException("No active game. Call /new_game first.");
 
-        var cached = GetCachedNewspaper(conn, date);
-        if (cached is not null)
-        {
-            if (entityId.HasValue)
-                cached = cached with { PlayerSidebar = BuildPlayerSidebar(entityId.Value, date) };
-            return cached;
-        }
-
         if (string.IsNullOrEmpty(_apiKey))
             throw new InvalidOperationException("ANTHROPIC_API_KEY environment variable is not set.");
 
-        var context = BuildContext(conn, date);
-        var newspaper = await GenerateNewspaper(date, context);
+        PlayerContext? playerCtx = null;
+        if (entityId.HasValue)
+            playerCtx = _playerContext.BuildContext(entityId.Value, date, "pre_market");
 
-        CacheNewspaper(conn, date, newspaper);
+        var context = BuildContext(conn, date);
+        var newspaper = await GenerateNewspaper(date, context, playerCtx);
 
         if (entityId.HasValue)
-            newspaper = newspaper with { PlayerSidebar = BuildPlayerSidebar(entityId.Value, date) };
+            newspaper = newspaper with { PlayerSidebar = BuildPlayerSidebar(playerCtx!) };
 
         return newspaper;
     }
 
-    private PlayerNewsSidebarDto? BuildPlayerSidebar(int entityId, string date)
+    private PlayerNewsSidebarDto? BuildPlayerSidebar(PlayerContext ctx)
     {
-        try
-        {
-            var ctx = _playerContext.BuildContext(entityId, date, "pre_market");
-            if (ctx.Portfolio.Holdings.Count == 0)
-                return null;
-
-            var mentions = new List<string>();
-            var heldTickers = ctx.Portfolio.Holdings.ToDictionary(h => h.TickerId);
-
-            foreach (var gainer in ctx.Market.TopGainers)
-            {
-                if (heldTickers.TryGetValue(gainer.TickerId, out var holding))
-                    mentions.Add($"Your holding {gainer.TickerId} rose {gainer.ChangePct:+0.0}% today (you hold {holding.SharesHeld:F0} shares)");
-            }
-            foreach (var loser in ctx.Market.TopLosers)
-            {
-                if (heldTickers.TryGetValue(loser.TickerId, out var holding))
-                    mentions.Add($"Your holding {loser.TickerId} fell {loser.ChangePct:0.0}% today (you hold {holding.SharesHeld:F0} shares)");
-            }
-
-            string? impact = null;
-            if (ctx.Arc.ProjectedReturnPct.HasValue)
-                impact = $"Your portfolio is {(ctx.Arc.ProjectedReturnPct >= 0 ? "up" : "down")} {Math.Abs(ctx.Arc.ProjectedReturnPct.Value):F1}% this arc (projected grade: {ctx.Arc.ProjectedGrade ?? "?"})";
-
-            if (mentions.Count == 0 && impact is null)
-                return null;
-
-            return new PlayerNewsSidebarDto(mentions, impact);
-        }
-        catch
-        {
+        if (ctx.Portfolio.Holdings.Count == 0)
             return null;
+
+        var mentions = new List<string>();
+        var heldTickers = ctx.Portfolio.Holdings.ToDictionary(h => h.TickerId);
+
+        foreach (var gainer in ctx.Market.TopGainers)
+        {
+            if (heldTickers.TryGetValue(gainer.TickerId, out var holding))
+                mentions.Add($"Your holding {gainer.TickerId} rose {gainer.ChangePct:+0.0}% today (you hold {holding.SharesHeld:F0} shares)");
         }
+        foreach (var loser in ctx.Market.TopLosers)
+        {
+            if (heldTickers.TryGetValue(loser.TickerId, out var holding))
+                mentions.Add($"Your holding {loser.TickerId} fell {loser.ChangePct:0.0}% today (you hold {holding.SharesHeld:F0} shares)");
+        }
+
+        string? impact = null;
+        if (ctx.Arc.ProjectedReturnPct.HasValue)
+            impact = $"Your portfolio is {(ctx.Arc.ProjectedReturnPct >= 0 ? "up" : "down")} {Math.Abs(ctx.Arc.ProjectedReturnPct.Value):F1}% this arc (projected grade: {ctx.Arc.ProjectedGrade ?? "?"})";
+
+        if (mentions.Count == 0 && impact is null)
+            return null;
+
+        return new PlayerNewsSidebarDto(mentions, impact);
     }
 
     private NewspaperContext BuildContext(SqliteConnection conn, string date)
@@ -162,7 +148,7 @@ public class NewspaperService
         return result is not null and not DBNull ? (string)result : null;
     }
 
-    private async Task<NewspaperResponse> GenerateNewspaper(string date, NewspaperContext ctx)
+    private async Task<NewspaperResponse> GenerateNewspaper(string date, NewspaperContext ctx, PlayerContext? playerCtx = null)
     {
         var dateDisplay = ctx.GameDate.ToString("dddd, MMMM d, yyyy");
 
@@ -178,7 +164,7 @@ public class NewspaperService
 
         var systemPrompt = """
             You are a newspaper editor for a fictional daily financial newspaper called "The Market Tribune".
-            You write in the style of early 2010s financial journalism — authoritative, slightly formal, with
+            You write in the style of mid-2000s financial journalism — authoritative, slightly formal, with
             a sense of gravity about market events. Your newspaper serves retail investors who want to
             understand what's happening in the markets and the world.
 
@@ -243,6 +229,19 @@ public class NewspaperService
             userPrompt.AppendLine();
         }
 
+        if (playerCtx is not null && playerCtx.Portfolio.Holdings.Count > 0)
+        {
+            userPrompt.AppendLine("The reader's current portfolio (for subtle editorial emphasis — do NOT address the reader directly or mention \"your portfolio\", but naturally give slightly more coverage to sectors and tickers the reader holds):");
+            foreach (var h in playerCtx.Portfolio.Holdings)
+            {
+                var weight = playerCtx.Portfolio.TotalHoldingsValue > 0
+                    ? h.MarketValue / playerCtx.Portfolio.TotalHoldingsValue * 100 : 0;
+                userPrompt.AppendLine($"- {h.TickerId}: {weight:F0}% of portfolio, {h.UnrealizedPnlPct:+0.0;-0.0}% unrealized");
+            }
+            userPrompt.AppendLine($"- Cash: {playerCtx.Portfolio.CashRatioPct:F0}% of net worth");
+            userPrompt.AppendLine();
+        }
+
         userPrompt.AppendLine("Generate today's edition of The Market Tribune.");
 
         var requestBody = new
@@ -303,45 +302,6 @@ public class NewspaperService
         }
 
         return new NewspaperResponse("ok", date, dateDisplay, headline, articles, marketRecap, false);
-    }
-
-    private NewspaperResponse? GetCachedNewspaper(SqliteConnection conn, string date)
-    {
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT headline, articles_json, market_recap FROM newspaper WHERE date = @d;";
-        cmd.Parameters.AddWithValue("@d", date);
-
-        using var reader = cmd.ExecuteReader();
-        if (!reader.Read()) return null;
-
-        var headline = reader.GetString(0);
-        var articlesJson = reader.GetString(1);
-        var marketRecap = reader.GetString(2);
-
-        var articles = JsonSerializer.Deserialize<List<NewspaperArticleDto>>(articlesJson) ?? [];
-        var gameDate = DateOnly.ParseExact(date, "yyyy-MM-dd");
-        var dateDisplay = gameDate.ToString("dddd, MMMM d, yyyy");
-
-        return new NewspaperResponse("ok", date, dateDisplay, headline, articles, marketRecap, true);
-    }
-
-    private void CacheNewspaper(SqliteConnection conn, string date, NewspaperResponse paper)
-    {
-        var articlesJson = JsonSerializer.Serialize(paper.Articles);
-
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO newspaper (date, headline, articles_json, market_recap, generated_at)
-            VALUES (@d, @h, @a, @m, @g)
-            ON CONFLICT(date) DO UPDATE SET headline=excluded.headline, articles_json=excluded.articles_json,
-                market_recap=excluded.market_recap, generated_at=excluded.generated_at;
-            """;
-        cmd.Parameters.AddWithValue("@d", date);
-        cmd.Parameters.AddWithValue("@h", paper.Headline);
-        cmd.Parameters.AddWithValue("@a", articlesJson);
-        cmd.Parameters.AddWithValue("@m", paper.MarketRecap);
-        cmd.Parameters.AddWithValue("@g", DateTime.UtcNow.ToString("o"));
-        cmd.ExecuteNonQuery();
     }
 
     public List<MoverDto> GetTopMoversForDate(string date)
