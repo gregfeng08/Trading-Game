@@ -314,6 +314,16 @@ POST-DEMO TODO (Designed, Not Yet Implemented)
 - Refactoring: TradingUIController (1400 LOC) → split into TickerSearch,
   TradingChart, TradingView controllers.
 
+KNOWN IMMERSION ISSUES (Low Priority)
+- Ticker symbols use modern names (e.g., GOOGL instead of 2007-era GOOG).
+  Prices are historically correct (Yahoo Finance returns split-adjusted OHLC
+  under current tickers), but display names break period immersion. Fix: a
+  small ticker_display_overrides.json mapping modern tickers to their 2007-era
+  symbols. ~5-10 entries for the 50-symbol universe. Company descriptions
+  from Yahoo also reflect modern state, not 2007. Tickers that didn't exist
+  yet (META IPO 2012, TSLA IPO 2010) should have no OHLC data for 2007-2009
+  and are likely already filtered out by load_tickers.
+
 POST-DEFENSE (Future Work)
 - Classroom deployment: Teacher dashboard showing which students unlocked which
   nodes, aggregate portfolio performance, common mistakes

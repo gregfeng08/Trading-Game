@@ -326,6 +326,8 @@ ABSTRACT
 - Triggers are currently failure-biased; dual-path (positive/negative/time)
   triggers designed but not implemented.
 - No skip-week or adaptive pacing; each day requires full play-through.
+- Ticker symbols use modern names (GOOGL not GOOG); prices are correct but
+  display names break period immersion. Fixable via a small override table.
 - Future classroom dashboard, multi-student deployment, learning outcome
   measurement, procedural historical arcs.
 
