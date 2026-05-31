@@ -51,6 +51,8 @@ public class DailySummaryOverlay : MonoBehaviour
     private TMP_Text continueText;
 
     private bool waitingForInput;
+    private bool skipRequested;
+    private float showStartTime;
     private Coroutine activeSequence;
     private bool showInProgress;
     private Action onDismissed;
@@ -78,6 +80,9 @@ public class DailySummaryOverlay : MonoBehaviour
     {
         if (waitingForInput && Input.anyKeyDown)
             waitingForInput = false;
+        else if (!waitingForInput && showInProgress && Input.anyKeyDown
+                 && Time.time - showStartTime > fadeToBlackDuration + 0.5f)
+            skipRequested = true;
     }
 
     public bool IsActive => showInProgress || (overlayCanvas != null && overlayCanvas.activeSelf);
@@ -86,23 +91,29 @@ public class DailySummaryOverlay : MonoBehaviour
     {
         if (showInProgress || activeSequence != null) return;
         showInProgress = true;
+        skipRequested = false;
+        showStartTime = Time.time;
 
         onDismissed = onComplete;
 
-        // Snapshot today's data before it gets cleared
         var gpm = GamePhaseManager.Inst;
         capturedResults = gpm != null ? new List<TradeResult>(gpm.TodayResults) : new();
         capturedLiquidations = gpm?.LastForcedLiquidations;
 
         string date = gpm?.CurrentDate;
         if (!string.IsNullOrEmpty(date))
-            _ = FetchMoversAndStart(date);
+            _ = FetchDataAsync(date);
         else
-            activeSequence = StartCoroutine(SummarySequence());
+            dataFetched = true;
+
+        activeSequence = StartCoroutine(SummarySequence());
     }
 
-    private async Task FetchMoversAndStart(string date)
+    private bool dataFetched;
+
+    private async Task FetchDataAsync(string date)
     {
+        dataFetched = false;
         try
         {
             capturedMovers = await MarketAPI.GetMarketMovers(date);
@@ -166,7 +177,50 @@ public class DailySummaryOverlay : MonoBehaviour
             capturedHoldings = null;
         }
 
-        activeSequence = StartCoroutine(SummarySequence());
+        dataFetched = true;
+    }
+
+    private IEnumerator Stagger()
+    {
+        if (skipRequested) yield break;
+        float t = 0f;
+        while (t < staggerDelay && !skipRequested)
+        {
+            t += Time.deltaTime;
+            yield return null;
+        }
+    }
+
+    private void RevealAll()
+    {
+        if (capturedResults != null && capturedResults.Count > 0)
+        {
+            divider1.SetActive(true);
+            tradesHeader.gameObject.SetActive(true);
+            tradesBody.gameObject.SetActive(true);
+            pnlText.gameObject.SetActive(true);
+        }
+        if (capturedHoldings != null && capturedHoldings.Length > 0)
+        {
+            dividerPositions.SetActive(true);
+            positionsHeader.gameObject.SetActive(true);
+            positionsBody.gameObject.SetActive(true);
+        }
+        if (capturedMovers != null)
+        {
+            divider2.SetActive(true);
+            moversHeader.gameObject.SetActive(true);
+            moversBody.gameObject.SetActive(true);
+        }
+        if (capturedNetWorth > 0)
+        {
+            dividerPortfolio.SetActive(true);
+            portfolioHeader.gameObject.SetActive(true);
+            portfolioBody.gameObject.SetActive(true);
+        }
+        divider3.SetActive(alertsHeader.gameObject.activeSelf);
+        alertsHeader.gameObject.SetActive(alertsHeader.text.Length > 0);
+        alertsBody.gameObject.SetActive(alertsBody.text.Length > 0);
     }
 
     private IEnumerator SummarySequence()
@@ -177,16 +231,22 @@ public class DailySummaryOverlay : MonoBehaviour
         canvasGroup.blocksRaycasts = true;
         if (scrollRect != null) scrollRect.verticalNormalizedPosition = 1f;
 
-        // Fade to black
         yield return Fade(0f, 1f, fadeToBlackDuration);
 
-        yield return new WaitForSeconds(pauseBeforeText);
-
-        // Date header
+        // Show header immediately
         string date = GamePhaseManager.Inst?.CurrentDate ?? "---";
         SetText(sleepLabel, "END OF DAY", dimColor);
         SetText(dateHeader, FormatDate(date), headerColor);
-        yield return new WaitForSeconds(staggerDelay);
+
+        // Wait for data to arrive (with a timeout)
+        float waitTime = 0f;
+        while (!dataFetched && waitTime < 5f)
+        {
+            waitTime += Time.deltaTime;
+            yield return null;
+        }
+
+        yield return Stagger();
 
         // Trades section
         if (capturedResults != null && capturedResults.Count > 0)
@@ -216,12 +276,12 @@ public class DailySummaryOverlay : MonoBehaviour
             }
 
             SetText(tradesBody, sb.ToString().TrimEnd(), bodyColor);
-            yield return new WaitForSeconds(staggerDelay);
+            yield return Stagger();
 
             string totalColor = totalPnl >= 0 ? ColorHex(gainColor) : ColorHex(lossColor);
             string totalSign = totalPnl >= 0 ? "+" : "";
             SetText(pnlText, $"Day P&L:  <color={totalColor}>{totalSign}${TradingUIController.FmtPrice(totalPnl)}</color>", bodyColor);
-            yield return new WaitForSeconds(staggerDelay);
+            yield return Stagger();
         }
 
         // Positions section
@@ -254,7 +314,7 @@ public class DailySummaryOverlay : MonoBehaviour
             sb.AppendLine($"\nPositions P&L:  <color={ptColor}>{ptSign}${TradingUIController.FmtPrice(totalPosPnl)}</color>");
 
             SetText(positionsBody, sb.ToString().TrimEnd(), bodyColor);
-            yield return new WaitForSeconds(staggerDelay);
+            yield return Stagger();
         }
 
         // Market movers
@@ -283,7 +343,7 @@ public class DailySummaryOverlay : MonoBehaviour
                 }
 
                 SetText(moversBody, sb.ToString().TrimEnd(), bodyColor);
-                yield return new WaitForSeconds(staggerDelay);
+                yield return Stagger();
             }
         }
 
@@ -303,7 +363,7 @@ public class DailySummaryOverlay : MonoBehaviour
             sb.Append($"Daily Change:  <color={changeColor}>{sign}${TradingUIController.FmtPrice(change)}  ({sign}{changePct:F1}%)</color>");
 
             SetText(portfolioBody, sb.ToString(), bodyColor);
-            yield return new WaitForSeconds(staggerDelay);
+            yield return Stagger();
         }
 
         // Alerts (delistings, forced liquidations)
@@ -327,12 +387,14 @@ public class DailySummaryOverlay : MonoBehaviour
                 divider3.SetActive(true);
                 SetText(alertsHeader, "ALERTS", dimColor);
                 SetText(alertsBody, sb.ToString().TrimEnd(), bodyColor);
-                yield return new WaitForSeconds(staggerDelay);
+                yield return Stagger();
             }
         }
 
-        // Continue prompt
+        if (skipRequested) RevealAll();
+
         SetText(continueText, "Press any key to continue", dimColor);
+        skipRequested = false;
         waitingForInput = true;
         yield return new WaitUntil(() => !waitingForInput);
 

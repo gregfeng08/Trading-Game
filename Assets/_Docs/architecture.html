@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hindsight Financial — System Architecture</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --pink: #f778ba;
+    --teal: #39d7b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 2.2rem; margin-bottom: 0.3rem; color: var(--accent); }
+  h2 { font-size: 1.5rem; margin: 3.5rem 0 1rem; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { font-size: 1.15rem; margin: 2rem 0 0.7rem; color: var(--accent); }
+  h4 { font-size: 1rem; margin: 1.2rem 0 0.4rem; color: var(--text); }
+  p { color: var(--muted); margin-bottom: 0.9rem; font-size: 0.95rem; }
+  .lead { font-size: 1.05rem; color: var(--text); margin-bottom: 1.2rem; }
+  .subtitle { color: var(--muted); margin-bottom: 2.5rem; font-size: 1rem; }
+  strong { color: var(--text); }
+  em { color: var(--accent); font-style: normal; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1rem 0; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+  }
+  .card h4 { color: var(--text); margin: 0 0 0.5rem 0; font-size: 0.95rem; }
+  .card p { font-size: 0.88rem; margin-bottom: 0.4rem; }
+  .card.accent-blue { border-left: 3px solid var(--accent); }
+  .card.accent-green { border-left: 3px solid var(--green); }
+  .card.accent-orange { border-left: 3px solid var(--orange); }
+  .card.accent-purple { border-left: 3px solid var(--purple); }
+  .card.accent-red { border-left: 3px solid var(--red); }
+  .card.accent-teal { border-left: 3px solid var(--teal); }
+
+  .vis-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1.5rem 0;
+    overflow: hidden;
+  }
+  .vis-container svg { display: block; margin: 0 auto; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.85rem; }
+  th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--text); font-weight: 600; background: var(--surface); }
+  td { color: var(--muted); }
+  td code, p code { color: var(--accent); background: rgba(88,166,255,0.1); padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.82rem; font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+  .tag { display: inline-block; font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 10px; font-weight: 600; text-transform: uppercase; margin-right: 0.2rem; }
+  .tag-get { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag-post { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag-delete { background: rgba(248,81,73,0.15); color: var(--red); }
+
+  ul, ol { padding-left: 1.4rem; margin: 0.5rem 0 1rem; }
+  li { margin: 0.35rem 0; font-size: 0.92rem; color: var(--muted); }
+
+  .legend { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 0.5rem 0; font-size: 0.8rem; }
+  .legend-item { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .d3-tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.8rem;
+    color: var(--text);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 300px;
+    z-index: 100;
+    line-height: 1.4;
+  }
+  .d3-tooltip.visible { opacity: 1; }
+
+  .callout {
+    background: rgba(88,166,255,0.05);
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout p { margin-bottom: 0.4rem; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .nav { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 2.5rem; position: sticky; top: 0; background: var(--bg); padding: 0.8rem 0; z-index: 50; border-bottom: 1px solid var(--border); }
+  .nav a { color: var(--accent); text-decoration: none; font-size: 0.82rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 4px; }
+  .nav a:hover { background: rgba(88,166,255,0.1); }
+
+  .sequence { counter-reset: seq; margin: 1rem 0; }
+  .sequence .step { counter-increment: seq; padding: 0.6rem 0 0.6rem 2.5rem; position: relative; border-left: 2px solid var(--border); margin-left: 0.8rem; }
+  .sequence .step::before { content: counter(seq); position: absolute; left: -12px; top: 0.55rem; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); color: var(--accent); font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .sequence .step p { margin-bottom: 0.3rem; }
+  .sequence .step:last-child { border-left: 2px solid transparent; }
+</style>
+</head>
+<body>
+
+<h1>Hindsight Financial</h1>
+<p class="subtitle">System Architecture & Technical Reference — 2026-05-31</p>
+
+<nav class="nav">
+  <a href="#overview">Overview</a>
+  <a href="#data-flow">Data Flow</a>
+  <a href="#services">Services</a>
+  <a href="#context">PlayerContext</a>
+  <a href="#dialogue">Dialogue</a>
+  <a href="#knowledge">Knowledge Graph</a>
+  <a href="#game-loop">Game Loop</a>
+  <a href="#endpoints">Endpoints</a>
+  <a href="#changes">Today's Changes</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="overview">System Overview</h2>
+
+<p class="lead">Hindsight Financial is a client-server educational trading game. A Unity 6 client handles rendering, input, and local UI state. A .NET 10 backend owns all game logic, market data, and LLM orchestration. They communicate over HTTP on localhost:5000.</p>
+
+<p>The architecture is <strong>server-authoritative</strong>: the client never computes prices, executes trades, or evaluates knowledge triggers. It sends intents ("queue a buy of 10 AAPL") and receives results. This matters for two reasons: (1) academic integrity in a classroom deployment — students can't cheat by modifying the client, and (2) the adaptive systems (knowledge graph, LLM content) need access to the full game state, which lives in a SQLite database the server owns.</p>
+
+<p>Three external dependencies exist: <strong>Yahoo Finance</strong> (historical OHLC data for 250 symbols, downloaded once at DB init), <strong>Claude API</strong> (Anthropic, for generating newspapers, NPC dialogue, and personalized educational content), and <strong>Puppeteer</strong> (headless Chrome, renders newspaper HTML to PNG for in-game display).</p>
+
+<div class="vis-container" id="high-level-vis"></div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Unity Client</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> .NET Backend</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div> External (Claude API)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Storage / Data</div>
+</div>
+
+<h3>Why This Split?</h3>
+
+<p>The alternative was a monolithic Unity build with embedded SQLite — simpler to deploy but architecturally dead-end. The REST API means:</p>
+<ul>
+  <li>A future web client (React, etc.) hits the same endpoints with zero backend changes</li>
+  <li>A teacher dashboard is just another API consumer</li>
+  <li>LLM orchestration happens server-side where you have full DB access, not in the Unity process where you'd need to serialize everything across the managed/native boundary</li>
+  <li>The knowledge graph evaluation can access all entity state in a single transaction — no round-trips to the client</li>
+</ul>
+
+<p>The tradeoff: startup complexity. The Unity client runs an <code>APIBootstrapper</code> sequence on scene load (launch backend process → ping → init DB → load tickers → register entity → init knowledge graph → sync game state). In Editor mode, the backend runs separately; in builds, <code>BackendProcessLauncher</code> spawns the .exe as a child process.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="data-flow">End-to-End Data Flow</h2>
+
+<p class="lead">Understanding how a single game day flows through the system clarifies how all the pieces connect. Here's the full lifecycle of one day, from the player waking up to sleeping.</p>
+
+<div class="sequence">
+  <div class="step">
+    <p><strong>AdvanceDay completes → PRE-MARKET begins</strong></p>
+    <p>Backend sets <code>game_phase = pre_market</code> in <code>save_state</code>. Returns the new date and today's open prices. Unity's <code>GamePhaseManager</code> fires <code>OnPhaseChanged</code>, which triggers <code>NPCBark.RefreshDialogue(date)</code> — this kicks off the dialogue generation pipeline (POST then GET to /dialogue endpoints).</p>
+  </div>
+  <div class="step">
+    <p><strong>Player queues orders</strong></p>
+    <p>Orders are queued locally in <code>GamePhaseManager.LocalPendingOrder[]</code> then batch-sent via POST <code>/queue_order</code>. Backend validates and stores in <code>pending_orders</code> table. When player confirms, POST <code>/open_markets</code> executes all pending orders at today's open price. Backend updates <code>portfolio</code> (FIFO lot tracking), <code>trade_history</code>, <code>entity.available_cash</code>, and <strong>invalidates the PlayerContext cache</strong>.</p>
+  </div>
+  <div class="step">
+    <p><strong>DAY phase — timer countdown</strong></p>
+    <p>Client-side timer runs. Player explores the city, walks near NPCs (proximity triggers barks from the pre-fetched dialogue pool), can open the knowledge graph terminal, read the newspaper. No server calls unless explicitly triggered (e.g., viewing newspaper calls GET <code>/newspaper</code> which may trigger Claude generation + Puppeteer render if not cached).</p>
+  </div>
+  <div class="step">
+    <p><strong>Timer expires → POST-MARKET</strong></p>
+    <p>Same order flow as pre-market, but POST <code>/close_markets</code> executes at today's close price. <code>DailySummaryOverlay</code> shows P&L, movers, portfolio state. After trade execution, backend checks knowledge graph triggers.</p>
+  </div>
+  <div class="step">
+    <p><strong>Knowledge trigger evaluation</strong></p>
+    <p>Client calls GET <code>/knowledge_graph/check_triggers</code>. Backend's <code>KnowledgeGraphService.EvaluateTriggers(entityId, date)</code> runs all 13 evaluators against current state. Any that pass: node status updated to "unlocked" in <code>knowledge_node_progress</code>. If <code>DynamicNodeContentService</code> is available, it generates a personalized explanation via Claude using <code>PlayerContextService.BuildContext()</code>. Results returned to client → UI notification.</p>
+  </div>
+  <div class="step">
+    <p><strong>Player sleeps → AdvanceDay</strong></p>
+    <p>POST <code>/advance_day</code> increments the date in <code>save_state</code>, checks for arc boundary crossings (if date > arc.EndDate → trigger arc advance, grade calculation, cash multiplier). Returns new date. <code>PlayerContextService</code> cache invalidated. Cycle repeats.</p>
+  </div>
+</div>
+
+<div class="callout">
+  <p><strong>Key insight:</strong> The PlayerContextService cache is invalidated after trades and day advances — the two moments when player state materially changes. Between those moments, all three LLM services (dialogue, newspaper, node content) read from the same cached snapshot. This prevents N+1 queries: generating 4 NPC dialogues doesn't mean 4 separate portfolio lookups.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="services">Service Architecture</h2>
+
+<p class="lead">The backend is structured as a set of singleton services registered via .NET DI in Program.cs. There's no repository pattern or ORM — services talk directly to SQLite via raw SQL (Microsoft.Data.Sqlite). This is intentional: the queries are game-specific enough that an abstraction layer would just add indirection without reducing complexity.</p>
+
+<div class="vis-container" id="service-graph" style="min-height:520px;"></div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Central Hub (PlayerContextService)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div> LLM-Powered (Claude API consumers)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Core Game Logic</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Data / Domain Services</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Infrastructure</div>
+</div>
+
+<p><em>Interactive:</em> drag nodes to rearrange. Hover for descriptions.</p>
+
+<h3>Service Responsibilities</h3>
+
+<div class="grid-2">
+  <div class="card accent-teal">
+    <h4>PlayerContextService</h4>
+    <p>The connective tissue. Assembles a canonical <code>PlayerContext</code> record from 6 sub-snapshots (portfolio, concentration, knowledge, trades, arc, market). Cached per <code>(entityId, date)</code> in a ConcurrentDictionary. Every LLM service consumes this instead of running its own state queries.</p>
+    <p>This is the architectural answer to "how do three independent LLM services all reference the same player state without duplicating SQL and risking inconsistency?"</p>
+  </div>
+  <div class="card accent-purple">
+    <h4>NpcDialogueService</h4>
+    <p>Generates contextual NPC dialogue. Unique behavior: <strong>interestingness gating</strong> — scores the current market day (0.0–1.0) using volatility, top movers, breadth, player events, and knowledge triggers. Only calls Claude if score exceeds threshold. This prevents burning API credits on boring days where static fallback lines are sufficient.</p>
+  </div>
+  <div class="card accent-purple">
+    <h4>NewspaperService</h4>
+    <p>Generates a daily newspaper article styled as "The Market Tribune." Prompt includes 52 real historical events (2007-2009) filtered by proximity to the current game date, market movers, arc tone, and now player portfolio context. Output is HTML, rendered to PNG via Puppeteer, cached in DB so each date only generates once.</p>
+  </div>
+  <div class="card accent-purple">
+    <h4>DynamicNodeContentService</h4>
+    <p>The thesis's strongest LLM feature. When a knowledge node unlocks, this generates a personalized explanation that references the player's actual portfolio state and the trigger that fired. Example: trigger <code>portfolio_concentration</code> fires → "You have 82% of your portfolio in NVDA. Here's why that's risky..." Cached per (entity, node) — only generates once per player per concept.</p>
+  </div>
+  <div class="card accent-blue">
+    <h4>KnowledgeGraphService</h4>
+    <p>Owns the knowledge graph definition (loaded from JSON config) and all 13 behavioral trigger evaluators. Each evaluator is a pure function: <code>(entityId, gameDate) → bool</code>. When evaluation returns true and the node's prerequisites are met, the node transitions from "locked" → "unlocked." Also handles mechanic gating (e.g., <code>HasMechanic("limit_orders")</code>).</p>
+  </div>
+  <div class="card accent-blue">
+    <h4>OrderService</h4>
+    <p>Manages the order lifecycle: queue → pending → execute. Supports market orders (execute at current phase price) and limit orders (execute only if OHLC range includes limit price). FIFO lot tracking for cost basis. On execution, invalidates PlayerContext cache and optionally triggers NPC dialogue regeneration.</p>
+  </div>
+  <div class="card accent-blue">
+    <h4>GameStateService</h4>
+    <p>Owns the save_state key-value table (current_date, game_phase, etc.), date advancement, phase transitions, and the dialogue query endpoint (UNION of static_npc_dialogue + dynamic_npc_dialogue filtered by date/type/phase).</p>
+  </div>
+  <div class="card accent-green">
+    <h4>ArcService</h4>
+    <p>Defines the three story arcs (Bull Market, The Unraveling, Meltdown) with date ranges, grade thresholds, cash multipliers, and newspaper tone. Handles arc boundary detection and grade calculation. Optional dependency — game still works without arcs configured.</p>
+  </div>
+</div>
+
+<h3>Dependency Direction</h3>
+
+<p>Dependencies flow downward: LLM services → PlayerContextService → Domain services → Database. No circular dependencies. The one quasi-circular pattern is OrderService invalidating PlayerContext cache after trades — but that's a cache invalidation call, not a structural dependency (OrderService doesn't read from PlayerContextService, it just tells it to flush).</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="context">PlayerContextService Deep Dive</h2>
+
+<p class="lead">Added 2026-05-31 to solve a specific problem: the three LLM services (dialogue, newspaper, node content) were each running their own portfolio/knowledge/trade queries independently. This meant duplicated SQL, potential inconsistency if state changed between calls, and no caching.</p>
+
+<div class="vis-container" id="context-vis"></div>
+
+<h3>The PlayerContext Record</h3>
+
+<p>A single immutable snapshot composed of 6 sub-records, all built in one DB transaction:</p>
+
+<table>
+  <thead><tr><th>Snapshot</th><th>Contents</th><th>Used By</th></tr></thead>
+  <tbody>
+    <tr><td><code>PortfolioSnapshot</code></td><td>Holdings (ticker, shares, avg cost, price, P&L%), cash, net worth, cash ratio</td><td>All three LLM services</td></tr>
+    <tr><td><code>ConcentrationSnapshot</code></td><td>Max single-ticker allocation %, which ticker, total position count</td><td>Node content (diversification triggers), dialogue</td></tr>
+    <tr><td><code>KnowledgeSnapshot</code></td><td>Completed nodes, unlocked-not-completed, total count, recently unlocked today</td><td>Dialogue (NPC can reference what you've learned), node content</td></tr>
+    <tr><td><code>RecentTradesSnapshot</code></td><td>Today's trades, last 10 trades, total lifetime trade count</td><td>Dialogue (trader NPC references your activity), node content</td></tr>
+    <tr><td><code>ArcSnapshot</code></td><td>Current arc name, days remaining, projected return %, grade, tone</td><td>Newspaper (arc tone), dialogue (mood context)</td></tr>
+    <tr><td><code>MarketSnapshot</code></td><td>Top 5 gainers/losers, advancing/declining counts, date/phase</td><td>Newspaper (market summary), dialogue (analyst/anchor content)</td></tr>
+  </tbody>
+</table>
+
+<h3>Caching Strategy</h3>
+
+<p>Cache key is <code>(entityId, gameDate)</code>. A player's context doesn't change unless they trade or the day advances. The cache is a <code>ConcurrentDictionary</code> — thread-safe for concurrent requests but cheap since this is a single-player game (one entity, one date active at a time). Invalidation is explicit: <code>OrderService</code> calls <code>InvalidateCache(entityId)</code> after trade execution; <code>GameStateService</code> calls <code>InvalidateCache()</code> (all entries) after day advance.</p>
+
+<p>In practice, a typical day hits the cache exactly once (first LLM service to build context), then all subsequent services read the cached snapshot. A day with 4 NPC dialogue generations + 1 newspaper + 1 node content = 6 reads of the same cached object instead of 6 independent query sets.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="dialogue">NPC Dialogue Pipeline</h2>
+
+<p class="lead">The dialogue system spans both codebases: the .NET backend generates and stores lines, the Unity client fetches and displays them. The pipeline has an intentional "quality gate" — the interestingness scoring system — that prevents calling Claude on boring market days.</p>
+
+<div class="vis-container" id="dialogue-pipeline-vis"></div>
+
+<h3>Backend: Generation & Scoring</h3>
+
+<p>When Unity calls POST <code>/dialogue/generate</code>, the backend runs this sequence:</p>
+
+<ol>
+  <li><strong>Cache check</strong> — if dynamic_npc_dialogue already has rows for this (date, phase), return early. This prevents regeneration on scene reload.</li>
+  <li><strong>Interestingness scoring</strong> — evaluates 5 dimensions, each contributing 0.0–0.3 to a total score capped at 1.0:
+    <ul>
+      <li><em>Market volatility</em>: average |close-prev_close|/prev_close across all tickers. Scores if avg > 1.5%.</li>
+      <li><em>Top movers</em>: biggest single-stock move. 8%+ = 0.2, 5%+ = 0.1. Bonus if player holds the mover.</li>
+      <li><em>Market breadth</em>: if 80%+ stocks moved same direction (broad rally/selloff).</li>
+      <li><em>Player events</em>: trades made today, low cash ratio.</li>
+      <li><em>Knowledge triggers</em>: if any triggers evaluated true this check (0.1 per trigger, max 0.25).</li>
+    </ul>
+  </li>
+  <li><strong>Gating decision</strong>:
+    <ul>
+      <li>Score &ge; 0.5 AND API key present → generate all 4 NPC types (analyst, broker, trader, anchor)</li>
+      <li>Score &ge; 0.2 AND API key → generate analyst + anchor only</li>
+      <li>Score &lt; 0.2 OR no API key → static lines only (randomly selected from seed pool, mood-filtered)</li>
+    </ul>
+  </li>
+  <li><strong>Fact sheet assembly</strong> — per-NPC-type context built from PlayerContext snapshot. Analyst/anchor get top movers + breadth. Broker/trader get biggest movers. Analyst/broker get player portfolio. Trader gets recent trades. All get arc tone and event signals.</li>
+  <li><strong>Claude generation</strong> — system prompt injects NPC personality + CRITICAL RULES (only reference fact sheet, 1-2 sentences per line, stay in character). User prompt provides the fact sheet. Response: JSON array of 2-4 strings. Markdown fencing stripped if present.</li>
+  <li><strong>Cache</strong> — generated lines inserted into <code>dynamic_npc_dialogue</code> with metadata (npc_type, priority, trigger_source, entity_id, line_order).</li>
+  <li><strong>Static supplement</strong> — regardless of dynamic generation, some static lines are selected from <code>static_npc_dialogue</code> (filtered by derived market mood and phase) and also inserted into dynamic table for this date. This ensures there's always content even if Claude returns fewer lines than expected.</li>
+</ol>
+
+<h3>Unity: Fetching & Display</h3>
+
+<p>After generation completes (or fails gracefully), <code>NPCBark.RefreshDialogue</code> calls GET <code>/dialogue?date=...</code>. The backend returns a UNION of both tables for that date. Unity stores the results in two structures:</p>
+
+<ul>
+  <li><code>fetchedByType</code> — <code>Dictionary&lt;string, List&lt;string&gt;&gt;</code> keyed by npc_type ("analyst", "broker", etc.)</li>
+  <li><code>fetchedAll</code> — flat <code>List&lt;string&gt;</code> of all lines regardless of type</li>
+</ul>
+
+<p>When a player approaches an NPC (within 2.5 units), <code>NPCBark.PickRandomLine()</code> uses this priority:</p>
+<ol>
+  <li>Custom lines (if this NPC was spawned with specific lines)</li>
+  <li>Type-matched lines (if this NPC has an <code>assignedNpcType</code> and matching lines exist)</li>
+  <li>Any fetched line (fallback if no type match)</li>
+  <li>Hardcoded fallback barks (25 ambient + market lines, for when backend is unavailable)</li>
+</ol>
+
+<h3>Unity: NPC Type Assignment</h3>
+
+<p><code>NPCSpawner</code> uses <code>NPCVariant[]</code> — a serialized array configured in the Inspector. Each entry has a prefab reference, an npcType string, and a spawn weight. When spawning, <code>PickWeightedPrefab()</code> does weighted random selection (weight/totalWeight = probability). The selected type is passed through to <code>NPCBark.Init(npcType: "analyst")</code>.</p>
+
+<p>This means you can configure the city to be, say, 30% traders, 25% analysts, 25% brokers, 20% anchors — and each NPC will preferentially say lines matching their archetype. Visual differentiation (different prefab models per type) is optional but supported.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="knowledge">Knowledge Graph</h2>
+
+<p class="lead">The reactive knowledge graph is the thesis core. It's a directed graph of educational nodes with two unlock mechanisms: prerequisite completion (linear, for foundational concepts) and behavioral triggers (adaptive, for experiential learning). The claim is that delivering instruction at the moment of relevant experience produces better retention than sequential curriculum delivery.</p>
+
+<div class="vis-container" id="knowledge-vis"></div>
+
+<h3>Node Types</h3>
+
+<div class="grid-2">
+  <div class="card accent-blue">
+    <h4>Knowledge Nodes (3)</h4>
+    <p>Prerequisite-based. Form a linear chain: what_is_a_company → what_is_a_stock → market_buy_sell. Unlocked sequentially during onboarding. Auto-complete on dismiss. These are tutorial scaffolding — the player is explicitly taught before being set free.</p>
+  </div>
+  <div class="card accent-green">
+    <h4>Adaptive Nodes (11)</h4>
+    <p>Behavior-triggered. Each has a trigger evaluator that checks player state. The player is never told "go do X to unlock Y." They trade naturally, and the system detects when their behavior has made a concept pedagogically relevant. The lesson arrives <em>because</em> they experienced it, not before.</p>
+  </div>
+</div>
+
+<h3>Trigger Evaluation</h3>
+
+<p>Each trigger is a function: <code>(entityId, gameDate) → bool</code>. They run against the current DB state. Examples of what they check:</p>
+
+<table>
+  <thead><tr><th>Trigger</th><th>Condition</th><th>Unlocks</th></tr></thead>
+  <tbody>
+    <tr><td><code>portfolio_concentration</code></td><td>Any single ticker > 60% of portfolio value</td><td>Diversification node</td></tr>
+    <tr><td><code>first_losing_sell</code></td><td>Player sold a position at a loss for the first time</td><td>Loss aversion / cutting losses node</td></tr>
+    <tr><td><code>bought_after_decline</code></td><td>Player bought a stock that dropped >5% the previous day</td><td>Buy-the-dip behavior node</td></tr>
+    <tr><td><code>low_cash_ratio</code></td><td>Cash < 10% of total portfolio value</td><td>Cash management node</td></tr>
+    <tr><td><code>market_wide_decline</code></td><td>>70% of stocks declined today AND player has positions</td><td>Systemic risk node</td></tr>
+  </tbody>
+</table>
+
+<h3>Dynamic Content Generation</h3>
+
+<p>When a node unlocks, <code>DynamicNodeContentService.GeneratePersonalizedContent()</code> is called. It builds a prompt containing:</p>
+<ul>
+  <li>The node's concept name and static explanation (baseline content)</li>
+  <li>The trigger description (what the player did)</li>
+  <li>The player's full context snapshot (portfolio, concentration, recent trades, knowledge progress)</li>
+</ul>
+<p>Claude generates 2-3 paragraphs connecting the concept to the player's actual situation. This is cached in <code>dynamic_node_content</code> per (entity, node) — if the player re-reads the node later, they see the personalized version, not the generic one.</p>
+
+<div class="callout">
+  <p><strong>Thesis connection:</strong> This is where all three layers converge. The game loop created the experience (player over-concentrated). The knowledge graph detected its pedagogical meaning (portfolio_concentration trigger). The LLM contextualized it ("You put 82% in NVDA, which just dropped 5%..."). One mechanism, three layers working together.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="game-loop">Game Loop & Day Cycle</h2>
+
+<p class="lead">The game simulates trading days during the 2007-2009 financial crisis. Each day has three phases with distinct player actions available. The day cycle creates temporal structure that drives both gameplay pacing and adaptive content timing.</p>
+
+<div class="vis-container" id="day-cycle-vis"></div>
+
+<h3>Phase Mechanics</h3>
+
+<table>
+  <thead><tr><th>Phase</th><th>Price Basis</th><th>Player Actions</th><th>Backend Events</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Pre-Market</strong></td><td>Today's OPEN</td><td>Queue orders, confirm (executes at open), read newspaper, check graph</td><td>Dialogue generation triggered, NPC spawning at 60% density</td></tr>
+    <tr><td><strong>Day</strong></td><td>Today's OPEN (display)</td><td>Explore city, walk near NPCs for barks, visit terminals</td><td>Timer-driven. No trades. NPC density 100%</td></tr>
+    <tr><td><strong>Post-Market</strong></td><td>Today's CLOSE</td><td>Queue orders, confirm (executes at close), review daily summary</td><td>Knowledge triggers evaluated after trades. NPC density 30%</td></tr>
+  </tbody>
+</table>
+
+<p>The "what you see is what you get" pricing rule is important: the player sees the open price during pre-market and gets that price. They see the close price during post-market and get that price. No slippage, no hidden mechanics. This is an educational tool — price transparency is a design constraint, not a simplification.</p>
+
+<h3>Arc System</h3>
+
+<p>Three arcs divide the 2007-2009 period into distinct difficulty/mood stages:</p>
+
+<div class="grid-3">
+  <div class="card accent-orange">
+    <h4>Bull Market</h4>
+    <p>Apr–Oct 2007. ~130 trading days. Grading rewards growth. NPC tone: optimistic. Teaches basic mechanics when consequences are low.</p>
+  </div>
+  <div class="card accent-blue">
+    <h4>The Unraveling</h4>
+    <p>Nov 2007–Sep 2008. ~220 trading days. Mixed signals. Grading tightens. This is where hindsight becomes a trap — the player "knows" a crash is coming but not exactly when or how to position.</p>
+  </div>
+  <div class="card accent-red">
+    <h4>Meltdown</h4>
+    <p>Sep 2008–Mar 2009. ~130 trading days. Survival mode. Break-even = S grade. The thesis argument: even knowing the historical era, disciplined risk management is still hard.</p>
+  </div>
+</div>
+
+<p>Arc grades (S/A/B/C/D) are based on return percentage with per-arc thresholds. Grade determines a cash multiplier carried into the next arc (S = bonus capital, D = penalty). This creates compounding consequences: early recklessness handicaps later arcs.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="endpoints">API Endpoints</h2>
+
+<p>48 endpoints across 12 groups. All JSON. No auth (single-player localhost). Entity identification via query params (entityId or externalId).</p>
+
+<table>
+<thead><tr><th>Group</th><th>Endpoints</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><strong>System</strong></td><td><span class="tag tag-get">GET</span><code>/ping</code> <code>/status</code> <span class="tag tag-post">POST</span><code>/init_db</code> <code>/load_tickers</code> <code>/db_reset</code></td><td>Bootstrap sequence calls these in order</td></tr>
+<tr><td><strong>Game State</strong></td><td><span class="tag tag-get">GET</span><code>/get_game_date</code> <code>/get_game_phase</code> <span class="tag tag-post">POST</span><code>/advance_day</code> <code>/advance_phase</code> <code>/new_game</code></td><td>advance_day checks arc boundaries</td></tr>
+<tr><td><strong>Entity</strong></td><td><span class="tag tag-get">GET</span><code>/entity</code> <code>/resolve_entity</code> <span class="tag tag-post">POST</span><code>/register_entity</code> <code>/entity_create</code></td><td>External ID = Unity-side identifier</td></tr>
+<tr><td><strong>Trading</strong></td><td><span class="tag tag-get">GET</span><code>/portfolio</code> <code>/trade_history</code> <span class="tag tag-post">POST</span><code>/trade</code> <code>/post_trade</code></td><td>Direct execution (legacy). Prefer orders.</td></tr>
+<tr><td><strong>Orders</strong></td><td><span class="tag tag-get">GET</span><code>/pending_orders</code> <code>/portfolio_history</code> <span class="tag tag-post">POST</span><code>/queue_order</code> <code>/open_markets</code> <code>/close_markets</code> <span class="tag tag-delete">DEL</span><code>/pending_orders</code></td><td>Batch queue/confirm flow. FIFO lots.</td></tr>
+<tr><td><strong>Market</strong></td><td><span class="tag tag-get">GET</span><code>/tickers</code> <code>/prices</code> <code>/get_daily_data</code> <code>/market_movers</code></td><td>250 symbols, OHLC from Yahoo Finance</td></tr>
+<tr><td><strong>Knowledge Graph</strong></td><td><span class="tag tag-get">GET</span><code>/knowledge_graph</code> <code>/check_triggers</code> <code>/unlocks</code> <code>/config</code> <code>/node_content</code> <span class="tag tag-post">POST</span><code>/complete</code> <code>/init</code></td><td>node_content returns dynamic if available</td></tr>
+<tr><td><strong>Dialogue</strong></td><td><span class="tag tag-get">GET</span><code>/dialogue</code> <span class="tag tag-post">POST</span><code>/dialogue/generate</code></td><td>Generate triggers LLM. GET returns cached.</td></tr>
+<tr><td><strong>Newspaper</strong></td><td><span class="tag tag-get">GET</span><code>/newspaper</code> <code>/newspaper/image</code></td><td>First call generates + caches. Image via Puppeteer.</td></tr>
+<tr><td><strong>Arcs</strong></td><td><span class="tag tag-get">GET</span><code>/arc/status</code> <code>/arc/grades</code> <code>/arc/all</code> <span class="tag tag-post">POST</span><code>/arc/advance</code></td><td>Status includes projected grade</td></tr>
+<tr><td><strong>Save State</strong></td><td><span class="tag tag-get">GET</span><code>/save_state</code> <span class="tag tag-post">POST</span><code>/save_state</code></td><td>Generic key-value store</td></tr>
+<tr><td><strong>Player Context</strong></td><td><span class="tag tag-get">GET</span><code>/player_context</code></td><td>Full snapshot for debugging/future clients</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<h2 id="changes">Today's Changes (2026-05-31)</h2>
+
+<div class="grid-2">
+  <div class="card accent-blue">
+    <h4>NPC Type Routing (Unity)</h4>
+    <p>New <code>NPCVariant</code> class: prefab + npcType + spawn weight. NPCSpawner uses weighted selection. NPCBark groups dialogue by type and preferentially serves matching lines. Backward-compatible with legacy prefab array.</p>
+    <p><strong>Files:</strong> NPCVariant.cs (new), NPCSpawner.cs, NPCBark.cs</p>
+  </div>
+  <div class="card accent-teal">
+    <h4>PlayerContextService (.NET)</h4>
+    <p>Unified context assembly replacing per-service queries. 6 snapshot sub-records. ConcurrentDictionary cache with explicit invalidation. Injected into all LLM services + OrderService.</p>
+    <p><strong>Files:</strong> PlayerContextService.cs (new), PlayerContext.cs (new), Program.cs, NpcDialogueService.cs, NewspaperService.cs, OrderService.cs</p>
+  </div>
+  <div class="card accent-purple">
+    <h4>DynamicNodeContentService (.NET)</h4>
+    <p>Personalized knowledge node explanations via Claude. Triggered on node unlock. References player's actual portfolio/trades/concentration. Cached per (entity, node). Falls back to static content.</p>
+    <p><strong>Files:</strong> DynamicNodeContentService.cs (new), schema.sql (dynamic_node_content table), KnowledgeGraphEndpoints.cs (node_content route)</p>
+  </div>
+  <div class="card accent-orange">
+    <h4>Newspaper Player Awareness (.NET)</h4>
+    <p>NewspaperService now consumes PlayerContextService. Claude prompt can reference player's holdings and recent trades. Newspapers transition from market-contextual to player-personalized.</p>
+    <p><strong>Files:</strong> NewspaperService.cs (modified constructor + prompt assembly)</p>
+  </div>
+</div>
+
+<p style="color:var(--muted); margin-top:3rem; text-align:center; font-size:0.8rem;">Generated 2026-05-31 — Hindsight Financial architecture reference</p>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════ -->
+<!-- D3 VISUALIZATIONS                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="d3-tooltip" id="tooltip"></div>
+
+<script>
+const C = {
+  bg: '#0d1117', surface: '#161b22', border: '#30363d',
+  text: '#e6edf3', muted: '#8b949e', accent: '#58a6ff',
+  green: '#3fb950', orange: '#d29922', red: '#f85149',
+  purple: '#bc8cff', pink: '#f778ba', teal: '#39d7b8'
+};
+
+const tooltip = d3.select('#tooltip');
+function showTip(event, html) {
+  tooltip.html(html).classed('visible', true)
+    .style('left', (event.pageX + 14) + 'px')
+    .style('top', (event.pageY - 12) + 'px');
+}
+function hideTip() { tooltip.classed('visible', false); }
+
+// Shared arrowhead defs
+function addArrow(svg, id, color) {
+  svg.append('defs').append('marker')
+    .attr('id', id).attr('viewBox', '0 0 10 10')
+    .attr('refX', 9).attr('refY', 5)
+    .attr('markerWidth', 5).attr('markerHeight', 5)
+    .attr('orient', 'auto')
+    .append('path').attr('d', 'M 0 0 L 10 5 L 0 10 z').attr('fill', color);
+}
+
+// ════════════════════════════════════════════
+// HIGH-LEVEL ARCHITECTURE
+// ════════════════════════════════════════════
+(function() {
+  const w = 900, h = 380;
+  const svg = d3.select('#high-level-vis').append('svg')
+    .attr('viewBox', `0 0 ${w} ${h}`).attr('width', '100%');
+  addArrow(svg, 'arr-hl', C.muted);
+
+  const layers = [
+    { y: 15, h: 100, label: 'UNITY 6 CLIENT', color: C.accent, boxes: [
+      { label: 'Scenes & UI', w: 140 },
+      { label: 'GamePhaseManager', w: 155 },
+      { label: 'Knowledge Graph UI', w: 145 },
+      { label: 'NPC System', w: 120 },
+      { label: 'API Client Layer', w: 140 },
+    ]},
+    { y: 155, h: 120, label: '.NET 10 BACKEND', color: C.green, boxes: [
+      { label: 'REST Endpoints (48)', w: 150 },
+      { label: 'PlayerContext\nService', w: 120 },
+      { label: 'LLM Services\n(Dialogue, News,\nNode Content)', w: 140 },
+      { label: 'KnowledgeGraph\nService', w: 130 },
+      { label: 'Trading &\nOrder Services', w: 120 },
+    ]},
+    { y: 310, h: 55, label: 'DATA & EXTERNAL', color: C.orange, boxes: [
+      { label: 'SQLite (15 tables)', w: 180 },
+      { label: 'Yahoo Finance', w: 150 },
+      { label: 'Claude API (Anthropic)', w: 200 },
+    ]},
+  ];
+
+  layers.forEach(layer => {
+    svg.append('rect').attr('x', 15).attr('y', layer.y)
+      .attr('width', w - 30).attr('height', layer.h)
+      .attr('rx', 8).attr('fill', 'none')
+      .attr('stroke', layer.color).attr('stroke-width', 1.5).attr('stroke-opacity', 0.5);
+    svg.append('text').attr('x', 28).attr('y', layer.y + 16)
+      .attr('fill', layer.color).attr('font-size', '10px').attr('font-weight', 700)
+      .attr('letter-spacing', '0.5px').text(layer.label);
+
+    const totalW = layer.boxes.reduce((s, b) => s + b.w + 8, 0) - 8;
+    let xOff = (w - totalW) / 2;
+    const boxH = layer.h - 32;
+    const boxY = layer.y + 24;
+
+    layer.boxes.forEach(box => {
+      svg.append('rect').attr('x', xOff).attr('y', boxY)
+        .attr('width', box.w).attr('height', boxH)
+        .attr('rx', 5).attr('fill', C.surface).attr('stroke', C.border);
+      const lines = box.label.split('\n');
+      lines.forEach((line, i) => {
+        svg.append('text').attr('x', xOff + box.w/2).attr('y', boxY + boxH/2 - (lines.length-1)*7 + i*14 + 1)
+          .attr('text-anchor', 'middle')
+          .attr('fill', i === 0 ? C.text : C.muted)
+          .attr('font-size', i === 0 ? '10px' : '9px')
+          .attr('font-weight', i === 0 ? 600 : 400).text(line);
+      });
+      xOff += box.w + 8;
+    });
+  });
+
+  // Arrows
+  [[w/2, 115, 155, 'HTTP :5000'], [w*0.3, 275, 310, ''], [w*0.7, 275, 310, '']].forEach(([x, y1, y2, lbl]) => {
+    svg.append('line').attr('x1', x).attr('y1', y1).attr('x2', x).attr('y2', y2)
+      .attr('stroke', C.muted).attr('stroke-width', 1.5).attr('marker-end', 'url(#arr-hl)');
+    if (lbl) svg.append('text').attr('x', x + 8).attr('y', (y1+y2)/2 + 3)
+      .attr('fill', C.muted).attr('font-size', '9px').text(lbl);
+  });
+})();
+
+// ════════════════════════════════════════════
+// ADAPTIVE LOOP
+// ════════════════════════════════════════════
+(function() {
+  const w = 850, h = 280;
+  const svg = d3.select('#adaptive-loop-vis').append('svg')
+    .attr('viewBox', `0 0 ${w} ${h}`).attr('width', '100%');
+  addArrow(svg, 'arr-loop', C.accent);
+
+  const steps = [
+    { x: 85, label: 'Player\nTrads/Acts', color: C.accent, desc: 'Game loop generates financial experiences through the day cycle' },
+    { x: 235, label: 'Server\nRecords', color: C.green, desc: 'Trades, portfolio changes, market exposure stored in SQLite' },
+    { x: 425, label: 'Knowledge Graph\nEvaluates Triggers', color: C.teal, desc: '13 evaluators check: did this behavior make a concept relevant?' },
+    { x: 615, label: 'Node Unlocks +\nLLM Personalizes', color: C.purple, desc: 'DynamicNodeContentService generates explanation referencing player state' },
+    { x: 765, label: 'Player\nLearns', color: C.accent, desc: 'Instruction delivered at moment of maximum relevance → retention' },
+  ];
+
+  for (let i = 0; i < steps.length - 1; i++) {
+    svg.append('line')
+      .attr('x1', steps[i].x + 55).attr('y1', 130)
+      .attr('x2', steps[i+1].x - 55).attr('y2', 130)
+      .attr('stroke', C.accent).attr('stroke-width', 2).attr('stroke-opacity', 0.5)
+      .attr('marker-end', 'url(#arr-loop)');
+  }
+
+  // Return arc
+  const path = d3.path();
+  path.moveTo(765, 170);
+  path.bezierCurveTo(780, 245, 70, 245, 85, 170);
+  svg.append('path').attr('d', path.toString())
+    .attr('fill', 'none').attr('stroke', C.muted)
+    .attr('stroke-width', 1.5).attr('stroke-dasharray', '5,4')
+    .attr('marker-end', 'url(#arr-loop)');
+  svg.append('text').attr('x', w/2).attr('y', 255).attr('text-anchor', 'middle')
+    .attr('fill', C.muted).attr('font-size', '9.5px')
+    .text('New understanding changes future behavior → different triggers fire → cycle deepens');
+
+  steps.forEach(step => {
+    const g = svg.append('g').style('cursor', 'pointer')
+      .on('mouseover', e => showTip(e, step.desc)).on('mouseout', hideTip);
+    g.append('circle').attr('cx', step.x).attr('cy', 130).attr('r', 48)
+      .attr('fill', C.surface).attr('stroke', step.color).attr('stroke-width', 2);
+    step.label.split('\n').forEach((line, i) => {
+      g.append('text').attr('x', step.x).attr('y', 126 + i * 14)
+        .attr('text-anchor', 'middle').attr('fill', C.text)
+        .attr('font-size', '9.5px').attr('font-weight', 600).text(line);
+    });
+  });
+})();
+
+// ════════════════════════════════════════════
+// SERVICE GRAPH - Force directed
+// ════════════════════════════════════════════
+(function() {
+  const el = d3.select('#service-graph');
+  const w = el.node().clientWidth || 950, h = 520;
+
+  const nodes = [
+    { id: 'PlayerContextService', group: 'hub', desc: 'Central state hub. Builds canonical PlayerContext from 6 snapshot types. Cached per (entityId, date).' },
+    { id: 'NpcDialogueService', group: 'llm', desc: 'Interestingness-gated dialogue generation. Scores market day, calls Claude for 4 NPC archetypes.' },
+    { id: 'NewspaperService', group: 'llm', desc: 'Daily newspaper via Claude + Puppeteer. Historical events + market + player context.' },
+    { id: 'DynamicNodeContent', group: 'llm', desc: 'Personalized node explanations. "You put 82% in NVDA..." Triggered on knowledge unlock.' },
+    { id: 'KnowledgeGraphService', group: 'core', desc: '13 behavioral triggers. Node state management. Mechanic gating (limit_orders, etc.).' },
+    { id: 'GameStateService', group: 'core', desc: 'Date/phase management. Dialogue query (UNION static+dynamic). Save/load.' },
+    { id: 'OrderService', group: 'core', desc: 'Queue/confirm order flow. FIFO lots. Limit orders. Invalidates PlayerContext cache.' },
+    { id: 'TradingService', group: 'core', desc: 'Direct buy/sell. Portfolio CRUD. Trade history. Legacy path (prefer OrderService).' },
+    { id: 'ArcService', group: 'data', desc: '3 arcs with grade thresholds and cash multipliers. Arc boundary detection.' },
+    { id: 'MarketDataService', group: 'data', desc: 'Yahoo Finance download. 250-symbol OHLC universe in ticker_prices table.' },
+    { id: 'EntityService', group: 'data', desc: 'Player registration. External ID resolution. Cash management.' },
+    { id: 'Database', group: 'infra', desc: 'SQLite via Microsoft.Data.Sqlite. 15 tables. Raw SQL, no ORM.' },
+    { id: 'Claude API', group: 'external', desc: 'Anthropic API. claude-sonnet-4-6. Used by 3 services.' },
+  ];
+
+  const links = [
+    { source: 'PlayerContextService', target: 'Database' },
+    { source: 'PlayerContextService', target: 'KnowledgeGraphService' },
+    { source: 'PlayerContextService', target: 'EntityService' },
+    { source: 'PlayerContextService', target: 'ArcService' },
+    { source: 'NpcDialogueService', target: 'PlayerContextService' },
+    { source: 'NpcDialogueService', target: 'GameStateService' },
+    { source: 'NpcDialogueService', target: 'KnowledgeGraphService' },
+    { source: 'NpcDialogueService', target: 'Claude API' },
+    { source: 'NpcDialogueService', target: 'Database' },
+    { source: 'NewspaperService', target: 'PlayerContextService' },
+    { source: 'NewspaperService', target: 'GameStateService' },
+    { source: 'NewspaperService', target: 'Claude API' },
+    { source: 'DynamicNodeContent', target: 'PlayerContextService' },
+    { source: 'DynamicNodeContent', target: 'KnowledgeGraphService' },
+    { source: 'DynamicNodeContent', target: 'Claude API' },
+    { source: 'DynamicNodeContent', target: 'Database' },
+    { source: 'OrderService', target: 'PlayerContextService' },
+    { source: 'OrderService', target: 'Database' },
+    { source: 'OrderService', target: 'GameStateService' },
+    { source: 'OrderService', target: 'KnowledgeGraphService' },
+    { source: 'TradingService', target: 'Database' },
+    { source: 'GameStateService', target: 'Database' },
+    { source: 'KnowledgeGraphService', target: 'Database' },
+    { source: 'MarketDataService', target: 'Database' },
+    { source: 'EntityService', target: 'Database' },
+    { source: 'ArcService', target: 'Database' },
+  ];
+
+  const groupColor = { hub: C.teal, llm: C.purple, core: C.accent, data: C.green, infra: C.orange, external: C.pink };
+
+  const svg = el.append('svg').attr('width', w).attr('height', h);
+  addArrow(svg, 'arr-dep', C.border);
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(110))
+    .force('charge', d3.forceManyBody().strength(-450))
+    .force('center', d3.forceCenter(w / 2, h / 2))
+    .force('collision', d3.forceCollide().radius(48));
+
+  const link = svg.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke', C.border).attr('stroke-width', 1).attr('marker-end', 'url(#arr-dep)');
+
+  const node = svg.append('g').selectAll('g').data(nodes).join('g')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+  node.append('circle')
+    .attr('r', d => d.group === 'hub' ? 24 : d.group === 'infra' || d.group === 'external' ? 14 : 18)
+    .attr('fill', d => groupColor[d.group]).attr('fill-opacity', 0.15)
+    .attr('stroke', d => groupColor[d.group]).attr('stroke-width', 2);
+
+  node.append('text').attr('dy', d => (d.group === 'hub' ? 34 : 28))
+    .attr('text-anchor', 'middle').attr('fill', C.text)
+    .attr('font-size', '8.5px').attr('font-weight', 500)
+    .text(d => d.id.replace('Service', '').replace('DynamicNode', 'DynNodeContent'));
+
+  node.on('mouseover', (e, d) => showTip(e, `<strong style="color:${groupColor[d.group]}">${d.id}</strong><br>${d.desc}`))
+    .on('mouseout', hideTip);
+
+  sim.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+})();
+
+// ════════════════════════════════════════════
+// PLAYER CONTEXT RADIAL
+// ════════════════════════════════════════════
+(function() {
+  const w = 750, h = 350;
+  const svg = d3.select('#context-vis').append('svg')
+    .attr('viewBox', `0 0 ${w} ${h}`).attr('width', '100%');
+  const cx = w/2, cy = h/2;
+
+  svg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 42)
+    .attr('fill', C.teal).attr('fill-opacity', 0.12)
+    .attr('stroke', C.teal).attr('stroke-width', 2.5);
+  svg.append('text').attr('x', cx).attr('y', cy - 6).attr('text-anchor', 'middle')
+    .attr('fill', C.text).attr('font-size', '10px').attr('font-weight', 700).text('PlayerContext');
+  svg.append('text').attr('x', cx).attr('y', cy + 9).attr('text-anchor', 'middle')
+    .attr('fill', C.muted).attr('font-size', '8.5px').text('Service');
+  svg.append('text').attr('x', cx).attr('y', cy + 22).attr('text-anchor', 'middle')
+    .attr('fill', C.muted).attr('font-size', '7.5px').text('(cached per entity+date)');
+
+  const consumers = [
+    { label: 'NpcDialogue', color: C.purple },
+    { label: 'Newspaper', color: C.purple },
+    { label: 'DynamicNodeContent', color: C.purple },
+    { label: 'OrderService', color: C.accent },
+  ];
+  consumers.forEach((c, i) => {
+    const x = 100 + i * 175, y = 42;
+    svg.append('line').attr('x1', cx).attr('y1', cy - 42).attr('x2', x).attr('y2', y + 14)
+      .attr('stroke', c.color).attr('stroke-width', 1.5).attr('stroke-opacity', 0.5);
+    svg.append('rect').attr('x', x - 58).attr('y', y - 12).attr('width', 116).attr('height', 28)
+      .attr('rx', 4).attr('fill', C.surface).attr('stroke', c.color);
+    svg.append('text').attr('x', x).attr('y', y + 5).attr('text-anchor', 'middle')
+      .attr('fill', C.text).attr('font-size', '9px').attr('font-weight', 500).text(c.label);
+  });
+
+  const sources = [
+    { label: 'Portfolio + Cash', color: C.accent },
+    { label: 'Concentration', color: C.accent },
+    { label: 'Knowledge State', color: C.green },
+    { label: 'Recent Trades', color: C.orange },
+    { label: 'Arc Context', color: C.red },
+    { label: 'Market Snapshot', color: C.accent },
+  ];
+  sources.forEach((s, i) => {
+    const x = 60 + i * 120, y = h - 42;
+    svg.append('line').attr('x1', x).attr('y1', y - 12).attr('x2', cx).attr('y2', cy + 42)
+      .attr('stroke', s.color).attr('stroke-width', 1).attr('stroke-opacity', 0.4);
+    svg.append('rect').attr('x', x - 52).attr('y', y - 12).attr('width', 104).attr('height', 28)
+      .attr('rx', 4).attr('fill', C.surface).attr('stroke', s.color).attr('stroke-opacity', 0.6);
+    svg.append('text').attr('x', x).attr('y', y + 5).attr('text-anchor', 'middle')
+      .attr('fill', C.muted).attr('font-size', '8.5px').text(s.label);
+  });
+
+  svg.append('text').attr('x', 20).attr('y', 28).attr('fill', C.purple)
+    .attr('font-size', '9px').attr('font-weight', 600).text('CONSUMERS (read context)');
+  svg.append('text').attr('x', 20).attr('y', h - 55).attr('fill', C.muted)
+    .attr('font-size', '9px').attr('font-weight', 600).text('DATA SOURCES (assembled into snapshot)');
+})();
+
+// ════════════════════════════════════════════
+// DIALOGUE PIPELINE
+// ════════════════════════════════════════════
+(function() {
+  const w = 950, h = 200;
+  const svg = d3.select('#dialogue-pipeline-vis').append('svg')
+    .attr('viewBox', `0 0 ${w} ${h}`).attr('width', '100%');
+  addArrow(svg, 'arr-pipe', C.accent);
+
+  const steps = [
+    { x: 70, label: 'Phase\nChange', color: C.orange, sub: 'GamePhaseManager' },
+    { x: 200, label: 'Refresh\nDialogue', color: C.accent, sub: 'NPCBark (Unity)' },
+    { x: 340, label: 'POST\n/generate', color: C.green, sub: 'triggers backend' },
+    { x: 480, label: 'Score\nInteresting.', color: C.green, sub: '0.0–1.0 gate' },
+    { x: 620, label: 'Claude\nGenerates', color: C.purple, sub: '2-4 lines × types' },
+    { x: 760, label: 'Cache +\nGET /dialogue', color: C.green, sub: 'returns all lines' },
+    { x: 890, label: 'Type-Match\nBark', color: C.accent, sub: 'SpeechBubble UI' },
+  ];
+
+  steps.forEach((step, i) => {
+    if (i < steps.length - 1) {
+      svg.append('line')
+        .attr('x1', step.x + 50).attr('y1', 85)
+        .attr('x2', steps[i+1].x - 50).attr('y2', 85)
+        .attr('stroke', C.accent).attr('stroke-width', 1.5).attr('stroke-opacity', 0.4)
+        .attr('marker-end', 'url(#arr-pipe)');
+    }
+    svg.append('rect').attr('x', step.x - 46).attr('y', 52).attr('width', 92).attr('height', 64)
+      .attr('rx', 5).attr('fill', C.surface).attr('stroke', step.color).attr('stroke-width', 1.5);
+    step.label.split('\n').forEach((line, li) => {
+      svg.append('text').attr('x', step.x).attr('y', 77 + li * 14).attr('text-anchor', 'middle')
+        .attr('fill', C.text).attr('font-size', '9.5px').attr('font-weight', 600).text(line);
+    });
+    svg.append('text').attr('x', step.x).attr('y', 135).attr('text-anchor', 'middle')
+      .attr('fill', C.muted).attr('font-size', '8px').text(step.sub);
+  });
+})();
+
+// ════════════════════════════════════════════
+// KNOWLEDGE GRAPH NODES
+// ════════════════════════════════════════════
+(function() {
+  const w = 900, h = 280;
+  const svg = d3.select('#knowledge-vis').append('svg')
+    .attr('viewBox', `0 0 ${w} ${h}`).attr('width', '100%');
+  addArrow(svg, 'arr-kg', C.green);
+
+  const cats = [
+    { label: 'Fundamentals', x: 90, color: C.accent, type: 'K', nodes: ['what_is_a_company', 'what_is_a_stock', 'market_buy_sell'] },
+    { label: 'Risk', x: 250, color: C.green, type: 'A', nodes: ['diversification', 'position_sizing'] },
+    { label: 'Psychology', x: 400, color: C.green, type: 'A', nodes: ['loss_aversion', 'overconfidence'] },
+    { label: 'Strategies', x: 560, color: C.green, type: 'A', nodes: ['buy_the_dip', 'averaging'] },
+    { label: 'Market Events', x: 740, color: C.green, type: 'A', nodes: ['systemic_risk', 'volatility'] },
+  ];
+
+  // Prerequisite chain for fundamentals
+  svg.append('line').attr('x1', 90).attr('y1', 88).attr('x2', 90).attr('y2', 100)
+    .attr('stroke', C.accent).attr('stroke-width', 1).attr('marker-end', 'url(#arr-kg)');
+  svg.append('line').attr('x1', 90).attr('y1', 148).attr('x2', 90).attr('y2', 160)
+    .attr('stroke', C.accent).attr('stroke-width', 1).attr('marker-end', 'url(#arr-kg)');
+
+  cats.forEach(cat => {
+    svg.append('text').attr('x', cat.x).attr('y', 25).attr('text-anchor', 'middle')
+      .attr('fill', cat.color).attr('font-size', '10px').attr('font-weight', 600).text(cat.label);
+    svg.append('text').attr('x', cat.x).attr('y', 39).attr('text-anchor', 'middle')
+      .attr('fill', C.muted).attr('font-size', '8px')
+      .text(cat.type === 'K' ? '(prerequisite chain)' : '(behavior-triggered)');
+
+    cat.nodes.forEach((node, ni) => {
+      const y = 55 + ni * 60;
+      svg.append('rect').attr('x', cat.x - 60).attr('y', y).attr('width', 120).attr('height', 32)
+        .attr('rx', 4).attr('fill', C.surface).attr('stroke', cat.color).attr('stroke-opacity', 0.7);
+      svg.append('text').attr('x', cat.x).attr('y', y + 19).attr('text-anchor', 'middle')
+        .attr('fill', C.muted).attr('font-size', '8.5px').text(node);
+    });
+  });
+
+  svg.append('rect').attr('x', 30).attr('y', 245).attr('width', 10).attr('height', 10)
+    .attr('rx', 2).attr('fill', C.accent).attr('fill-opacity', 0.3);
+  svg.append('text').attr('x', 46).attr('y', 254).attr('fill', C.muted).attr('font-size', '9px').text('Knowledge (linear prereqs)');
+  svg.append('rect').attr('x', 220).attr('y', 245).attr('width', 10).attr('height', 10)
+    .attr('rx', 2).attr('fill', C.green).attr('fill-opacity', 0.3);
+  svg.append('text').attr('x', 236).attr('y', 254).attr('fill', C.muted).attr('font-size', '9px').text('Adaptive (trigger-based, non-linear)');
+})();
+
+// ════════════════════════════════════════════
+// DAY CYCLE
+// ════════════════════════════════════════════
+(function() {
+  const w = 650, h = 300;
+  const svg = d3.select('#day-cycle-vis').append('svg')
+    .attr('viewBox', `0 0 ${w} ${h}`).attr('width', '100%');
+
+  const cx = w/2, cy = 150, r = 105;
+  const phases = [
+    { angle: -Math.PI/2, label: 'PRE-MARKET', sub: 'Price = OPEN', color: C.orange },
+    { angle: Math.PI/6, label: 'DAY', sub: 'Timer / Explore', color: C.green },
+    { angle: Math.PI * 5/6, label: 'POST-MARKET', sub: 'Price = CLOSE', color: C.purple },
+  ];
+
+  // Arcs between phases
+  phases.forEach((p, i) => {
+    const next = phases[(i + 1) % phases.length];
+    const arc = d3.arc().innerRadius(r - 3).outerRadius(r + 3)
+      .startAngle(p.angle + Math.PI/2 + 0.35).endAngle(next.angle + Math.PI/2 - 0.35);
+    svg.append('path').attr('transform', `translate(${cx},${cy})`)
+      .attr('d', arc()).attr('fill', C.border);
+  });
+
+  phases.forEach(p => {
+    const x = cx + Math.cos(p.angle) * r;
+    const y = cy + Math.sin(p.angle) * r;
+    svg.append('circle').attr('cx', x).attr('cy', y).attr('r', 44)
+      .attr('fill', C.surface).attr('stroke', p.color).attr('stroke-width', 2.5);
+    svg.append('text').attr('x', x).attr('y', y - 6).attr('text-anchor', 'middle')
+      .attr('fill', C.text).attr('font-size', '10px').attr('font-weight', 700).text(p.label);
+    svg.append('text').attr('x', x).attr('y', y + 10).attr('text-anchor', 'middle')
+      .attr('fill', C.muted).attr('font-size', '8.5px').text(p.sub);
+  });
+
+  svg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 26)
+    .attr('fill', C.surface).attr('stroke', C.muted).attr('stroke-width', 1.5).attr('stroke-dasharray', '4,3');
+  svg.append('text').attr('x', cx).attr('y', cy - 2).attr('text-anchor', 'middle')
+    .attr('fill', C.muted).attr('font-size', '9px').attr('font-weight', 600).text('SLEEP');
+  svg.append('text').attr('x', cx).attr('y', cy + 11).attr('text-anchor', 'middle')
+    .attr('fill', C.muted).attr('font-size', '7.5px').text('→ next day');
+})();
+</script>
+</body>
+</html>

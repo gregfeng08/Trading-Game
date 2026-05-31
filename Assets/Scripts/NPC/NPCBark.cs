@@ -30,6 +30,8 @@ public class NPCBark : MonoBehaviour
     private static readonly List<string> fetchedAll = new();
     private static string fetchedDate;
     private static bool fetchInProgress;
+    private static readonly HashSet<int> recentlyUsedIndices = new();
+    private static float lastCleanupTime;
 
     private static readonly string[] FallbackMarketBarks =
     {
@@ -194,28 +196,49 @@ public class NPCBark : MonoBehaviour
     private string PickRandomLine()
     {
         if (customLines != null && customLines.Length > 0)
-            return PickFrom(customLines);
+            return PickUnique(customLines);
 
         if (!string.IsNullOrEmpty(assignedNpcType)
             && fetchedByType.TryGetValue(assignedNpcType, out var typed)
             && typed.Count > 0)
-            return PickFrom(typed);
+            return PickUnique(typed);
 
         if (fetchedAll.Count > 0)
-            return PickFrom(fetchedAll);
+            return PickUnique(fetchedAll);
 
         bool pickMarket = Random.value < 0.4f;
-        return pickMarket ? PickFrom(FallbackMarketBarks) : PickFrom(FallbackAmbientBarks);
+        return pickMarket ? PickUnique(FallbackMarketBarks) : PickUnique(FallbackAmbientBarks);
     }
 
-    private string PickFrom(IList<string> pool)
+    private string PickUnique(IList<string> pool)
     {
         if (pool.Count == 0) return null;
-        int index;
-        do { index = Random.Range(0, pool.Count); }
-        while (pool.Count > 1 && index == lastIndex);
-        lastIndex = index;
-        return pool[index];
+
+        if (Time.time - lastCleanupTime > 15f)
+        {
+            recentlyUsedIndices.Clear();
+            lastCleanupTime = Time.time;
+        }
+
+        int baseOffset = pool.GetHashCode();
+        int attempts = pool.Count;
+        for (int i = 0; i < attempts; i++)
+        {
+            int index = Random.Range(0, pool.Count);
+            int globalKey = baseOffset ^ index;
+            if (index != lastIndex && !recentlyUsedIndices.Contains(globalKey))
+            {
+                lastIndex = index;
+                recentlyUsedIndices.Add(globalKey);
+                return pool[index];
+            }
+        }
+
+        int fallback;
+        do { fallback = Random.Range(0, pool.Count); }
+        while (pool.Count > 1 && fallback == lastIndex);
+        lastIndex = fallback;
+        return pool[fallback];
     }
 
     private void BuildHint()

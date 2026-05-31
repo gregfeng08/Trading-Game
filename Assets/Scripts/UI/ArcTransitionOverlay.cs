@@ -16,7 +16,7 @@ public class ArcTransitionOverlay : MonoBehaviour
     [SerializeField] private float fadeOutDuration = 0.8f;
 
     [Header("Colors")]
-    [SerializeField] private Color backgroundColor = new(0.02f, 0.02f, 0.05f, 0.92f);
+    [SerializeField] private Color backgroundColor = new(0.02f, 0.02f, 0.05f, 1f);
     [SerializeField] private Color headerColor = new(0.85f, 0.75f, 0.45f, 1f);
     [SerializeField] private Color bodyColor = new(0.72f, 0.72f, 0.76f, 1f);
     [SerializeField] private Color flavorColor = new(0.55f, 0.6f, 0.75f, 1f);
@@ -39,6 +39,8 @@ public class ArcTransitionOverlay : MonoBehaviour
     private TMP_Text continueText;
 
     private bool waitingForInput;
+    private bool skipRequested;
+    private float showStartTime;
     private Coroutine activeSequence;
     private bool subscribedToArcTransition;
 
@@ -71,11 +73,25 @@ public class ArcTransitionOverlay : MonoBehaviour
 
         if (waitingForInput && Input.anyKeyDown)
             waitingForInput = false;
+        else if (!waitingForInput && activeSequence != null && Input.anyKeyDown
+                 && Time.time - showStartTime > fadeInDuration + 0.5f)
+            skipRequested = true;
 
         if (activeSequence == null && overlayCanvas != null && overlayCanvas.activeSelf)
         {
             Debug.LogWarning("[ArcTransitionOverlay] Overlay stuck active with no running sequence — forcing cleanup.");
             Cleanup();
+        }
+    }
+
+    private IEnumerator Stagger()
+    {
+        if (skipRequested) yield break;
+        float t = 0f;
+        while (t < staggerDelay && !skipRequested)
+        {
+            t += Time.deltaTime;
+            yield return null;
         }
     }
 
@@ -106,12 +122,16 @@ public class ArcTransitionOverlay : MonoBehaviour
     public void ShowTransition(ArcTransitionDTO transition)
     {
         if (activeSequence != null) StopCoroutine(activeSequence);
+        skipRequested = false;
+        showStartTime = Time.time;
         activeSequence = StartCoroutine(TransitionSequence(transition));
     }
 
     public void ShowIntro(ArcDefinitionDTO arc)
     {
         if (activeSequence != null) StopCoroutine(activeSequence);
+        skipRequested = false;
+        showStartTime = Time.time;
         activeSequence = StartCoroutine(IntroSequence(arc));
     }
 
@@ -148,21 +168,21 @@ public class ArcTransitionOverlay : MonoBehaviour
         SetText(headerText, $"ARC {arcNum}", dimColor);
         arcNameText.fontSize = 44;
         SetText(arcNameText, (arc.name ?? "").ToUpper(), headerColor);
-        yield return new WaitForSeconds(staggerDelay);
+        yield return Stagger();
 
         SetText(returnText, FormatDateRange(arc.start_date, arc.end_date), dimColor);
         SetText(cashText, $"Starting Cash:  ${cash:N0}", bodyColor);
-        yield return new WaitForSeconds(staggerDelay);
+        yield return Stagger();
 
         dividerObj.SetActive(true);
         SetText(descText, arc.description ?? "", bodyColor);
-        yield return new WaitForSeconds(staggerDelay);
+        yield return Stagger();
 
         string flavor = GetFlavorText(arc.id ?? "");
         if (flavor != null)
         {
             SetText(flavorTextEl, flavor, flavorColor);
-            yield return new WaitForSeconds(staggerDelay);
+            yield return Stagger();
         }
 
         SetText(continueText, "Press any key to continue", dimColor);
@@ -188,18 +208,18 @@ public class ArcTransitionOverlay : MonoBehaviour
         SetText(headerText, "ARC COMPLETE", headerColor);
         arcNameText.fontSize = 36;
         SetText(arcNameText, c.arc_name, Color.white);
-        yield return new WaitForSeconds(staggerDelay);
+        yield return Stagger();
 
         SetText(gradeText, c.grade, GradeColor(c.grade));
         SetText(returnText, $"{c.return_pct:+0.0;-0.0}% return", bodyColor);
-        yield return new WaitForSeconds(staggerDelay);
+        yield return Stagger();
 
         double delta = t.cash_after - t.cash_before;
         string sign = delta >= 0 ? "+" : "";
         SetText(cashText,
             $"${t.cash_before:N0}  →  ${t.cash_after:N0}  ({sign}{delta:N0})",
             delta >= 0 ? positiveColor : negativeColor);
-        yield return new WaitForSeconds(staggerDelay);
+        yield return Stagger();
 
         if (t.next_arc != null)
         {
@@ -207,7 +227,7 @@ public class ArcTransitionOverlay : MonoBehaviour
             SetText(nextHeaderText, "NEXT ARC", headerColor);
             SetText(nextNameText, t.next_arc.name, Color.white);
             SetText(descText, t.next_arc.description, bodyColor);
-            yield return new WaitForSeconds(staggerDelay);
+            yield return Stagger();
         }
 
         SetText(continueText, "Press any key to continue", dimColor);

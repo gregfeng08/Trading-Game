@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 27794aad743f121468a8d0d6e8c10446, type: 3}
+  m_Name: New UI Config
+  m_EditorClassIdentifier: Assembly-CSharp::UIConfig
+  graphNodeTitleSize: 14
+  graphDetailTitleSize: 22
+  graphDetailContentSize: 16
+  graphDetailStatusSize: 13
+  caseyNameSize: 18
+  caseyBodySize: 15
+  caseyPromptSize: 13
+  caseyButtonSize: 16
+  tradingStatusSize: 14
+  tradingTickerSize: 16
+  hudDateSize: 14
+  hudArcSize: 13
+  summaryHeaderSize: 18
+  summaryBodySize: 14
+  globalTextScale: 1.5

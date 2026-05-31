@@ -77,7 +77,23 @@
       "PowerShell($dbPath = \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\Data\\\\database.db\"; Invoke-RestMethod -Uri \"http://127.0.0.1:5000/trade_history?entityId=1\" | ConvertTo-Json -Depth 5)",
       "PowerShell(Remove-Item *)",
       "Bash(grep -r \"stop\" C:\\\\\\\\Users\\\\\\\\gregf\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\VSCode\\\\\\\\Trading-Game\\\\\\\\Trading-Game-DOTNET\\\\\\\\Services --include=\"*.cs\")",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(git ls-tree *)",
+      "Bash(Get-Content -Path Services\\\\*.cs)",
+      "Bash(Select-Object -Property Lines)",
+      "Bash(cat)",
+      "Bash(python /tmp/analyze_methods.py \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\\\\TradingUIController.cs\" \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\\\\GamePhaseManager.cs\" \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\\\\KnowledgeGraph\\\\KnowledgeGraphUI.cs\")",
+      "PowerShell(git ls-tree *)",
+      "Bash(sqlite3 database.db \"SELECT ticker_id, company_name, description FROM loaded_ticker_list LIMIT 10;\")",
+      "Bash(git fetch *)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\.git\\\\worktrees\\\\agent-aa23881bfe597371a\\\\index.lock\" -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(git *)",
+      "PowerShell(python -c \"import sqlite3; conn = sqlite3.connect\\(r'C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\Data\\\\database.db'\\); c = conn.cursor\\(\\); c.execute\\('SELECT ticker_id, company_name, description FROM loaded_ticker_list WHERE ticker_id IN \\(''AAPL'', ''META'', ''MSFT'', ''GOOGL'', ''AMZN''\\) ORDER BY ticker_id'\\); [print\\(r\\) for r in c.fetchall\\(\\)]\")",
+      "PowerShell(python -c \"import sqlite3; conn = sqlite3.connect\\(r'C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\Data\\\\database.db'\\); c = conn.cursor\\(\\); c.execute\\(\"\"SELECT ticker_id, company_name, description FROM loaded_ticker_list WHERE ticker_id IN \\('AAPL','META','MSFT','GOOGL','AMZN'\\) ORDER BY ticker_id\"\"\\); [print\\(r\\) for r in c.fetchall\\(\\)]\")",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\" -Recurse -Directory | Select-Object -First 30 | ForEach-Object { $_.FullName })",
+      "Bash(Get-Content \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\\\\GamePhaseManager.cs\" -TotalCount 500)",
+      "Bash(Tail -200)"
     ]
   }
 }
