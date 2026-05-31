@@ -772,6 +772,14 @@ public class KnowledgeGraphUI : MonoBehaviour
         detailTitle.textWrappingMode = TextWrappingModes.Normal;
         detailTitle.margin = new Vector4(0f, 0f, 30f, 0f);
 
+        var ui = UIConfig.Inst;
+        if (ui != null)
+        {
+            detailTitle.fontSize = ui.Scale(ui.graphDetailTitleSize);
+            detailContent.fontSize = ui.Scale(ui.graphDetailContentSize);
+            detailStatus.fontSize = ui.Scale(ui.graphDetailStatusSize);
+        }
+
         detailContent.textWrappingMode = TextWrappingModes.Normal;
         detailContent.overflowMode = TextOverflowModes.Overflow;
 
@@ -947,7 +955,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         labelRT.offsetMax = Vector2.zero;
         var label = labelGO.AddComponent<TextMeshProUGUI>();
         label.text = "Casey's Take";
-        label.fontSize = 16;
+        label.fontSize = UIConfig.Inst != null ? UIConfig.Inst.Scale(UIConfig.Inst.caseyButtonSize) : 16f;
         label.alignment = TextAlignmentOptions.Center;
         label.color = new Color(0.4f, 0.85f, 0.7f);
 
@@ -1001,7 +1009,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         nameRT.sizeDelta = new Vector2(-28f, 24f);
         caseyNameText = nameGO.AddComponent<TextMeshProUGUI>();
         caseyNameText.text = "Casey";
-        caseyNameText.fontSize = 18;
+        caseyNameText.fontSize = UIConfig.Inst != null ? UIConfig.Inst.Scale(UIConfig.Inst.caseyNameSize) : 18f;
         caseyNameText.fontStyle = FontStyles.Bold;
         caseyNameText.color = new Color(0.4f, 0.85f, 0.7f);
         caseyNameText.raycastTarget = false;
@@ -1014,7 +1022,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         bodyRT.offsetMin = new Vector2(14f, 28f);
         bodyRT.offsetMax = new Vector2(-14f, -34f);
         caseyBodyText = bodyGO.AddComponent<TextMeshProUGUI>();
-        caseyBodyText.fontSize = 15;
+        caseyBodyText.fontSize = UIConfig.Inst != null ? UIConfig.Inst.Scale(UIConfig.Inst.caseyBodySize) : 15f;
         caseyBodyText.color = Color.white;
         caseyBodyText.enableWordWrapping = true;
         caseyBodyText.overflowMode = TextOverflowModes.Ellipsis;
@@ -1029,7 +1037,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         promptRT.anchoredPosition = new Vector2(-14f, 6f);
         promptRT.sizeDelta = new Vector2(100f, 20f);
         caseyPromptText = promptGO.AddComponent<TextMeshProUGUI>();
-        caseyPromptText.fontSize = 13;
+        caseyPromptText.fontSize = UIConfig.Inst != null ? UIConfig.Inst.Scale(UIConfig.Inst.caseyPromptSize) : 13f;
         caseyPromptText.color = new Color(0.5f, 0.5f, 0.55f);
         caseyPromptText.alignment = TextAlignmentOptions.BottomRight;
         caseyPromptText.raycastTarget = false;

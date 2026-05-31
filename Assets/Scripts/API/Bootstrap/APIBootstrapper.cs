@@ -26,6 +26,7 @@ namespace Game.API
         public static event Action<string> OnFailed;
 
         [SerializeField] private BootstrapConfig config;
+        [SerializeField] private UIConfig uiConfig;
         [SerializeField] private bool dontDestroyOnLoad = true;
         [SerializeField] private bool verboseLogs = true;
 
@@ -34,6 +35,7 @@ namespace Game.API
         private void Awake()
         {
             if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
+            if (uiConfig != null) uiConfig.Register();
         }
 
         public void TryStart()
