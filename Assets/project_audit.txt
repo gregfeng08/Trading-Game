@@ -140,22 +140,15 @@ WHAT'S BROKEN OR MISSING
 --------------------------
 
 BROKEN
-1. MinimapController -- The "== Player ==" prefab references a script that was
-   deleted (the minimap rabbit hole). Shows as "Missing Script" in Inspector.
-   Fix: Remove the missing component from the prefab.
+1. [FIXED] MinimapController missing script -- Removed from player prefab.
 
-2. Company names are NULL -- MarketDataService.LoadTickersAsync inserts tickers
-   with company_name = NULL. The companyNameText field in TradingUIController
-   will always be empty. Fix: Add a name mapping (hardcoded dictionary or CSV)
-   in the backend.
+2. [FIXED] Company names -- No longer NULL, resolved in backend.
 
-3. Player Animator Controller is empty -- No states, no parameters, no motions.
-   Player has no walk/idle animation. Fix: Build one like the NPC animator, or
-   use the existing CityPeople clips.
+3. [N/A] Player Animator -- Custom player model, no animations planned.
 
-4. KnowledgeNotificationUI -- Script exists but is not attached to any scene or
-   prefab. Redundant with PlayerObjectivesUI which already handles unlock
-   notifications. Fix: Delete the script or leave it as dead code.
+4. [FIXED] KnowledgeNotificationUI -- Fully functional notification system.
+   Shows "New Insight" popups on trigger, "Feature Unlocked" on progression
+   gate reveals, with Learn More / Dismiss buttons and auto-dismiss timer.
 
 NOT YET BUILT
 1. Dynamic NPC dialogue -- The DB tables exist (static_npc_dialogue,

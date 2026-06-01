@@ -33,7 +33,6 @@ public class PlayerStateController : MonoBehaviour
         {
             switch (State)
             {
-                case PlayerState.MOVING:   SetState(PlayerState.PAUSED); break;
                 case PlayerState.PAUSED:   SetState(PlayerState.MOVING); break;
                 case PlayerState.TRADING:  SetState(PlayerState.MOVING); break;
             }

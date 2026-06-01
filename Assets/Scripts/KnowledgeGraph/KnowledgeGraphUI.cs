@@ -1176,9 +1176,9 @@ public class KnowledgeGraphUI : MonoBehaviour
 
         if (caseyTakeShowCompleteAfter && selectedNode != null && selectedNode.status == "unlocked")
         {
-            completeButton.gameObject.SetActive(true);
-            if (caseyTakeButton != null)
-                caseyTakeButton.gameObject.SetActive(false);
+            caseyTakeShowCompleteAfter = false;
+            OnCompleteLesson();
+            return;
         }
         caseyTakeShowCompleteAfter = false;
     }
