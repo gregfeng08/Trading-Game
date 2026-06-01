@@ -241,7 +241,6 @@ public class GameStateService
 
         if (date is not null)
         {
-            clauses.Add("date = @d");
             cmd.Parameters.AddWithValue("@d", date);
         }
         if (npcType is not null)
@@ -261,15 +260,26 @@ public class GameStateService
         }
 
         var where = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) : "";
+        var staticDateClause = date is not null ? "(date = @d OR date IS NULL)" : null;
+        var dynamicDateClause = date is not null ? "date = @d" : null;
+
+        var staticWhere = clauses.Count > 0 || staticDateClause is not null
+            ? "WHERE " + string.Join(" AND ", staticDateClause is not null
+                ? clauses.Prepend(staticDateClause) : clauses)
+            : "";
+        var dynamicWhere = clauses.Count > 0 || dynamicDateClause is not null
+            ? "WHERE " + string.Join(" AND ", dynamicDateClause is not null
+                ? clauses.Prepend(dynamicDateClause) : clauses)
+            : "";
 
         cmd.CommandText = $"""
             SELECT id, date, ticker_id, npc_type, category, text, 'static' AS source,
                    priority, phase, line_order
-            FROM static_npc_dialogue {where}
+            FROM static_npc_dialogue {staticWhere}
             UNION ALL
             SELECT id, date, ticker_id, npc_type, category, text, 'dynamic' AS source,
                    priority, phase, line_order
-            FROM dynamic_npc_dialogue {where}
+            FROM dynamic_npc_dialogue {dynamicWhere}
             ORDER BY date, npc_type, line_order;
             """;
 
