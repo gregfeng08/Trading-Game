@@ -342,7 +342,6 @@ GameObject:
   - component: {fileID: 3596779457298787225}
   - component: {fileID: 732791965148398034}
   - component: {fileID: 2463987398657717974}
-  - component: {fileID: 6086138200722766401}
   m_Layer: 0
   m_Name: == Player ==
   m_TagString: Player
@@ -396,26 +395,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::InteractionsController
   promptPanel: {fileID: 9108918661868341841}
   promptText: {fileID: 3454415480012246357}
---- !u!114 &6086138200722766401
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5372898674174082764}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2631e8e3c014aaa43b74094e5ec64bd3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MinimapController
-  minimapCamera: {fileID: 5957404492070327727}
-  minimapImage: {fileID: 3680270973634649348}
-  playerTransform: {fileID: 3596779457298787225}
-  iconColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  iconSize: 1.5
-  cameraHeight: 40
-  orthoSize: 30
-  backgroundColor: {r: 0.15, g: 0.15, b: 0.2, a: 1}
 --- !u!1 &5519571659115465362
 GameObject:
   m_ObjectHideFlags: 0
@@ -1331,17 +1310,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
---- !u!114 &3680270973634649348 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 1163832773258136105, guid: 67c3d1365697b804c9e8cc47bf5174d0, type: 3}
-  m_PrefabInstance: {fileID: 2536706701876188973}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1344c3c82d62a2a41a3576d8abb8e3ea, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RawImage
 --- !u!224 &8376523268214611773 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 6272197917308028944, guid: 67c3d1365697b804c9e8cc47bf5174d0, type: 3}
