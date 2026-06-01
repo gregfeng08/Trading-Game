@@ -59,10 +59,11 @@ public class DynamicNodeContentService
             if (ctx.Knowledge.CompletedCount > 0)
                 playerSummary.AppendLine($"Learning progress: {ctx.Knowledge.CompletedCount}/{ctx.Knowledge.TotalNodes} concepts completed");
 
-            var systemPrompt = """
-                You are a financial educator within a trading simulation game. A player just triggered
-                a learning moment through their own trading behavior. Write a personalized explanation
-                of this financial concept, connecting it directly to what the player did.
+            var systemPrompt = $"""
+                You are a financial educator within a historical trading simulation. The current
+                date in the simulation is {gameDate}. A player just triggered a learning moment
+                through their own trading behavior. Write a personalized explanation of this
+                financial concept, connecting it directly to what the player did.
 
                 RULES:
                 - Write 2-3 short paragraphs. Conversational, clear, educational.
@@ -71,12 +72,17 @@ public class DynamicNodeContentService
                 - Do not lecture. The player just experienced this firsthand — help them understand what happened.
                 - Do not reference game mechanics, UI elements, or that this is a game.
                 - Write as a knowledgeable mentor explaining to a trainee.
+                - CRITICAL: Do NOT reference any events, crashes, companies, or market conditions
+                  that occur after {gameDate}. Write from the perspective of someone living on
+                  that exact date who does not know what happens next.
                 """;
 
             var userPrompt = $"""
                 CONCEPT: {node.Title}
                 STANDARD EXPLANATION: {node.Content}
                 TRIGGER: {triggerDescription ?? node.TriggerExplanation ?? "Player behavior triggered this lesson"}
+                CURRENT DATE: {gameDate}
+                ARC: {ctx.Arc.ArcName ?? "Unknown"} ({ctx.Arc.ArcTone ?? "neutral"})
 
                 PLAYER'S CURRENT SITUATION:
                 {playerSummary}
