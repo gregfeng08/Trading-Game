@@ -221,9 +221,10 @@ public class DailySummaryOverlay : MonoBehaviour
             portfolioHeader.gameObject.SetActive(true);
             portfolioBody.gameObject.SetActive(true);
         }
-        divider3.SetActive(alertsHeader.gameObject.activeSelf);
-        alertsHeader.gameObject.SetActive(alertsHeader.text.Length > 0);
-        alertsBody.gameObject.SetActive(alertsBody.text.Length > 0);
+        bool hasAlerts = !string.IsNullOrEmpty(alertsHeader.text);
+        divider3.SetActive(hasAlerts);
+        alertsHeader.gameObject.SetActive(hasAlerts);
+        alertsBody.gameObject.SetActive(!string.IsNullOrEmpty(alertsBody.text));
         if (reviewHeader != null && reviewHeader.text.Length > 0)
         {
             dividerReview.SetActive(true);

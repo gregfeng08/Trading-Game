@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=UnifrakturMaguntia&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 800px;
+    min-height: 1100px;
+    background: #f5f0e8;
+    font-family: 'Libre Baskerville', 'Georgia', serif;
+    color: #1a1a1a;
+    padding: 32px 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Masthead ── */
+  .masthead {
+    text-align: center;
+    border-bottom: 4px double #1a1a1a;
+    padding-bottom: 12px;
+    margin-bottom: 6px;
+  }
+
+  .masthead-rule {
+    border: none;
+    border-top: 1px solid #1a1a1a;
+    margin-bottom: 8px;
+  }
+
+  .masthead-name {
+    font-family: 'UnifrakturMaguntia', 'Playfair Display', serif;
+    font-size: 52px;
+    letter-spacing: 2px;
+    line-height: 1.1;
+    color: #1a1a1a;
+  }
+
+  .masthead-sub {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #555;
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  /* ── Date bar ── */
+  .date-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: #444;
+    padding: 6px 0;
+    border-bottom: 1px solid #999;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* ── Headline ── */
+  .headline {
+    font-family: 'Playfair Display', serif;
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1.15;
+    text-align: center;
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+
+  .headline-rule {
+    border: none;
+    border-top: 2px solid #1a1a1a;
+    margin: 10px 60px 18px;
+  }
+
+  /* ── Market recap ── */
+  .market-recap {
+    background: #ebe6da;
+    border: 1px solid #c9c2b0;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .market-recap-header {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    color: #333;
+  }
+
+  /* ── Articles grid ── */
+  .articles {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 0 20px;
+    margin-bottom: 18px;
+  }
+
+  .article-divider {
+    background: #bbb;
+  }
+
+  .article {
+    margin-bottom: 16px;
+  }
+
+  .article-category {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+
+  .article-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-bottom: 8px;
+  }
+
+  .article-body {
+    font-size: 12.5px;
+    line-height: 1.7;
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  .article-full {
+    grid-column: 1 / -1;
+    border-top: 1px solid #bbb;
+    padding-top: 14px;
+    margin-top: 2px;
+  }
+
+  /* ── Movers table ── */
+  .movers {
+    border-top: 2px solid #1a1a1a;
+    padding-top: 10px;
+  }
+
+  .movers-header {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .movers-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 24px;
+  }
+
+  .movers-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .movers-section-title.gainers { color: #2d6a2e; }
+  .movers-section-title.losers { color: #8b1a1a; }
+
+  .mover-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 2px 0;
+    border-bottom: 1px dotted #ddd;
+  }
+
+  .mover-ticker {
+    font-weight: 700;
+  }
+
+  .mover-change {
+    font-weight: 700;
+    text-align: right;
+  }
+
+  .mover-change.positive { color: #2d6a2e; }
+  .mover-change.negative { color: #8b1a1a; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 4px double #1a1a1a;
+    text-align: center;
+    font-size: 9px;
+    font-style: italic;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <hr class="masthead-rule">
+  <div class="masthead-name">The Market Tribune</div>
+  <div class="masthead-sub">
+    <span>Your Daily Financial Companion</span>
+    <span>Est. 1998</span>
+  </div>
+</div>
+
+<div class="date-bar">
+  <span>{{DATE_DISPLAY}}</span>
+  <span>{{ARC_NAME}}</span>
+  <span>Vol. {{VOLUME}} &bull; No. {{ISSUE}}</span>
+</div>
+
+<h1 class="headline">{{HEADLINE}}</h1>
+<hr class="headline-rule">
+
+<div class="market-recap">
+  <div class="market-recap-header">Market Recap</div>
+  {{MARKET_RECAP}}
+</div>
+
+<div class="articles">
+  <div>
+    <div class="article">
+      <div class="article-category">{{ARTICLE_0_CATEGORY}}</div>
+      <div class="article-title">{{ARTICLE_0_TITLE}}</div>
+      <div class="article-body">{{ARTICLE_0_BODY}}</div>
+    </div>
+  </div>
+
+  <div class="article-divider"></div>
+
+  <div>
+    <div class="article">
+      <div class="article-category">{{ARTICLE_1_CATEGORY}}</div>
+      <div class="article-title">{{ARTICLE_1_TITLE}}</div>
+      <div class="article-body">{{ARTICLE_1_BODY}}</div>
+    </div>
+  </div>
+
+  <div class="article article-full">
+    <div class="article-category">{{ARTICLE_2_CATEGORY}}</div>
+    <div class="article-title">{{ARTICLE_2_TITLE}}</div>
+    <div class="article-body">{{ARTICLE_2_BODY}}</div>
+  </div>
+</div>
+
+<div class="movers">
+  <div class="movers-header">Yesterday's Top Movers</div>
+  <div class="movers-grid">
+    <div>
+      <div class="movers-section-title gainers">Gainers</div>
+      {{GAINERS_ROWS}}
+    </div>
+    <div>
+      <div class="movers-section-title losers">Losers</div>
+      {{LOSERS_ROWS}}
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  The Market Tribune is a fictional publication. All market data reflects actual historical prices.
+</div>
+
+</body>
+</html>
