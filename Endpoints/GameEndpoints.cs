@@ -52,6 +52,21 @@ public static class GameEndpoints
             }
         });
 
+        app.MapPost("/advance_week", (string entityId, int? days, GameStateService game, EntityService entities) =>
+        {
+            try
+            {
+                var entityDbId = entities.ResolveExternalId(entityId);
+                if (entityDbId is null)
+                    return Results.Json(new ErrorResponse("error", $"Entity '{entityId}' not found"), statusCode: 404);
+                return Results.Ok(game.AdvanceWeek(entityDbId.Value, days ?? 5));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Json(new ErrorResponse("error", ex.Message), statusCode: 400);
+            }
+        });
+
         app.MapGet("/dialogue", (string? date, string? npcType, string? tickerId, string? category, GameStateService game) =>
             Results.Ok(game.GetDialogue(date, npcType, tickerId, category)));
 

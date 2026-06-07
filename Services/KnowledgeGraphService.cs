@@ -11,7 +11,7 @@ public class KnowledgeGraphService
     private readonly Database _db;
     private readonly KnowledgeGraphConfig _config;
 
-    public event Action<int, string, string, string?>? OnNodeUnlocked;
+    public event Action<int, string, string, string?, string?>? OnNodeUnlocked;
 
     public KnowledgeGraphService(Database db, string configPath)
     {
@@ -114,6 +114,7 @@ public class KnowledgeGraphService
     }
 
     // ── Evaluate adaptive triggers (called after trades/day advance) ──
+    // Supports dual-path triggers: evaluates negative/positive/time paths, first-wins.
 
     public List<UnlockedNodeDto> EvaluateTriggers(int entityId, string gameDate)
     {
@@ -122,7 +123,7 @@ public class KnowledgeGraphService
         var newlyUnlocked = new List<UnlockedNodeDto>();
 
         var adaptiveNodes = _config.Nodes
-            .Where(n => n.Type == "adaptive" && n.Trigger is not null)
+            .Where(n => n.Type == "adaptive" && (n.Trigger is not null || n.Triggers is { Count: > 0 }))
             .Where(n => !progress.ContainsKey(n.Id) || progress[n.Id].Status == "locked");
 
         foreach (var node in adaptiveNodes)
@@ -130,11 +131,26 @@ public class KnowledgeGraphService
             if (!PrerequisitesMet(node, progress))
                 continue;
 
-            if (CheckTrigger(conn, entityId, node.Trigger!, gameDate))
+            if (node.Triggers is { Count: > 0 })
+            {
+                foreach (var path in node.Triggers)
+                {
+                    var triggerConfig = new TriggerConfig { Type = path.Type, Params = path.Params };
+                    if (CheckTrigger(conn, entityId, triggerConfig, gameDate))
+                    {
+                        SetProgress(conn, entityId, node.Id, "unlocked", gameDate, null);
+                        newlyUnlocked.Add(new UnlockedNodeDto(node.Id, node.Title, node.Priority, node.Category));
+                        var explanation = path.TriggerExplanation ?? node.TriggerExplanation;
+                        OnNodeUnlocked?.Invoke(entityId, node.Id, gameDate, explanation, path.Path);
+                        break;
+                    }
+                }
+            }
+            else if (node.Trigger is not null && CheckTrigger(conn, entityId, node.Trigger, gameDate))
             {
                 SetProgress(conn, entityId, node.Id, "unlocked", gameDate, null);
                 newlyUnlocked.Add(new UnlockedNodeDto(node.Id, node.Title, node.Priority, node.Category));
-                OnNodeUnlocked?.Invoke(entityId, node.Id, gameDate, node.TriggerExplanation);
+                OnNodeUnlocked?.Invoke(entityId, node.Id, gameDate, node.TriggerExplanation, null);
             }
         }
 
@@ -160,6 +176,11 @@ public class KnowledgeGraphService
             "market_wide_decline" => CheckMarketDecline(conn, gameDate, trigger.Params),
             "traded_both_phases" => CheckTradedBothPhases(conn, entityId),
             "held_overnight_gap" => CheckHeldOvernightGap(conn, entityId, gameDate, trigger.Params),
+            "maintained_diversification" => CheckMaintainedDiversification(conn, entityId, gameDate, trigger.Params),
+            "maintained_cash_reserves" => CheckMaintainedCashReserves(conn, entityId, gameDate, trigger.Params),
+            "trading_days_elapsed" => CheckTradingDaysElapsed(conn, entityId, trigger.Params),
+            "newspaper_read" => CheckNewspaperRead(conn, entityId, trigger.Params),
+            "npc_interaction" => CheckNpcInteraction(conn, entityId, trigger.Params),
             _ => false
         };
     }
@@ -438,6 +459,175 @@ public class KnowledgeGraphService
         return false;
     }
 
+    // ── Positive path triggers (dual-path system) ──
+
+    private bool CheckMaintainedDiversification(SqliteConnection conn, int entityId, string gameDate, Dictionary<string, JsonElement> p)
+    {
+        var minTickers = p.TryGetValue("min_tickers", out var mt) ? mt.GetInt32() : 4;
+        var minDays = p.TryGetValue("min_days", out var md) ? md.GetInt32() : 5;
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT COUNT(DISTINCT th.trade_date) as trading_days
+            FROM trade_history th
+            WHERE th.entity_id = @eid AND th.trade_date <= @date;
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.Parameters.AddWithValue("@date", gameDate);
+        var totalDays = Convert.ToInt32(cmd.ExecuteScalar());
+        if (totalDays < minDays) return false;
+
+        using var cmd2 = conn.CreateCommand();
+        cmd2.CommandText = """
+            SELECT COUNT(DISTINCT ticker_id) FROM portfolio
+            WHERE entity_id = @eid AND shares_held > 0;
+            """;
+        cmd2.Parameters.AddWithValue("@eid", entityId);
+        var currentTickers = Convert.ToInt32(cmd2.ExecuteScalar());
+
+        return currentTickers >= minTickers;
+    }
+
+    private bool CheckMaintainedCashReserves(SqliteConnection conn, int entityId, string gameDate, Dictionary<string, JsonElement> p)
+    {
+        var minCashPct = p.TryGetValue("min_cash_pct", out var mc) ? mc.GetDouble() : 20.0;
+        var minDays = p.TryGetValue("min_days", out var md) ? md.GetInt32() : 5;
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM net_worth_history
+            WHERE entity_id = @eid AND net_worth > 0
+              AND (cash / net_worth * 100) >= @pct;
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.Parameters.AddWithValue("@pct", minCashPct);
+        var daysAbove = Convert.ToInt32(cmd.ExecuteScalar());
+
+        return daysAbove >= minDays;
+    }
+
+    private bool CheckTradingDaysElapsed(SqliteConnection conn, int entityId, Dictionary<string, JsonElement> p)
+    {
+        var minDays = p.TryGetValue("min_days", out var md) ? md.GetInt32() : 10;
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(DISTINCT trade_date) FROM trade_history WHERE entity_id = @eid;";
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        var days = Convert.ToInt32(cmd.ExecuteScalar());
+
+        return days >= minDays;
+    }
+
+    // ── Player event triggers (newspaper_read, npc_interaction) ──
+
+    private bool CheckNewspaperRead(SqliteConnection conn, int entityId, Dictionary<string, JsonElement> p)
+    {
+        var minReads = p.TryGetValue("min_reads", out var mr) ? mr.GetInt32() : 3;
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM player_events
+            WHERE entity_id = @eid AND event_type = 'newspaper_read';
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        var reads = Convert.ToInt32(cmd.ExecuteScalar());
+
+        return reads >= minReads;
+    }
+
+    private bool CheckNpcInteraction(SqliteConnection conn, int entityId, Dictionary<string, JsonElement> p)
+    {
+        var minInteractions = p.TryGetValue("min_interactions", out var mi) ? mi.GetInt32() : 3;
+        var npcType = p.TryGetValue("npc_type", out var nt) ? nt.GetString() : null;
+
+        using var cmd = conn.CreateCommand();
+        if (npcType is not null)
+        {
+            cmd.CommandText = """
+                SELECT COUNT(*) FROM player_events
+                WHERE entity_id = @eid AND event_type = 'npc_interaction'
+                  AND json_extract(metadata_json, '$.npc_type') = @npc;
+                """;
+            cmd.Parameters.AddWithValue("@npc", npcType);
+        }
+        else
+        {
+            cmd.CommandText = """
+                SELECT COUNT(*) FROM player_events
+                WHERE entity_id = @eid AND event_type = 'npc_interaction';
+                """;
+        }
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        var count = Convert.ToInt32(cmd.ExecuteScalar());
+
+        return count >= minInteractions;
+    }
+
+    // ── NPC Quest system ──
+
+    public NpcQuestCompleteResponse CompleteNpcQuest(int entityId, string npcType, string gameDate)
+    {
+        var quest = _config.NpcQuests?.FirstOrDefault(q => q.NpcType == npcType);
+        if (quest is null)
+            return new NpcQuestCompleteResponse("error", npcType, null, "Unknown NPC type");
+
+        using var conn = _db.Open();
+        var progress = LoadProgress(conn, entityId);
+        var unlocked = new List<string>();
+
+        foreach (var nodeId in quest.UnlocksNodes)
+        {
+            var node = _config.Nodes.FirstOrDefault(n => n.Id == nodeId);
+            if (node is null) continue;
+            if (progress.TryGetValue(nodeId, out var p) && p.Status != "locked") continue;
+            if (!PrerequisitesMet(node, progress)) continue;
+
+            SetProgress(conn, entityId, nodeId, "unlocked", gameDate, null);
+            progress[nodeId] = new NodeProgress("unlocked", gameDate, null);
+            unlocked.Add(nodeId);
+            OnNodeUnlocked?.Invoke(entityId, nodeId, gameDate,
+                $"Unlocked through conversation with {quest.Name}.", "quest");
+        }
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO npc_quest_progress (entity_id, npc_type, node_id, status, completed_at)
+            VALUES (@eid, @npc, @nid, 'completed', @date)
+            ON CONFLICT(entity_id, npc_type, node_id) DO UPDATE SET
+                status = 'completed', completed_at = excluded.completed_at;
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.Parameters.AddWithValue("@npc", npcType);
+        cmd.Parameters.AddWithValue("@date", gameDate);
+
+        foreach (var nodeId in unlocked)
+        {
+            cmd.Parameters["@nid"].Value = nodeId;
+            cmd.ExecuteNonQuery();
+        }
+
+        return new NpcQuestCompleteResponse("ok", npcType, unlocked.Count > 0 ? unlocked : null, null);
+    }
+
+    // ── Player event recording ──
+
+    public void RecordPlayerEvent(int entityId, string eventType, string eventDate, string? metadataJson)
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO player_events (entity_id, event_type, event_date, metadata_json, created_at)
+            VALUES (@eid, @type, @date, @meta, @now)
+            ON CONFLICT(entity_id, event_type, event_date) DO NOTHING;
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.Parameters.AddWithValue("@type", eventType);
+        cmd.Parameters.AddWithValue("@date", eventDate);
+        cmd.Parameters.AddWithValue("@meta", (object?)metadataJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+        cmd.ExecuteNonQuery();
+    }
+
     // ── Helper methods ──
 
     private bool PrerequisitesMet(KnowledgeNodeConfig node, Dictionary<string, NodeProgress> progress)
@@ -522,6 +712,9 @@ public class KnowledgeGraphConfig
     [JsonPropertyName("categories")]
     public Dictionary<string, CategoryConfig> Categories { get; set; } = new();
 
+    [JsonPropertyName("npc_quests")]
+    public List<NpcQuestConfig>? NpcQuests { get; set; }
+
     [JsonPropertyName("settings")]
     public GraphSettings Settings { get; set; } = new();
 }
@@ -548,6 +741,9 @@ public class KnowledgeNodeConfig
 
     [JsonPropertyName("trigger")]
     public TriggerConfig? Trigger { get; set; }
+
+    [JsonPropertyName("triggers")]
+    public List<TriggerPathConfig>? Triggers { get; set; }
 
     [JsonPropertyName("priority")]
     public string Priority { get; set; } = "normal";
@@ -582,6 +778,46 @@ public class TriggerConfig
     [JsonPropertyName("params")]
     public Dictionary<string, JsonElement> Params { get; set; } = new();
 }
+
+public class TriggerPathConfig
+{
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = "negative";
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
+
+    [JsonPropertyName("params")]
+    public Dictionary<string, JsonElement> Params { get; set; } = new();
+
+    [JsonPropertyName("trigger_explanation")]
+    public string? TriggerExplanation { get; set; }
+}
+
+public class NpcQuestConfig
+{
+    [JsonPropertyName("npc_type")]
+    public string NpcType { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = "";
+
+    [JsonPropertyName("unlocks_nodes")]
+    public List<string> UnlocksNodes { get; set; } = [];
+
+    [JsonPropertyName("quest_dialogue_hint")]
+    public string? QuestDialogueHint { get; set; }
+}
+
+public record NpcQuestCompleteResponse(
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("npc_type")] string NpcType,
+    [property: JsonPropertyName("unlocked_nodes")] List<string>? UnlockedNodes,
+    [property: JsonPropertyName("message")] string? Message
+);
 
 public class NodePosition
 {

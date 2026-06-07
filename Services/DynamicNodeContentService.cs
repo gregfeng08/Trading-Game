@@ -26,7 +26,7 @@ public class DynamicNodeContentService
     }
 
     public async Task<string?> GeneratePersonalizedContent(
-        int entityId, string nodeId, string gameDate, string? triggerDescription)
+        int entityId, string nodeId, string gameDate, string? triggerDescription, string? triggerPath = null)
     {
         if (string.IsNullOrEmpty(_apiKey))
             return null;
@@ -122,7 +122,7 @@ public class DynamicNodeContentService
 
             if (content is null) return null;
 
-            CacheContent(entityId, nodeId, content, triggerDescription);
+            CacheContent(entityId, nodeId, content, triggerDescription, triggerPath);
             return content;
         }
         catch (Exception ex)
@@ -155,21 +155,22 @@ public class DynamicNodeContentService
         return node?.Content ?? "";
     }
 
-    private void CacheContent(int entityId, string nodeId, string content, string? triggerContext)
+    private void CacheContent(int entityId, string nodeId, string content, string? triggerContext, string? triggerPath = null)
     {
         using var conn = _db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO dynamic_node_content (entity_id, node_id, content, trigger_context, generated_at)
-            VALUES (@eid, @nid, @content, @trigger, @at)
+            INSERT INTO dynamic_node_content (entity_id, node_id, content, trigger_context, trigger_path, generated_at)
+            VALUES (@eid, @nid, @content, @trigger, @path, @at)
             ON CONFLICT(entity_id, node_id) DO UPDATE SET
                 content = excluded.content, trigger_context = excluded.trigger_context,
-                generated_at = excluded.generated_at;
+                trigger_path = excluded.trigger_path, generated_at = excluded.generated_at;
             """;
         cmd.Parameters.AddWithValue("@eid", entityId);
         cmd.Parameters.AddWithValue("@nid", nodeId);
         cmd.Parameters.AddWithValue("@content", content);
         cmd.Parameters.AddWithValue("@trigger", (object?)triggerContext ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@path", (object?)triggerPath ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@at", DateTime.UtcNow.ToString("o"));
         cmd.ExecuteNonQuery();
     }

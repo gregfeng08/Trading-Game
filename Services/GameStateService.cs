@@ -144,6 +144,91 @@ public class GameStateService
         return liquidations;
     }
 
+    public WeekReviewResponse AdvanceWeek(int entityDbId, int days = 5)
+    {
+        var dailySummaries = new List<DaySkipSummaryDto>();
+        var allUnlocked = new List<UnlockedNodeDto>();
+        string? startDate = null;
+        string currentDate = "";
+
+        for (int i = 0; i < days; i++)
+        {
+            var advanceResult = AdvanceDay(entityDbId);
+            if (advanceResult.GameOver)
+                break;
+
+            currentDate = advanceResult.CurrentDate;
+            startDate ??= advanceResult.PreviousDate ?? currentDate;
+
+            using var conn = _db.Open();
+
+            var entity = _entities.GetEntity(conn, entityDbId);
+            double cash = entity?.AvailableCash ?? 0;
+
+            double holdingsValue = 0;
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT COALESCE(SUM(pf.shares_held * tp.close_price), 0)
+                    FROM portfolio pf
+                    JOIN ticker_prices tp ON tp.ticker_id = pf.ticker_id AND tp.date = @date
+                    WHERE pf.entity_id = @eid AND pf.shares_held > 0;
+                    """;
+                cmd.Parameters.AddWithValue("@eid", entityDbId);
+                cmd.Parameters.AddWithValue("@date", currentDate);
+                holdingsValue = Convert.ToDouble(cmd.ExecuteScalar() ?? 0);
+            }
+
+            var topMovers = GetTopMovers(conn, currentDate, 3);
+
+            dailySummaries.Add(new DaySkipSummaryDto(
+                currentDate,
+                Math.Round(cash + holdingsValue, 2),
+                topMovers
+            ));
+
+            if (advanceResult.UnlockedNodes is { Count: > 0 })
+                allUnlocked.AddRange(advanceResult.UnlockedNodes);
+        }
+
+        return new WeekReviewResponse(
+            "ok",
+            startDate ?? "",
+            currentDate,
+            dailySummaries.Count,
+            dailySummaries,
+            allUnlocked.Count > 0 ? allUnlocked : null
+        );
+    }
+
+    private List<MoverSummaryDto> GetTopMovers(SqliteConnection conn, string date, int count)
+    {
+        var movers = new List<MoverSummaryDto>();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT tp.ticker_id,
+                   (tp.close_price - prev.close_price) / prev.close_price * 100 as pct
+            FROM ticker_prices tp
+            JOIN ticker_prices prev ON prev.ticker_id = tp.ticker_id
+                AND prev.date = (SELECT MAX(date) FROM ticker_prices WHERE ticker_id = tp.ticker_id AND date < @date)
+            WHERE tp.date = @date AND prev.close_price > 0
+            ORDER BY ABS(pct) DESC
+            LIMIT @n;
+            """;
+        cmd.Parameters.AddWithValue("@date", date);
+        cmd.Parameters.AddWithValue("@n", count);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            movers.Add(new MoverSummaryDto(
+                reader.GetString(0),
+                Math.Round(reader.GetDouble(1), 2)
+            ));
+        }
+        return movers;
+    }
+
     public AdvancePhaseResponse AdvancePhase()
     {
         using var conn = _db.Open();

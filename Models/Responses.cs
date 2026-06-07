@@ -233,6 +233,42 @@ public record NewGameResponse(
     [property: JsonPropertyName("game_phase")] string GamePhase
 );
 
+// ── Weekend Review / Skip-Week ──
+
+public record MoverSummaryDto(
+    [property: JsonPropertyName("ticker")] string Ticker,
+    [property: JsonPropertyName("change_pct")] double ChangePct
+);
+
+public record DaySkipSummaryDto(
+    [property: JsonPropertyName("date")] string Date,
+    [property: JsonPropertyName("net_worth")] double NetWorth,
+    [property: JsonPropertyName("top_movers")] List<MoverSummaryDto> TopMovers
+);
+
+public record WeekReviewResponse(
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("start_date")] string StartDate,
+    [property: JsonPropertyName("end_date")] string EndDate,
+    [property: JsonPropertyName("days_advanced")] int DaysAdvanced,
+    [property: JsonPropertyName("daily_summaries")] List<DaySkipSummaryDto> DailySummaries,
+    [property: JsonPropertyName("unlocked_nodes")] List<UnlockedNodeDto>? UnlockedNodes
+);
+
+// ── Player Events ──
+
+public record PlayerEventRequest(
+    [property: JsonPropertyName("entity_id")] int EntityId,
+    [property: JsonPropertyName("event_type")] string EventType,
+    [property: JsonPropertyName("metadata")] Dictionary<string, string>? Metadata,
+    [property: JsonPropertyName("metadata_json")] string? MetadataJson
+);
+
+public record NpcQuestRequest(
+    [property: JsonPropertyName("entity_id")] int EntityId,
+    [property: JsonPropertyName("npc_type")] string NpcType
+);
+
 // ── Dialogue ──
 
 public record DialogueRowDto(
@@ -369,7 +405,8 @@ public record PendingOrderDto(
     [property: JsonPropertyName("side")] string Side,
     [property: JsonPropertyName("quantity")] int Quantity,
     [property: JsonPropertyName("order_type")] string OrderType,
-    [property: JsonPropertyName("limit_price")] double? LimitPrice
+    [property: JsonPropertyName("limit_price")] double? LimitPrice,
+    [property: JsonPropertyName("stop_price")] double? StopPrice
 );
 
 public record PendingOrdersResponse(

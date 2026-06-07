@@ -99,6 +99,9 @@ public class QueueOrderRequest
 
     [JsonPropertyName("limit_price")]
     public double? LimitPrice { get; set; }
+
+    [JsonPropertyName("stop_price")]
+    public double? StopPrice { get; set; }
 }
 
 public class InlineOrder
@@ -117,6 +120,9 @@ public class InlineOrder
 
     [JsonPropertyName("limit_price")]
     public double? LimitPrice { get; set; }
+
+    [JsonPropertyName("stop_price")]
+    public double? StopPrice { get; set; }
 }
 
 public class OpenMarketsRequest

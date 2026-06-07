@@ -99,11 +99,11 @@ var kg = app.Services.GetRequiredService<KnowledgeGraphService>();
 var dynContent = app.Services.GetService<DynamicNodeContentService>();
 if (dynContent is not null)
 {
-    kg.OnNodeUnlocked += (entityId, nodeId, gameDate, triggerDesc) =>
+    kg.OnNodeUnlocked += (entityId, nodeId, gameDate, triggerDesc, triggerPath) =>
     {
         _ = Task.Run(async () =>
         {
-            try { await dynContent.GeneratePersonalizedContent(entityId, nodeId, gameDate, triggerDesc); }
+            try { await dynContent.GeneratePersonalizedContent(entityId, nodeId, gameDate, triggerDesc, triggerPath); }
             catch (Exception ex) { Console.WriteLine($"[DynamicContent] Background generation failed: {ex.Message}"); }
         });
     };
@@ -119,6 +119,7 @@ GameEndpoints.Map(app);
 NewspaperEndpoints.Map(app);
 ArcEndpoints.Map(app);
 KnowledgeGraphEndpoints.Map(app);
+PlayerEventsEndpoints.Map(app);
 
 app.MapGet("/player_context", (int entityId, PlayerContextService ctx, GameStateService game) =>
 {
