@@ -9,6 +9,7 @@ namespace Game.API.DTO
         public int quantity;
         public string order_type;
         public double limit_price;
+        public double stop_price;
     }
 
     [System.Serializable]
@@ -28,6 +29,7 @@ namespace Game.API.DTO
         public int quantity;
         public string order_type;
         public double limit_price;
+        public double stop_price;
     }
 
     [System.Serializable]
@@ -57,6 +59,8 @@ namespace Game.API.DTO
         public string side;
         public int quantity;
         public string order_type;
+        public double limit_price;
+        public double stop_price;
     }
 
     [System.Serializable]

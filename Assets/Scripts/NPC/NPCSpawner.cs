@@ -351,10 +351,28 @@ public class NPCSpawner : MonoBehaviour
         return walker;
     }
 
+    private static readonly HashSet<string> InteractableTypes = new()
+        { "analyst", "broker", "trader", "historian" };
+
+    private static readonly Dictionary<string, string> NpcDisplayNames = new()
+    {
+        { "analyst", "The Analyst" },
+        { "broker", "The Broker" },
+        { "trader", "The Floor Trader" },
+        { "historian", "The Historian" }
+    };
+
     private void SetupBark(GameObject npc, string npcType = null)
     {
         var bark = npc.AddComponent<NPCBark>();
         bark.Init(npcType: npcType);
+
+        if (!string.IsNullOrEmpty(npcType) && InteractableTypes.Contains(npcType))
+        {
+            var interaction = npc.AddComponent<NPCInteraction>();
+            string displayName = NpcDisplayNames.TryGetValue(npcType, out var name) ? name : npcType;
+            interaction.Init(npcType, displayName);
+        }
     }
 }
 

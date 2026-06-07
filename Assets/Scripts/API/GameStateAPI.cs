@@ -22,6 +22,12 @@ namespace Game.API
             return APIClient.PostAsync<object, AdvanceDayResponse>(path, new { });
         }
 
+        public static Task<WeekReviewResponse> AdvanceWeek(int days = 5)
+        {
+            var path = $"advance_week?entityId={APIBootstrapper.EntityExternalId}&days={days}";
+            return APIClient.PostAsync<object, WeekReviewResponse>(path, new { });
+        }
+
         public static Task<NewGameResponse> NewGame(string startDate = null)
         {
             var path = "new_game";

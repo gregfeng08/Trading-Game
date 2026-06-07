@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using Game.API;
+using Game.API.DTO;
 
 public class NewspaperUI : MonoBehaviour
 {
@@ -61,6 +62,25 @@ public class NewspaperUI : MonoBehaviour
         newspaperImage.enabled = false;
 
         await LoadNewspaper(date);
+        _ = RecordNewspaperRead(date);
+    }
+
+    private async Task RecordNewspaperRead(string date)
+    {
+        try
+        {
+            var req = new PlayerEventRequestDTO
+            {
+                entity_id = APIBootstrapper.EntityDbId,
+                event_type = "newspaper_read",
+                metadata_json = $"{{\"date\":\"{date}\"}}"
+            };
+            await PlayerEventsAPI.RecordEvent(req);
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[NewspaperUI] Failed to record read event: {ex.Message}");
+        }
     }
 
     public void Hide()

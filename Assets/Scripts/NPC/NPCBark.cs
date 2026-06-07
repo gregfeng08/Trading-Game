@@ -112,6 +112,15 @@ public class NPCBark : MonoBehaviour
         }
     }
 
+    public static System.Collections.Generic.List<string> GetFetchedLines(string npcType)
+    {
+        if (!string.IsNullOrEmpty(npcType) && fetchedByType.TryGetValue(npcType, out var typed) && typed.Count > 0)
+            return typed;
+        if (fetchedAll.Count > 0)
+            return fetchedAll;
+        return null;
+    }
+
     public void Init(string[] barkLines = null, string npcType = null)
     {
         customLines = barkLines;

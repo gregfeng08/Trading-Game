@@ -89,6 +89,16 @@ public class GamePhaseManager : MonoBehaviour
             var go = new GameObject("NewspaperUI");
             go.AddComponent<NewspaperUI>();
         }
+        if (NPCDialogueUI.Inst == null)
+        {
+            var go = new GameObject("NPCDialogueUI");
+            go.AddComponent<NPCDialogueUI>();
+        }
+        if (WeekReviewOverlay.Inst == null)
+        {
+            var go = new GameObject("WeekReviewOverlay");
+            go.AddComponent<WeekReviewOverlay>();
+        }
     }
 
     void Update()
@@ -145,6 +155,9 @@ public class GamePhaseManager : MonoBehaviour
         public string side;
         public int quantity;
         public double estimatedPrice;
+        public string orderType = "market";
+        public double limitPrice;
+        public double stopPrice;
     }
 
     private readonly List<LocalPendingOrder> localOrders = new List<LocalPendingOrder>();
@@ -179,7 +192,8 @@ public class GamePhaseManager : MonoBehaviour
         return total;
     }
 
-    public bool QueueOrder(string ticker, string side, int quantity, double estimatedPrice, double heldShares)
+    public bool QueueOrder(string ticker, string side, int quantity, double estimatedPrice, double heldShares,
+        string orderType = "market", double limitPrice = 0, double stopPrice = 0)
     {
         LastOrderError = null;
 
@@ -208,7 +222,10 @@ public class GamePhaseManager : MonoBehaviour
             ticker = ticker,
             side = side,
             quantity = quantity,
-            estimatedPrice = estimatedPrice
+            estimatedPrice = estimatedPrice,
+            orderType = orderType,
+            limitPrice = limitPrice,
+            stopPrice = stopPrice
         });
         return true;
     }
@@ -246,7 +263,9 @@ public class GamePhaseManager : MonoBehaviour
                     ticker = localOrders[i].ticker,
                     side = localOrders[i].side,
                     quantity = localOrders[i].quantity,
-                    order_type = "market"
+                    order_type = localOrders[i].orderType,
+                    limit_price = localOrders[i].limitPrice,
+                    stop_price = localOrders[i].stopPrice
                 };
             }
 
@@ -379,7 +398,7 @@ public class GamePhaseManager : MonoBehaviour
                     side = order.side,
                     quantity = order.quantity,
                     price = order.estimatedPrice,
-                    order_type = "market"
+                    order_type = order.orderType
                 };
 
                 var resp = await TradeAPI.PostTrade(req);
@@ -444,6 +463,43 @@ public class GamePhaseManager : MonoBehaviour
         {
             Debug.LogError($"[GamePhaseManager] AdvanceToNextDay exception: {ex.Message}");
             return false;
+        }
+        finally
+        {
+            IsTransitioning = false;
+        }
+    }
+
+    public async Task<WeekReviewResponse> AdvanceWeek(int days = 5)
+    {
+        if (CurrentPhase != GamePhase.PostMarket || IsTransitioning) return null;
+        IsTransitioning = true;
+
+        try
+        {
+            var resp = await GameStateAPI.AdvanceWeek(days);
+            if (resp.status != "ok") return null;
+
+            CurrentDate = resp.end_date;
+            todayResults.Clear();
+            postMarketResults.Clear();
+            localOrders.Clear();
+            PostMarketReady = false;
+
+            await CheckArcAdvance();
+            await RefreshArcStatus();
+            _ = NPCBark.RefreshDialogue(CurrentDate);
+
+            CurrentPhase = GamePhase.PreMarket;
+            OnPhaseChanged?.Invoke(CurrentPhase);
+            CheckKnowledgeTriggers();
+
+            return resp;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[GamePhaseManager] AdvanceWeek exception: {ex.Message}");
+            return null;
         }
         finally
         {

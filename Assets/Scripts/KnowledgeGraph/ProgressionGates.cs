@@ -82,7 +82,7 @@ public static class ProgressionGates
         { "volatility",       "Candlestick wicks (high/low price range)" },
         { "cost_basis",       "Portfolio cost basis and gain/loss" },
         { "paper_gains",      "Portfolio value chart" },
-        { "limit_buy_sell",   "Limit orders" },
+        { "limit_buy_sell",   "Limit & stop orders" },
         { "market_cycles",    "Arc details (days remaining, grade, return %)" },
         { "cash_management",  "Net worth breakdown (holdings value)" },
         { "market_timing",    "All chart timeframes (1W, 3M, 1Y, 5Y)" },

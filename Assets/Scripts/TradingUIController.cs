@@ -66,6 +66,11 @@ public class TradingUIController : MonoBehaviour
     [SerializeField] private TMP_Text advanceButtonText;
     [SerializeField] private TMP_Text ordersText;
 
+    private TMP_Dropdown orderTypeDropdown;
+    private TMP_InputField priceInput;
+    private TMP_Text priceInputLabel;
+    private string selectedOrderType = "market";
+
     [Header("Portfolio Tab")]
     [SerializeField] private TMP_Text holdingsText;
 
@@ -127,6 +132,7 @@ public class TradingUIController : MonoBehaviour
 
         SetChartVisibility();
         ProgressionGates.OnGatesChanged += ApplyProgressionGates;
+        BuildOrderTypeUI();
 
         _ = LoadInitialData();
     }
@@ -152,6 +158,8 @@ public class TradingUIController : MonoBehaviour
             CloseSearchResults();
         }
         ProgressionGates.OnGatesChanged -= ApplyProgressionGates;
+        if (orderTypeDropdown != null)
+            orderTypeDropdown.onValueChanged.RemoveAllListeners();
         UnbindTimeframeButtons();
         UnbindChartTabs();
         UnbindBottomTabs();
@@ -243,6 +251,199 @@ public class TradingUIController : MonoBehaviour
         if (img != null) img.color = active ? tabActiveColor : tabInactiveColor;
         var tmp = btn.GetComponentInChildren<TMP_Text>();
         if (tmp != null) tmp.color = active ? tabActiveTextColor : tabInactiveTextColor;
+    }
+
+    // ── Order Type UI ──
+
+    private void BuildOrderTypeUI()
+    {
+        if (orderTypeDropdown != null) return;
+        if (quantityInput == null) return;
+
+        var parent = quantityInput.transform.parent;
+        var sourceFont = quantityInput.textComponent.font;
+        var sourceMat = quantityInput.textComponent.fontSharedMaterial;
+        var qtyRT = quantityInput.GetComponent<RectTransform>();
+
+        // Order type dropdown — placed below quantity input
+        var dropGO = new GameObject("OrderTypeDropdown", typeof(RectTransform));
+        dropGO.transform.SetParent(parent, false);
+        var dropRT = dropGO.GetComponent<RectTransform>();
+        dropRT.anchorMin = qtyRT.anchorMin;
+        dropRT.anchorMax = qtyRT.anchorMax;
+        dropRT.anchoredPosition = qtyRT.anchoredPosition + new Vector2(0, -(qtyRT.rect.height + 6));
+        dropRT.sizeDelta = qtyRT.sizeDelta;
+
+        orderTypeDropdown = dropGO.AddComponent<TMP_Dropdown>();
+        var dropImg = dropGO.AddComponent<Image>();
+        dropImg.color = new Color(0.18f, 0.19f, 0.24f, 1f);
+        orderTypeDropdown.targetGraphic = dropImg;
+
+        var labelGO = new GameObject("Label");
+        labelGO.transform.SetParent(dropGO.transform, false);
+        var labelRT = labelGO.AddComponent<RectTransform>();
+        labelRT.anchorMin = Vector2.zero;
+        labelRT.anchorMax = Vector2.one;
+        labelRT.offsetMin = new Vector2(8, 0);
+        labelRT.offsetMax = new Vector2(-25, 0);
+        var labelTMP = labelGO.AddComponent<TextMeshProUGUI>();
+        labelTMP.font = sourceFont;
+        labelTMP.fontSharedMaterial = sourceMat;
+        labelTMP.fontSize = 14;
+        labelTMP.color = Color.white;
+        labelTMP.alignment = TextAlignmentOptions.MidlineLeft;
+        orderTypeDropdown.captionText = labelTMP;
+
+        // Template (minimal — Unity TMP_Dropdown needs this)
+        var templateGO = new GameObject("Template", typeof(RectTransform));
+        templateGO.transform.SetParent(dropGO.transform, false);
+        var templateRT = templateGO.GetComponent<RectTransform>();
+        templateRT.anchorMin = new Vector2(0, 0);
+        templateRT.anchorMax = new Vector2(1, 0);
+        templateRT.pivot = new Vector2(0.5f, 1f);
+        templateRT.anchoredPosition = Vector2.zero;
+        templateRT.sizeDelta = new Vector2(0, 120);
+        templateGO.AddComponent<Image>().color = new Color(0.14f, 0.15f, 0.18f, 0.97f);
+        var templateSR = templateGO.AddComponent<ScrollRect>();
+
+        var viewportGO = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+        viewportGO.transform.SetParent(templateGO.transform, false);
+        var vpRT = viewportGO.GetComponent<RectTransform>();
+        vpRT.anchorMin = Vector2.zero; vpRT.anchorMax = Vector2.one; vpRT.sizeDelta = Vector2.zero;
+        templateSR.viewport = vpRT;
+
+        var contentGO = new GameObject("Content", typeof(RectTransform));
+        contentGO.transform.SetParent(viewportGO.transform, false);
+        var contentRT = contentGO.GetComponent<RectTransform>();
+        contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
+        contentRT.pivot = new Vector2(0.5f, 1f); contentRT.sizeDelta = new Vector2(0, 28);
+        templateSR.content = contentRT;
+
+        var itemGO = new GameObject("Item", typeof(RectTransform));
+        itemGO.transform.SetParent(contentGO.transform, false);
+        var itemRT = itemGO.GetComponent<RectTransform>();
+        itemRT.anchorMin = new Vector2(0, 0.5f); itemRT.anchorMax = new Vector2(1, 0.5f);
+        itemRT.sizeDelta = new Vector2(0, 28);
+        itemGO.AddComponent<Image>().color = new Color(0.18f, 0.19f, 0.24f, 1f);
+        var toggle = itemGO.AddComponent<Toggle>();
+
+        var itemLabelGO = new GameObject("Item Label");
+        itemLabelGO.transform.SetParent(itemGO.transform, false);
+        var itemLabelRT = itemLabelGO.AddComponent<RectTransform>();
+        itemLabelRT.anchorMin = Vector2.zero; itemLabelRT.anchorMax = Vector2.one;
+        itemLabelRT.offsetMin = new Vector2(8, 0); itemLabelRT.offsetMax = new Vector2(-8, 0);
+        var itemLabelTMP = itemLabelGO.AddComponent<TextMeshProUGUI>();
+        itemLabelTMP.font = sourceFont;
+        itemLabelTMP.fontSharedMaterial = sourceMat;
+        itemLabelTMP.fontSize = 14;
+        itemLabelTMP.color = Color.white;
+        itemLabelTMP.alignment = TextAlignmentOptions.MidlineLeft;
+
+        orderTypeDropdown.itemText = itemLabelTMP;
+        orderTypeDropdown.template = templateRT;
+        templateGO.SetActive(false);
+
+        orderTypeDropdown.ClearOptions();
+        orderTypeDropdown.AddOptions(new List<string> { "Market", "Limit", "Stop", "Stop Limit" });
+        orderTypeDropdown.onValueChanged.AddListener(OnOrderTypeChanged);
+
+        // Price input — below the dropdown
+        var priceGO = new GameObject("PriceInput", typeof(RectTransform));
+        priceGO.transform.SetParent(parent, false);
+        var priceRT = priceGO.GetComponent<RectTransform>();
+        priceRT.anchorMin = dropRT.anchorMin;
+        priceRT.anchorMax = dropRT.anchorMax;
+        priceRT.anchoredPosition = dropRT.anchoredPosition + new Vector2(0, -(qtyRT.rect.height + 6));
+        priceRT.sizeDelta = qtyRT.sizeDelta;
+
+        // Label above
+        var priceLabelGO = new GameObject("PriceLabel");
+        priceLabelGO.transform.SetParent(parent, false);
+        var priceLabelRT = priceLabelGO.AddComponent<RectTransform>();
+        priceLabelRT.anchorMin = priceRT.anchorMin;
+        priceLabelRT.anchorMax = priceRT.anchorMax;
+        priceLabelRT.anchoredPosition = priceRT.anchoredPosition + new Vector2(0, priceRT.sizeDelta.y * 0.5f + 10);
+        priceLabelRT.sizeDelta = new Vector2(priceRT.sizeDelta.x, 20);
+        priceInputLabel = priceLabelGO.AddComponent<TextMeshProUGUI>();
+        priceInputLabel.font = sourceFont;
+        priceInputLabel.fontSharedMaterial = sourceMat;
+        priceInputLabel.fontSize = 12;
+        priceInputLabel.color = new Color(0.6f, 0.6f, 0.65f);
+        priceInputLabel.text = "Price";
+
+        priceInput = priceGO.AddComponent<TMP_InputField>();
+        var priceImg = priceGO.AddComponent<Image>();
+        priceImg.color = new Color(0.18f, 0.19f, 0.24f, 1f);
+        priceInput.targetGraphic = priceImg;
+        priceInput.contentType = TMP_InputField.ContentType.DecimalNumber;
+
+        var priceTextGO = new GameObject("Text");
+        priceTextGO.transform.SetParent(priceGO.transform, false);
+        var ptRT = priceTextGO.AddComponent<RectTransform>();
+        ptRT.anchorMin = Vector2.zero; ptRT.anchorMax = Vector2.one;
+        ptRT.offsetMin = new Vector2(8, 0); ptRT.offsetMax = new Vector2(-8, 0);
+        var ptTMP = priceTextGO.AddComponent<TextMeshProUGUI>();
+        ptTMP.font = sourceFont;
+        ptTMP.fontSharedMaterial = sourceMat;
+        ptTMP.fontSize = 14;
+        ptTMP.color = Color.white;
+
+        var phTextGO = new GameObject("Placeholder");
+        phTextGO.transform.SetParent(priceGO.transform, false);
+        var phRT = phTextGO.AddComponent<RectTransform>();
+        phRT.anchorMin = Vector2.zero; phRT.anchorMax = Vector2.one;
+        phRT.offsetMin = new Vector2(8, 0); phRT.offsetMax = new Vector2(-8, 0);
+        var phTMP = phTextGO.AddComponent<TextMeshProUGUI>();
+        phTMP.font = sourceFont;
+        phTMP.fontSharedMaterial = sourceMat;
+        phTMP.fontSize = 14;
+        phTMP.color = new Color(0.5f, 0.5f, 0.5f);
+        phTMP.text = "Price...";
+        phTMP.fontStyle = FontStyles.Italic;
+
+        priceInput.textComponent = ptTMP;
+        priceInput.placeholder = phTMP;
+
+        var textArea = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
+        textArea.transform.SetParent(priceGO.transform, false);
+        var taRT = textArea.GetComponent<RectTransform>();
+        taRT.anchorMin = Vector2.zero; taRT.anchorMax = Vector2.one;
+        taRT.offsetMin = new Vector2(8, 0); taRT.offsetMax = new Vector2(-8, 0);
+        priceTextGO.transform.SetParent(textArea.transform, false);
+        phTextGO.transform.SetParent(textArea.transform, false);
+        priceInput.textViewport = taRT;
+
+        UpdateOrderTypeUI();
+    }
+
+    private void OnOrderTypeChanged(int index)
+    {
+        selectedOrderType = index switch
+        {
+            1 => "limit",
+            2 => "stop",
+            3 => "stop_limit",
+            _ => "market"
+        };
+        UpdateOrderTypeUI();
+    }
+
+    private void UpdateOrderTypeUI()
+    {
+        bool needsPrice = selectedOrderType != "market";
+        if (priceInput != null)
+            priceInput.gameObject.SetActive(needsPrice);
+        if (priceInputLabel != null)
+        {
+            priceInputLabel.gameObject.SetActive(needsPrice);
+            priceInputLabel.text = selectedOrderType switch
+            {
+                "limit" => "Limit Price",
+                "stop" => "Stop Price",
+                "stop_limit" => "Stop / Limit Price",
+                _ => "Price"
+            };
+        }
     }
 
     // ── Data Loading ──
@@ -618,6 +819,9 @@ public class TradingUIController : MonoBehaviour
                 buyButton.gameObject.SetActive(false);
                 sellButton.gameObject.SetActive(false);
                 quantityInput.gameObject.SetActive(false);
+                if (orderTypeDropdown != null) orderTypeDropdown.gameObject.SetActive(false);
+                if (priceInput != null) priceInput.gameObject.SetActive(false);
+                if (priceInputLabel != null) priceInputLabel.gameObject.SetActive(false);
                 if (advanceDayButton != null)
                     advanceDayButton.gameObject.SetActive(false);
                 break;
@@ -641,6 +845,15 @@ public class TradingUIController : MonoBehaviour
         {
             showingPortfolioChart = false;
             SetChartVisibility();
+        }
+
+        bool showOrders = ProgressionGates.ShowLimitOrders;
+        if (orderTypeDropdown != null)
+            orderTypeDropdown.gameObject.SetActive(showOrders);
+        if (!showOrders)
+        {
+            selectedOrderType = "market";
+            UpdateOrderTypeUI();
         }
 
         ApplyTimeframeGates();
@@ -682,7 +895,11 @@ public class TradingUIController : MonoBehaviour
                         foreach (var o in orders)
                         {
                             string sideColor = o.side == "buy" ? "#26BF59" : "#D93838";
-                            sb.AppendLine($"<color={sideColor}>{o.side.ToUpper()}</color>  {o.quantity} {o.ticker}  ~${FmtPrice(o.estimatedPrice)}");
+                            string typeTag = o.orderType != "market" ? $" <color=#888888>[{o.orderType}]</color>" : "";
+                            string priceTag = "";
+                            if (o.limitPrice > 0) priceTag += $" lmt ${FmtPrice(o.limitPrice)}";
+                            if (o.stopPrice > 0) priceTag += $" stp ${FmtPrice(o.stopPrice)}";
+                            sb.AppendLine($"<color={sideColor}>{o.side.ToUpper()}</color>  {o.quantity} {o.ticker}  ~${FmtPrice(o.estimatedPrice)}{typeTag}{priceTag}");
                         }
                     }
                     else
@@ -930,15 +1147,37 @@ public class TradingUIController : MonoBehaviour
             return;
         }
 
+        double limitPrice = 0;
+        double stopPrice = 0;
+
+        if (selectedOrderType != "market" && priceInput != null)
+        {
+            if (!double.TryParse(priceInput.text, out double enteredPrice) || enteredPrice <= 0)
+            {
+                SetStatus("Enter a valid price.");
+                return;
+            }
+
+            if (selectedOrderType == "limit") limitPrice = enteredPrice;
+            else if (selectedOrderType == "stop") stopPrice = enteredPrice;
+            else if (selectedOrderType == "stop_limit")
+            {
+                stopPrice = enteredPrice;
+                limitPrice = enteredPrice;
+            }
+        }
+
         double heldShares = 0;
         if (cachedHoldings != null)
             foreach (var h in cachedHoldings)
                 if (h.ticker_id == selectedTicker) { heldShares = h.shares_held; break; }
 
-        bool success = GamePhaseManager.Inst.QueueOrder(selectedTicker, side, qty, currentEstimatedPrice, heldShares);
+        bool success = GamePhaseManager.Inst.QueueOrder(selectedTicker, side, qty, currentEstimatedPrice, heldShares,
+            selectedOrderType, limitPrice, stopPrice);
         if (success)
         {
-            SetStatus($"Queued: {side.ToUpper()} {qty} {selectedTicker}");
+            string typeLabel = selectedOrderType == "market" ? "" : $" ({selectedOrderType})";
+            SetStatus($"Queued: {side.ToUpper()} {qty} {selectedTicker}{typeLabel}");
             RefreshCashDisplay();
             if (activeTab == BottomTab.Trade)
                 RefreshOrdersDisplay();
