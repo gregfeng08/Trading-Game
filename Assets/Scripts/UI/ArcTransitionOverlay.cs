@@ -175,15 +175,9 @@ public class ArcTransitionOverlay : MonoBehaviour
         yield return Stagger();
 
         dividerObj.SetActive(true);
-        SetText(descText, arc.description ?? "", bodyColor);
+        string objective = GetArcObjective(arc.id ?? "");
+        SetText(descText, objective, bodyColor);
         yield return Stagger();
-
-        string flavor = GetFlavorText(arc.id ?? "");
-        if (flavor != null)
-        {
-            SetText(flavorTextEl, flavor, flavorColor);
-            yield return Stagger();
-        }
 
         SetText(continueText, "Press any key to continue", dimColor);
         waitingForInput = true;
@@ -333,12 +327,32 @@ public class ArcTransitionOverlay : MonoBehaviour
         return isoDate;
     }
 
+    private static string GetArcObjective(string arcId)
+    {
+        return arcId switch
+        {
+            "bull_market" =>
+                "Objective: Grow your portfolio.\n" +
+                "The market is rising — learn the basics, place trades, and try to beat +10% return for a top grade.\n\n" +
+                "Tip: Don't put all your money in one stock. Diversify early.",
+            "the_unraveling" =>
+                "Objective: Read the signs.\n" +
+                "The easy gains are over. Staying above +5% earns a top grade — but staying positive at all is respectable.\n\n" +
+                "Tip: Watch your cash reserves. Opportunities appear when others are panicking.",
+            "meltdown" =>
+                "Objective: Survive.\n" +
+                "Everything is falling. Breaking even earns the highest grade here. Losing less than others is winning.\n\n" +
+                "Tip: Cash is king. Sometimes the best trade is no trade at all.",
+            _ => "Trade wisely. Your grade is based on portfolio return."
+        };
+    }
+
     private static string GetFlavorText(string arcId)
     {
         return arcId switch
         {
             "bull_market" =>
-                "“A perfect time to learn. Just don't mistake a rising tide\n" +
+                "“A perfect time to learn. Just don’t mistake a rising tide\n" +
                 "for swimming skill.”\n\n" +
                 "— The Principal",
             "the_unraveling" =>
