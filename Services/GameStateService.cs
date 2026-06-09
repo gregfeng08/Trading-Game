@@ -179,12 +179,12 @@ public class GameStateService
                 holdingsValue = Convert.ToDouble(cmd.ExecuteScalar() ?? 0);
             }
 
-            var topMovers = GetTopMovers(conn, currentDate, 3);
+            var portfolioMovers = GetPortfolioMovers(conn, entityDbId, currentDate);
 
             dailySummaries.Add(new DaySkipSummaryDto(
                 currentDate,
                 Math.Round(cash + holdingsValue, 2),
-                topMovers
+                portfolioMovers
             ));
 
             if (advanceResult.UnlockedNodes is { Count: > 0 })
@@ -199,6 +199,36 @@ public class GameStateService
             dailySummaries,
             allUnlocked.Count > 0 ? allUnlocked : null
         );
+    }
+
+    private List<MoverSummaryDto> GetPortfolioMovers(SqliteConnection conn, int entityDbId, string date)
+    {
+        var movers = new List<MoverSummaryDto>();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT pf.ticker_id,
+                   (tp.close_price - prev.close_price) / prev.close_price * 100 as pct
+            FROM portfolio pf
+            JOIN ticker_prices tp ON tp.ticker_id = pf.ticker_id AND tp.date = @date
+            JOIN ticker_prices prev ON prev.ticker_id = pf.ticker_id
+                AND prev.date = (SELECT MAX(date) FROM ticker_prices WHERE ticker_id = pf.ticker_id AND date < @date)
+            WHERE pf.entity_id = @eid AND pf.shares_held > 0 AND prev.close_price > 0
+            GROUP BY pf.ticker_id
+            ORDER BY ABS(pct) DESC
+            LIMIT 5;
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityDbId);
+        cmd.Parameters.AddWithValue("@date", date);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            movers.Add(new MoverSummaryDto(
+                reader.GetString(0),
+                Math.Round(reader.GetDouble(1), 2)
+            ));
+        }
+        return movers;
     }
 
     private List<MoverSummaryDto> GetTopMovers(SqliteConnection conn, string date, int count)

@@ -73,12 +73,22 @@ public static class KnowledgeGraphEndpoints
             if (cached is not null)
                 return Results.Ok(new { status = "ok", node_id = nodeId, content = cached, is_personalized = true });
 
+            // Background generation was likely kicked off by OnNodeUnlocked — poll for it
+            for (int i = 0; i < 20; i++)
+            {
+                await Task.Delay(500);
+                cached = dynContent.GetCachedContent(entityId, nodeId);
+                if (cached is not null)
+                    return Results.Ok(new { status = "ok", node_id = nodeId, content = cached, is_personalized = true });
+            }
+
+            // 10s elapsed, background gen didn't finish — try once ourselves
             var dateResp = game.GetGameDate();
             var gameDate = dateResp.CurrentDate ?? "1970-01-01";
 
             try
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                 var personalized = await dynContent.GeneratePersonalizedContent(
                     entityId, nodeId, gameDate, node?.TriggerExplanation, null, cts.Token);
                 if (personalized is not null)

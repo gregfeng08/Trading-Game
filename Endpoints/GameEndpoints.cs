@@ -71,7 +71,8 @@ public static class GameEndpoints
         app.MapGet("/dialogue", (string? date, string? npcType, string? tickerId, string? category, GameStateService game) =>
             Results.Ok(game.GetDialogue(date, npcType, tickerId, category)));
 
-        app.MapPost("/tutorial/cleanup", (string entityId, Database db, EntityService entities, PlayerContextService? playerContext) =>
+        app.MapPost("/tutorial/cleanup", (string entityId, Database db, EntityService entities,
+            GameStateService gameState, PlayerContextService? playerContext) =>
         {
             try
             {
@@ -80,6 +81,17 @@ public static class GameEndpoints
                     return Results.Json(new ErrorResponse("error", $"Entity '{entityId}' not found"), statusCode: 404);
 
                 using var conn = db.Open();
+
+                // Guard: only run cleanup if game is still on its start date in pre_market.
+                // If the player has already confirmed real trades (phase != pre_market on day 1),
+                // this is a stale/duplicate call — skip it to protect save state.
+                var phase = gameState.GetSaveValue(conn, "game_phase");
+                if (phase != null && phase != "pre_market")
+                {
+                    Console.WriteLine($"[TutorialCleanup] Skipped — game phase is '{phase}', not pre_market. Save state protected.");
+                    return Results.Ok(new { status = "ok", message = "Skipped — game already in progress" });
+                }
+
                 using var tx = conn.BeginTransaction();
 
                 using (var cmd = conn.CreateCommand())
