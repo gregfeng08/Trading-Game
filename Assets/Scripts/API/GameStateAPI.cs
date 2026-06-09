@@ -28,6 +28,19 @@ namespace Game.API
             return APIClient.PostAsync<object, WeekReviewResponse>(path, new { });
         }
 
+        [System.Serializable]
+        public class TutorialCleanupResponse
+        {
+            public string status;
+            public string message;
+        }
+
+        public static Task<TutorialCleanupResponse> TutorialCleanup()
+        {
+            var path = $"tutorial/cleanup?entityId={APIBootstrapper.EntityExternalId}";
+            return APIClient.PostAsync<object, TutorialCleanupResponse>(path, new { });
+        }
+
         public static Task<NewGameResponse> NewGame(string startDate = null)
         {
             var path = "new_game";

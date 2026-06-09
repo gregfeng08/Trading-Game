@@ -1,5 +1,4 @@
 using UnityEngine;
-using Game.API.DTO;
 
 public class BedInteraction : MonoBehaviour
 {
@@ -10,7 +9,6 @@ public class BedInteraction : MonoBehaviour
     private bool awaitingConfirm;
     private float confirmTimer;
     private string originalInteractionName;
-    private bool skipWeekMode;
 
     void Awake()
     {
@@ -61,24 +59,11 @@ public class BedInteraction : MonoBehaviour
         UpdateVisibility();
     }
 
-    private async System.Threading.Tasks.Task SkipWeek()
-    {
-        if (GamePhaseManager.Inst == null) return;
-
-        var result = await GamePhaseManager.Inst.AdvanceWeek(5);
-        if (result == null) return;
-
-        if (WeekReviewOverlay.Inst != null)
-            WeekReviewOverlay.Inst.Show(result, null);
-    }
-
     private void UpdateVisibility()
     {
         var phase = GamePhaseManager.Inst != null
             ? GamePhaseManager.Inst.CurrentPhase
             : GamePhase.PostMarket;
-
-        skipWeekMode = false;
 
         if (phase == GamePhase.PreMarket)
         {
@@ -92,7 +77,7 @@ public class BedInteraction : MonoBehaviour
         if (meshRenderer != null) meshRenderer.enabled = true;
         if (col != null) col.enabled = true;
         if (zone != null)
-            zone.SetInteractionName(phase == GamePhase.Day ? "Take a Nap" : "Sleep (hold Shift: Skip Week)");
+            zone.SetInteractionName(phase == GamePhase.Day ? "Take a Nap" : "Sleep");
     }
 
     public void Interact()
@@ -121,18 +106,10 @@ public class BedInteraction : MonoBehaviour
                 break;
 
             case GamePhase.PostMarket:
-                if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
-                {
-                    _ = SkipWeek();
-                }
-                else if (DailySummaryOverlay.Inst != null && !DailySummaryOverlay.Inst.IsActive)
-                {
+                if (DailySummaryOverlay.Inst != null && !DailySummaryOverlay.Inst.IsActive)
                     DailySummaryOverlay.Inst.Show(() => _ = GamePhaseManager.Inst.AdvanceToNextDay());
-                }
                 else
-                {
                     _ = GamePhaseManager.Inst.AdvanceToNextDay();
-                }
                 break;
         }
     }

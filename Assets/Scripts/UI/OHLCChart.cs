@@ -12,6 +12,10 @@ public class OHLCChart : MaskableGraphic, IPointerMoveHandler, IPointerExitHandl
     [SerializeField] private Color bullColor = new Color(0.15f, 0.75f, 0.35f);
     [SerializeField] private Color bearColor = new Color(0.85f, 0.22f, 0.22f);
 
+    [Header("Line Mode")]
+    [SerializeField] private Color lineColor = new Color(0.5f, 0.72f, 1f);
+    [SerializeField] private float lineWidth = 2f;
+
     [Header("Sizing")]
     [SerializeField] private float bodyWidthRatio = 0.65f;
     [SerializeField] private float wickWidth = 1.5f;
@@ -43,6 +47,20 @@ public class OHLCChart : MaskableGraphic, IPointerMoveHandler, IPointerExitHandl
 
     public float MinPrice { get; private set; }
     public float MaxPrice { get; private set; }
+
+    private bool _showCandlesticks = true;
+    public bool ShowCandlesticks
+    {
+        get => _showCandlesticks;
+        set
+        {
+            if (_showCandlesticks == value) return;
+            _showCandlesticks = value;
+            ComputeRange();
+            SetVerticesDirty();
+            UpdateLabels();
+        }
+    }
 
     private bool _showWicks = true;
     public bool ShowWicks
@@ -81,7 +99,12 @@ public class OHLCChart : MaskableGraphic, IPointerMoveHandler, IPointerExitHandl
         if (data == null) return;
         foreach (var p in data)
         {
-            if (_showWicks)
+            if (!_showCandlesticks)
+            {
+                if ((float)p.close_price < MinPrice) MinPrice = (float)p.close_price;
+                if ((float)p.close_price > MaxPrice) MaxPrice = (float)p.close_price;
+            }
+            else if (_showWicks)
             {
                 if ((float)p.low_price < MinPrice) MinPrice = (float)p.low_price;
                 if ((float)p.high_price > MaxPrice) MaxPrice = (float)p.high_price;
@@ -153,37 +176,62 @@ public class OHLCChart : MaskableGraphic, IPointerMoveHandler, IPointerExitHandl
             }
         }
 
-        // Candles
+        // Data rendering
         int count = data.Length;
         float slotW = cw / count;
-        float bodyW = slotW * bodyWidthRatio;
-        float halfBody = bodyW * 0.5f;
-        float halfWick = wickWidth * 0.5f;
 
-        for (int i = 0; i < count; i++)
+        if (!_showCandlesticks)
         {
-            var c = data[i];
-            float cx = cx0 + (i + 0.5f) * slotW;
-
-            float yOpen  = cy0 + (((float)c.open_price  - MinPrice) / range) * ch;
-            float yClose = cy0 + (((float)c.close_price - MinPrice) / range) * ch;
-            float yHigh  = cy0 + (((float)c.high_price  - MinPrice) / range) * ch;
-            float yLow   = cy0 + (((float)c.low_price   - MinPrice) / range) * ch;
-
-            bool bull = c.close_price >= c.open_price;
-            Color col = bull ? bullColor : bearColor;
-
-            if (_showWicks)
+            // Line chart mode — connected close prices
+            float halfLine = lineWidth * 0.5f;
+            for (int i = 0; i < count; i++)
             {
-                AddQuad(vh, new Vector2(cx - halfWick, yLow),
-                            new Vector2(cx + halfWick, yHigh), col);
-            }
+                float y = cy0 + (((float)data[i].close_price - MinPrice) / range) * ch;
+                float x = cx0 + (i + 0.5f) * slotW;
 
-            float bTop = Mathf.Max(yOpen, yClose);
-            float bBot = Mathf.Min(yOpen, yClose);
-            if (bTop - bBot < 1f) bTop = bBot + 1f;
-            AddQuad(vh, new Vector2(cx - halfBody, bBot),
-                        new Vector2(cx + halfBody, bTop), col);
+                if (i > 0)
+                {
+                    float prevY = cy0 + (((float)data[i - 1].close_price - MinPrice) / range) * ch;
+                    float prevX = cx0 + (i - 0.5f) * slotW;
+                    DrawLineSegment(vh, prevX, prevY, x, y, halfLine, lineColor);
+                }
+
+                AddQuad(vh, new Vector2(x - 2.5f, y - 2.5f),
+                            new Vector2(x + 2.5f, y + 2.5f), lineColor);
+            }
+        }
+        else
+        {
+            // Candlestick mode
+            float bodyW = slotW * bodyWidthRatio;
+            float halfBody = bodyW * 0.5f;
+            float halfWick = wickWidth * 0.5f;
+
+            for (int i = 0; i < count; i++)
+            {
+                var c = data[i];
+                float cx = cx0 + (i + 0.5f) * slotW;
+
+                float yOpen  = cy0 + (((float)c.open_price  - MinPrice) / range) * ch;
+                float yClose = cy0 + (((float)c.close_price - MinPrice) / range) * ch;
+                float yHigh  = cy0 + (((float)c.high_price  - MinPrice) / range) * ch;
+                float yLow   = cy0 + (((float)c.low_price   - MinPrice) / range) * ch;
+
+                bool bull = c.close_price >= c.open_price;
+                Color col = bull ? bullColor : bearColor;
+
+                if (_showWicks)
+                {
+                    AddQuad(vh, new Vector2(cx - halfWick, yLow),
+                                new Vector2(cx + halfWick, yHigh), col);
+                }
+
+                float bTop = Mathf.Max(yOpen, yClose);
+                float bBot = Mathf.Min(yOpen, yClose);
+                if (bTop - bBot < 1f) bTop = bBot + 1f;
+                AddQuad(vh, new Vector2(cx - halfBody, bBot),
+                            new Vector2(cx + halfBody, bTop), col);
+            }
         }
 
         // Date tick marks — match the label spacing
@@ -307,6 +355,25 @@ public class OHLCChart : MaskableGraphic, IPointerMoveHandler, IPointerExitHandl
         return isoDate;
     }
 
+    private void DrawLineSegment(VertexHelper vh, float x1, float y1, float x2, float y2, float halfWidth, Color c)
+    {
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        float len = Mathf.Sqrt(dx * dx + dy * dy);
+        if (len < 0.001f) return;
+
+        float nx = -dy / len * halfWidth;
+        float ny = dx / len * halfWidth;
+
+        int idx = vh.currentVertCount;
+        vh.AddVert(new Vector3(x1 + nx, y1 + ny), c, Vector2.zero);
+        vh.AddVert(new Vector3(x2 + nx, y2 + ny), c, Vector2.up);
+        vh.AddVert(new Vector3(x2 - nx, y2 - ny), c, Vector2.one);
+        vh.AddVert(new Vector3(x1 - nx, y1 - ny), c, Vector2.right);
+        vh.AddTriangle(idx, idx + 1, idx + 2);
+        vh.AddTriangle(idx, idx + 2, idx + 3);
+    }
+
     private void AddQuad(VertexHelper vh, Vector2 bl, Vector2 tr, Color c)
     {
         int idx = vh.currentVertCount;
@@ -348,10 +415,18 @@ public class OHLCChart : MaskableGraphic, IPointerMoveHandler, IPointerExitHandl
 
         var c = data[index];
         string date = FormatDate(c.date);
-        bool isFlat = c.open_price == c.high_price && c.open_price == c.low_price && c.open_price == c.close_price;
-        tooltipText.text = isFlat
-            ? $"{date}\n{FormatPrice((float)c.close_price)}"
-            : $"{date}\nO: {FormatPrice((float)c.open_price)}  H: {FormatPrice((float)c.high_price)}\nL: {FormatPrice((float)c.low_price)}  C: {FormatPrice((float)c.close_price)}";
+
+        if (!_showCandlesticks)
+        {
+            tooltipText.text = $"{date}\n{FormatPrice((float)c.close_price)}";
+        }
+        else
+        {
+            bool isFlat = c.open_price == c.high_price && c.open_price == c.low_price && c.open_price == c.close_price;
+            tooltipText.text = isFlat
+                ? $"{date}\n{FormatPrice((float)c.close_price)}"
+                : $"{date}\nO: {FormatPrice((float)c.open_price)}  H: {FormatPrice((float)c.high_price)}\nL: {FormatPrice((float)c.low_price)}  C: {FormatPrice((float)c.close_price)}";
+        }
 
         // Vertical crosshair line at the candle center
         float candleCenterX = cx0 + (index + 0.5f) * slotW;

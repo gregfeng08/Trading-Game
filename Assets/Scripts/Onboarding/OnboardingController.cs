@@ -11,19 +11,14 @@ public class OnboardingController : MonoBehaviour
 
     private static readonly DialogueLine[] CaseyIntro =
     {
-        new("Casey", "Hey! New hire, right? Don't worry, everyone has that look their first day."),
-        new("Casey", "I'm Casey. I'll be showing you the ropes around Hindsight Financial."),
+        new("Casey", "Hey! New hire, right? I'm Casey — I'll be showing you the ropes around Hindsight Financial."),
         new("Casey", "We work in phases here. Pre-market is when you plan your trades. Market hours are when prices move. Post-market is when you see how you did. Then you rest. Simple rhythm."),
-        new("Casey", "Let me walk you through the basics before you jump in."),
-        new("Casey", "A company is a business — real people making real things. When a company goes public, it sells small pieces of ownership called stocks."),
-        new("Casey", "When you buy a stock, you own a tiny piece of that company. If the company does well, your piece becomes worth more. If it struggles, it's worth less."),
-        new("Casey", "Trading is simple in theory — you buy when you think a stock will go up, and sell when you want to lock in gains or cut losses. The hard part is knowing when."),
+        new("Casey", "The basics? A company sells pieces of itself — stocks — and you buy or sell them to try and profit. You'll pick it up fast."),
         new("Casey", "Your Knowledge Graph tracks what you learn here. New concepts unlock as you trade. Some you study yourself. Others... find you, when you're ready."),
         new("Casey", "Don't overthink your first trade. It's never your best one. That's the point."),
-        new("Casey", "Alright, settle in. Your terminal and Knowledge Graph are in your room. Get some rest — big day tomorrow."),
+        new("Casey", "Head to your terminal and place your first trade. I'll be around if you need me."),
+        new("Casey", "Oh — and welcome to 2007. Try not to break anything."),
     };
-
-    private static readonly string[] foundationalNodes = { "what_is_a_company", "what_is_a_stock", "market_buy_sell" };
 
     private SpeechBubble activeBubble;
 
@@ -50,13 +45,25 @@ public class OnboardingController : MonoBehaviour
         if (scene.name == "Room" && !onboardingCompleted)
         {
             onboardingCompleted = true;
-            _ = CompleteFoundationalNodes();
+            _ = CleanupTutorialAndInit();
         }
     }
 
-    private async System.Threading.Tasks.Task CompleteFoundationalNodes()
+    private async System.Threading.Tasks.Task CleanupTutorialAndInit()
     {
-        // Wait for KnowledgeGraphManager to initialize
+        try
+        {
+            await Game.API.GameStateAPI.TutorialCleanup();
+            Debug.Log("[Onboarding] Tutorial cleanup complete — portfolio and cash reset, knowledge preserved.");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[Onboarding] Tutorial cleanup failed (may be first run): {ex.Message}");
+        }
+    }
+
+    private async System.Threading.Tasks.Task AddFirstTradeObjective()
+    {
         float timeout = 5f;
         while (KnowledgeGraphManager.Inst == null && timeout > 0f)
         {
@@ -75,17 +82,31 @@ public class OnboardingController : MonoBehaviour
             }
         }
 
-        foreach (var nodeId in foundationalNodes)
+        if (KnowledgeGraphManager.Inst.IsNodeCompleted("market_buy_sell")) return;
+
+        timeout = 3f;
+        while (PlayerObjectivesUI.Inst == null && timeout > 0f)
         {
-            if (!KnowledgeGraphManager.Inst.IsNodeCompleted(nodeId))
-                await KnowledgeGraphManager.Inst.CompleteNodeAsync(nodeId);
+            await System.Threading.Tasks.Task.Delay(100);
+            timeout -= 0.1f;
         }
+
+        if (PlayerObjectivesUI.Inst != null)
+            PlayerObjectivesUI.Inst.AddObjective("tutorial_first_trade", "Open the Trading Terminal and place your first trade");
     }
 
     private IEnumerator RunOnboarding()
     {
         yield return null;
 
+        var tutorial = FindObjectOfType<TutorialController>();
+        if (tutorial != null)
+        {
+            tutorial.StartTutorial();
+            yield break;
+        }
+
+        // Fallback: no TutorialController in scene — run legacy intro
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.SetState(PlayerState.CUTSCENE);
 
@@ -104,10 +125,6 @@ public class OnboardingController : MonoBehaviour
 
             Destroy(activeBubble.gameObject);
             activeBubble = null;
-        }
-        else
-        {
-            Debug.LogWarning("[OnboardingController] No 'Casey' GameObject found in Onboarding scene — skipping dialogue.");
         }
 
         var pm = FindObjectOfType<PlayerMovement>();

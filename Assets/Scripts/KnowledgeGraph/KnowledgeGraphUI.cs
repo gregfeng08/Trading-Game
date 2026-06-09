@@ -61,9 +61,12 @@ public class KnowledgeGraphUI : MonoBehaviour
     private Dictionary<string, RectTransform> nodePositions = new();
     private Dictionary<string, KnowledgeNodeStateDTO> nodeLookup = new();
     private Dictionary<string, Image> nodeImages = new();
-    private Dictionary<string, Color> originalNodeColors = new();
     private Dictionary<string, HashSet<string>> neighbors = new();
     private List<(string fromId, string toId, GameObject edgeGO)> edgeRegistry = new();
+
+    // Unified node color state
+    private string highlightedNodeId;
+    private string hoveredNodeId;
 
     private bool isDragging;
     private Vector2 lastMousePos;
@@ -88,7 +91,18 @@ public class KnowledgeGraphUI : MonoBehaviour
     private int caseyTotalChars;
     private float caseyCharAccum;
     private const float CaseyCharsPerSec = 45f;
-    private bool caseyTakeShowCompleteAfter;
+    // Completion overlay (centered, shown on Complete/Casey's Take)
+    private GameObject completionOverlay;
+    private CanvasGroup completionOverlayGroup;
+    private RectTransform completionCardRT;
+    private TMP_Text completionCategoryText;
+    private TMP_Text completionTitleText;
+    private ScrollRect completionScrollRect;
+    private TMP_Text completionBodyText;
+    private Button completionGotItButton;
+    private string pendingCompletionNodeId;
+    private bool completionOverlayActive;
+
     private CanvasGroup graphCanvasGroup;
     private float graphFadeTarget;
     private const float GraphFadeSpeed = 4f;
@@ -127,6 +141,12 @@ public class KnowledgeGraphUI : MonoBehaviour
         if (caseyDialogueBox != null && caseyDialogueBox.activeSelf)
         {
             HandleCaseyInput();
+            return;
+        }
+
+        if (completionOverlayActive)
+        {
+            HandleCompletionOverlayInput();
             return;
         }
 
@@ -215,10 +235,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         }
         else if (Input.GetKeyDown(KeyCode.Escape))
         {
-            if (selectedNode != null)
-                DismissDetail();
-            else
-                Close();
+            Close();
             return;
         }
 
@@ -303,6 +320,8 @@ public class KnowledgeGraphUI : MonoBehaviour
         return false;
     }
 
+    public bool IsOpen => graphPanel != null && graphPanel.activeSelf;
+
     public void Open()
     {
         graphPanel.SetActive(true);
@@ -340,6 +359,7 @@ public class KnowledgeGraphUI : MonoBehaviour
             {
                 if (n.id == nodeId)
                 {
+                    focusedNodeId = nodeId;
                     ShowDetail(n);
                     break;
                 }
@@ -357,6 +377,7 @@ public class KnowledgeGraphUI : MonoBehaviour
 
     private void ClosePanel()
     {
+        DismissCompletionOverlay();
         DismissDetail();
         graphPanel.SetActive(false);
         isDragging = false;
@@ -402,6 +423,7 @@ public class KnowledgeGraphUI : MonoBehaviour
             nodeLookup[node.id] = node;
 
             var go = Instantiate(nodePrefab, graphContainer);
+            go.SetActive(true);
             var rt = go.GetComponent<RectTransform>();
 
             Vector2 pos = positions[node.id] - graphCenter;
@@ -442,21 +464,12 @@ public class KnowledgeGraphUI : MonoBehaviour
 
             nodePositions[node.id] = rt;
             if (bg != null)
-            {
                 nodeImages[node.id] = bg;
-                originalNodeColors[node.id] = bg.color;
-            }
             spawnedNodes.Add(go);
         }
 
         BuildNeighborMap(nodes);
         DrawEdges(nodes);
-        StartCoroutine(AutoSelectDeferred(nodes));
-    }
-
-    private System.Collections.IEnumerator AutoSelectDeferred(KnowledgeNodeStateDTO[] nodes)
-    {
-        yield return null;
         AutoSelectNode(nodes);
     }
 
@@ -469,6 +482,12 @@ public class KnowledgeGraphUI : MonoBehaviour
             {
                 ShowDetail(cached);
                 RebuildFocusOutline();
+
+                if (nodePositions.TryGetValue(focusedNodeId, out var rt))
+                {
+                    panOffset = -rt.anchoredPosition * currentZoom;
+                    graphContainer.anchoredPosition = panOffset;
+                }
             }
             return;
         }
@@ -752,26 +771,10 @@ public class KnowledgeGraphUI : MonoBehaviour
 
     private void HighlightNeighbors(string nodeId)
     {
-        var nodes = KnowledgeGraphManager.Inst?.Nodes;
-        if (nodes == null) return;
+        highlightedNodeId = nodeId;
+        RefreshAllNodeColors();
 
         bool hasSelection = nodeId != null && neighbors.ContainsKey(nodeId);
-        var neighborSet = hasSelection ? neighbors[nodeId] : null;
-
-        foreach (var n in nodes)
-        {
-            if (!nodeImages.TryGetValue(n.id, out var img)) continue;
-            var baseColor = GetNodeColor(n, nodes);
-
-            if (hasSelection && n.id != nodeId && (neighborSet == null || !neighborSet.Contains(n.id)))
-            {
-                baseColor.r *= 0.4f;
-                baseColor.g *= 0.4f;
-                baseColor.b *= 0.4f;
-            }
-
-            img.color = baseColor;
-        }
 
         foreach (var (fromId, toId, edgeGO) in edgeRegistry)
         {
@@ -804,6 +807,8 @@ public class KnowledgeGraphUI : MonoBehaviour
         if (detailPanel == null) return;
 
         detailPanel.SetActive(true);
+        if (closeButton != null)
+            closeButton.transform.SetAsLastSibling();
         detailTitle.text = node.title;
         detailTitle.textWrappingMode = TextWrappingModes.Normal;
         detailTitle.margin = new Vector4(0f, 0f, 30f, 0f);
@@ -819,30 +824,12 @@ public class KnowledgeGraphUI : MonoBehaviour
         detailContent.textWrappingMode = TextWrappingModes.Normal;
         detailContent.overflowMode = TextOverflowModes.Overflow;
 
-        string body = "";
-
+        // Sidebar shows only short description + prereqs for locked nodes
+        string body;
         if (node.status == "locked")
-        {
-            body += BuildLockedContent(node);
-        }
+            body = BuildLockedContent(node);
         else
-        {
-            if (node.type == "adaptive" && !string.IsNullOrEmpty(node.trigger_explanation))
-            {
-                body += $"<color=#E8A838>{node.trigger_explanation}</color>\n\n";
-
-                if (!string.IsNullOrEmpty(node.correct_action))
-                    body += $"<color=#6BC9D9>{node.correct_action}</color>\n\n";
-            }
-
-            body += node.content ?? node.description;
-
-            var featureLabel = ProgressionGates.GetFeatureLabel(node.id);
-            if (featureLabel != null)
-                body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
-            else if (!string.IsNullOrEmpty(node.reward_mechanic))
-                body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(node.reward_mechanic)}</color>";
-        }
+            body = $"<color=#CCCCCC>{node.description}</color>";
 
         detailContent.text = body;
 
@@ -869,21 +856,18 @@ public class KnowledgeGraphUI : MonoBehaviour
             : statusLabel;
 
         bool isAdaptiveUnlocked = node.type == "adaptive" && node.status == "unlocked";
-        bool showCaseyFirst = isAdaptiveUnlocked;
         bool showCaseyOnCompleted = node.type == "adaptive" && node.status == "completed";
 
         EnsureCaseyTakeButton();
-        if (showCaseyFirst)
+        if (isAdaptiveUnlocked || showCaseyOnCompleted)
         {
             completeButton.gameObject.SetActive(false);
             caseyTakeButton.gameObject.SetActive(true);
-            caseyTakeShowCompleteAfter = true;
         }
         else
         {
             completeButton.gameObject.SetActive(node.status == "unlocked");
-            caseyTakeButton.gameObject.SetActive(showCaseyOnCompleted);
-            caseyTakeShowCompleteAfter = false;
+            caseyTakeButton.gameObject.SetActive(false);
         }
     }
 
@@ -923,6 +907,28 @@ public class KnowledgeGraphUI : MonoBehaviour
         return body;
     }
 
+    private string BuildUnlockedContent(KnowledgeNodeStateDTO node)
+    {
+        string body = "";
+
+        if (node.type == "adaptive" && !string.IsNullOrEmpty(node.trigger_explanation))
+        {
+            body += $"<color=#E8A838>{node.trigger_explanation}</color>\n\n";
+            if (!string.IsNullOrEmpty(node.correct_action))
+                body += $"<color=#6BC9D9>{node.correct_action}</color>\n\n";
+        }
+
+        body += node.content ?? node.description;
+
+        var featureLabel = ProgressionGates.GetFeatureLabel(node.id);
+        if (featureLabel != null)
+            body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
+        else if (!string.IsNullOrEmpty(node.reward_mechanic))
+            body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(node.reward_mechanic)}</color>";
+
+        return body;
+    }
+
     private static string FormatMechanic(string mechanic)
     {
         return mechanic.Replace('_', ' ')
@@ -930,7 +936,7 @@ public class KnowledgeGraphUI : MonoBehaviour
             .Replace("stop loss", "Stop-Loss Orders");
     }
 
-    private async void OnCompleteLesson()
+    private void OnCompleteLesson()
     {
         if (selectedNode == null) return;
         if (selectedNode.status != "unlocked")
@@ -939,17 +945,7 @@ public class KnowledgeGraphUI : MonoBehaviour
             return;
         }
 
-        var nodeId = selectedNode.id;
-        Debug.Log($"[KnowledgeGraphUI] Completing node: {nodeId}");
-
-        completeButton.gameObject.SetActive(false);
-        await KnowledgeGraphManager.Inst.CompleteNodeAsync(nodeId);
-
-        selectedNode = null;
-        if (detailPanel != null)
-            detailPanel.SetActive(false);
-
-        RenderGraph();
+        ShowCompletionOverlay(selectedNode, BuildUnlockedContent(selectedNode));
     }
 
     private void DismissDetail()
@@ -994,6 +990,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         label.fontSize = UIConfig.Inst != null ? UIConfig.Inst.Scale(UIConfig.Inst.caseyButtonSize) : 16f;
         label.alignment = TextAlignmentOptions.Center;
         label.color = new Color(0.4f, 0.85f, 0.7f);
+        EnsureFont(label);
 
         caseyTakeButton = btnGO.GetComponent<Button>();
         caseyTakeButton.onClick.AddListener(OnCaseyTakeClicked);
@@ -1049,6 +1046,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         caseyNameText.fontStyle = FontStyles.Bold;
         caseyNameText.color = new Color(0.4f, 0.85f, 0.7f);
         caseyNameText.raycastTarget = false;
+        EnsureFont(caseyNameText);
 
         var bodyGO = new GameObject("Body", typeof(RectTransform));
         bodyGO.transform.SetParent(caseyDialogueBox.transform, false);
@@ -1063,6 +1061,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         caseyBodyText.enableWordWrapping = true;
         caseyBodyText.overflowMode = TextOverflowModes.Ellipsis;
         caseyBodyText.raycastTarget = false;
+        EnsureFont(caseyBodyText);
 
         var promptGO = new GameObject("Prompt", typeof(RectTransform));
         promptGO.transform.SetParent(caseyDialogueBox.transform, false);
@@ -1078,6 +1077,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         caseyPromptText.alignment = TextAlignmentOptions.BottomRight;
         caseyPromptText.raycastTarget = false;
         caseyPromptText.text = "";
+        EnsureFont(caseyPromptText);
 
         caseyDialogueBox.SetActive(false);
     }
@@ -1086,31 +1086,55 @@ public class KnowledgeGraphUI : MonoBehaviour
     {
         if (selectedNode == null) return;
         int entityId = APIBootstrapper.EntityDbId;
-        if (entityId <= 0) return;
 
-        EnsureCaseyDialogueBox();
-        caseyDialogueBox.SetActive(true);
-        caseyPromptText.text = "";
-        BeginCaseyTypewriter("Let me think about this...");
+        bool isUnlocked = selectedNode.status == "unlocked";
 
-        try
+        ShowCompletionOverlay(selectedNode, "<color=#4AD9A4><b>Casey's Take</b></color>\n\nThinking...");
+        if (completionGotItButton != null)
+            completionGotItButton.interactable = false;
+
+        string body;
+
+        if (entityId <= 0 || selectedNode.type != "adaptive")
         {
-            var resp = await KnowledgeGraphAPI.GetNodeContent(entityId, selectedNode.id);
-            var content = resp != null && !string.IsNullOrEmpty(resp.content) ? resp.content : selectedNode.content ?? selectedNode.description;
-
-            caseyLines = SplitIntoDialogueLines(content);
-            caseyLineIndex = 0;
-            BeginCaseyTypewriter(caseyLines[0]);
-            caseyPromptText.text = caseyLines.Length > 1 ? "E >" : "E to close";
+            body = BuildUnlockedContent(selectedNode);
         }
-        catch (System.Exception ex)
+        else
         {
-            Debug.LogWarning($"[KnowledgeGraphUI] Casey's Take failed: {ex.Message}");
-            caseyLines = new[] { selectedNode.content ?? selectedNode.description };
-            caseyLineIndex = 0;
-            BeginCaseyTypewriter(caseyLines[0]);
-            caseyPromptText.text = "E to close";
+            try
+            {
+                var resp = await KnowledgeGraphAPI.GetNodeContent(entityId, selectedNode.id);
+                var content = resp != null && !string.IsNullOrEmpty(resp.content)
+                    ? resp.content
+                    : selectedNode.content ?? selectedNode.description;
+
+                body = "<color=#4AD9A4><b>Casey's Take</b></color>\n\n";
+                if (!string.IsNullOrEmpty(selectedNode.trigger_explanation))
+                    body += $"<color=#E8A838>{selectedNode.trigger_explanation}</color>\n\n";
+                if (!string.IsNullOrEmpty(selectedNode.correct_action))
+                    body += $"<color=#6BC9D9>{selectedNode.correct_action}</color>\n\n";
+                body += content;
+
+                var featureLabel = ProgressionGates.GetFeatureLabel(selectedNode.id);
+                if (featureLabel != null)
+                    body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
+                else if (!string.IsNullOrEmpty(selectedNode.reward_mechanic))
+                    body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(selectedNode.reward_mechanic)}</color>";
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[KnowledgeGraphUI] Casey's Take failed: {ex.Message}");
+                body = BuildUnlockedContent(selectedNode);
+            }
         }
+
+        if (!completionOverlayActive) return;
+
+        completionBodyText.text = body;
+        if (completionScrollRect != null)
+            completionScrollRect.verticalNormalizedPosition = 1f;
+        if (completionGotItButton != null)
+            completionGotItButton.interactable = true;
     }
 
     private void HandleCaseyInput()
@@ -1173,14 +1197,275 @@ public class KnowledgeGraphUI : MonoBehaviour
             caseyDialogueBox.SetActive(false);
         caseyLines = null;
         caseyIsTyping = false;
+    }
 
-        if (caseyTakeShowCompleteAfter && selectedNode != null && selectedNode.status == "unlocked")
+    // ── Completion Overlay ──
+    // Uses explicit anchor-based positioning (no VLG/CSF) so TMP always knows its dimensions.
+
+    private void EnsureCompletionOverlay()
+    {
+        if (completionOverlay != null) return;
+        if (graphPanel == null) return;
+
+        var ui = UIConfig.Inst;
+        float titleSize = ui != null ? ui.Scale(ui.graphDetailTitleSize) : 22f;
+        float bodySize = ui != null ? ui.Scale(ui.graphDetailContentSize) : 16f;
+        float statusSize = ui != null ? ui.Scale(ui.graphDetailStatusSize) : 13f;
+
+        const float cardW = 700f, cardH = 520f;
+        const float pad = 32f, topPad = 24f, botPad = 24f;
+        const float catH = 22f, titleH = 35f, divH = 1f, btnH = 40f;
+        const float gap = 10f;
+
+        float catTop = topPad;
+        float titleTop = catTop + catH + gap;
+        float divTop = titleTop + titleH + gap;
+        float viewTop = divTop + divH + gap;
+        float btnBot = botPad;
+        float viewBot = btnBot + btnH + gap;
+
+        completionOverlay = new GameObject("CompletionOverlay", typeof(RectTransform), typeof(CanvasGroup));
+        completionOverlay.transform.SetParent(graphPanel.transform, false);
+        var rootRT = completionOverlay.GetComponent<RectTransform>();
+        rootRT.anchorMin = Vector2.zero;
+        rootRT.anchorMax = Vector2.one;
+        rootRT.sizeDelta = Vector2.zero;
+        rootRT.anchoredPosition = Vector2.zero;
+        completionOverlayGroup = completionOverlay.GetComponent<CanvasGroup>();
+        completionOverlayGroup.alpha = 0f;
+        completionOverlayGroup.blocksRaycasts = false;
+
+        var dimGO = new GameObject("DimBackground", typeof(RectTransform), typeof(Image));
+        dimGO.transform.SetParent(completionOverlay.transform, false);
+        var dimRT = dimGO.GetComponent<RectTransform>();
+        dimRT.anchorMin = Vector2.zero;
+        dimRT.anchorMax = Vector2.one;
+        dimRT.sizeDelta = Vector2.zero;
+        dimGO.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+
+        var cardGO = new GameObject("Card", typeof(RectTransform), typeof(Image));
+        cardGO.transform.SetParent(completionOverlay.transform, false);
+        completionCardRT = cardGO.GetComponent<RectTransform>();
+        completionCardRT.anchorMin = new Vector2(0.5f, 0.5f);
+        completionCardRT.anchorMax = new Vector2(0.5f, 0.5f);
+        completionCardRT.sizeDelta = new Vector2(cardW, cardH);
+        completionCardRT.anchoredPosition = Vector2.zero;
+        cardGO.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f, 0.97f);
+
+        // Category — anchored to top, stretches width
+        var catGO = new GameObject("Category", typeof(RectTransform));
+        catGO.transform.SetParent(cardGO.transform, false);
+        var catRT = catGO.GetComponent<RectTransform>();
+        catRT.anchorMin = new Vector2(0, 1);
+        catRT.anchorMax = new Vector2(1, 1);
+        catRT.pivot = new Vector2(0.5f, 1);
+        catRT.anchoredPosition = new Vector2(0, -catTop);
+        catRT.sizeDelta = new Vector2(-pad * 2, catH);
+        completionCategoryText = catGO.AddComponent<TextMeshProUGUI>();
+        completionCategoryText.fontSize = statusSize;
+        completionCategoryText.fontStyle = FontStyles.Italic;
+        completionCategoryText.alignment = TextAlignmentOptions.Center;
+        completionCategoryText.color = new Color(0.91f, 0.66f, 0.22f);
+        completionCategoryText.raycastTarget = false;
+        EnsureFont(completionCategoryText);
+
+        // Title — below category
+        var titleGO = new GameObject("Title", typeof(RectTransform));
+        titleGO.transform.SetParent(cardGO.transform, false);
+        var titleRT = titleGO.GetComponent<RectTransform>();
+        titleRT.anchorMin = new Vector2(0, 1);
+        titleRT.anchorMax = new Vector2(1, 1);
+        titleRT.pivot = new Vector2(0.5f, 1);
+        titleRT.anchoredPosition = new Vector2(0, -titleTop);
+        titleRT.sizeDelta = new Vector2(-pad * 2, titleH);
+        completionTitleText = titleGO.AddComponent<TextMeshProUGUI>();
+        completionTitleText.fontSize = titleSize;
+        completionTitleText.fontStyle = FontStyles.Bold;
+        completionTitleText.alignment = TextAlignmentOptions.Center;
+        completionTitleText.color = Color.white;
+        completionTitleText.raycastTarget = false;
+        EnsureFont(completionTitleText);
+
+        // Divider
+        var divGO = new GameObject("Divider", typeof(RectTransform), typeof(Image));
+        divGO.transform.SetParent(cardGO.transform, false);
+        var divRT = divGO.GetComponent<RectTransform>();
+        divRT.anchorMin = new Vector2(0, 1);
+        divRT.anchorMax = new Vector2(1, 1);
+        divRT.pivot = new Vector2(0.5f, 1);
+        divRT.anchoredPosition = new Vector2(0, -divTop);
+        divRT.sizeDelta = new Vector2(-pad * 2, divH);
+        divGO.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.15f);
+
+        // Scroll viewport — fills space between divider and button
+        var viewportGO = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+        viewportGO.transform.SetParent(cardGO.transform, false);
+        var viewportRT = viewportGO.GetComponent<RectTransform>();
+        viewportRT.anchorMin = Vector2.zero;
+        viewportRT.anchorMax = Vector2.one;
+        viewportRT.offsetMin = new Vector2(pad, viewBot);
+        viewportRT.offsetMax = new Vector2(-pad, -viewTop);
+
+        // Body text inside viewport — stretches width, grows height with content
+        var bodyGO = new GameObject("Body", typeof(RectTransform));
+        bodyGO.transform.SetParent(viewportGO.transform, false);
+        var bodyRT = bodyGO.GetComponent<RectTransform>();
+        bodyRT.anchorMin = new Vector2(0, 1);
+        bodyRT.anchorMax = new Vector2(1, 1);
+        bodyRT.pivot = new Vector2(0.5f, 1);
+        bodyRT.anchoredPosition = Vector2.zero;
+        bodyRT.sizeDelta = new Vector2(0, 0);
+        completionBodyText = bodyGO.AddComponent<TextMeshProUGUI>();
+        completionBodyText.fontSize = bodySize;
+        completionBodyText.alignment = TextAlignmentOptions.TopLeft;
+        completionBodyText.color = new Color(0.85f, 0.85f, 0.88f);
+        completionBodyText.enableWordWrapping = true;
+        completionBodyText.overflowMode = TextOverflowModes.Overflow;
+        completionBodyText.raycastTarget = true;
+        EnsureFont(completionBodyText);
+        var bodyCsf = bodyGO.AddComponent<ContentSizeFitter>();
+        bodyCsf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        bodyCsf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+
+        completionScrollRect = viewportGO.AddComponent<ScrollRect>();
+        completionScrollRect.viewport = viewportRT;
+        completionScrollRect.content = bodyRT;
+        completionScrollRect.vertical = true;
+        completionScrollRect.horizontal = false;
+        completionScrollRect.movementType = ScrollRect.MovementType.Clamped;
+        completionScrollRect.scrollSensitivity = 30f;
+
+        // Vertical scrollbar
+        var scrollbarGO = new GameObject("Scrollbar", typeof(RectTransform), typeof(Image), typeof(Scrollbar));
+        scrollbarGO.transform.SetParent(cardGO.transform, false);
+        var sbRT = scrollbarGO.GetComponent<RectTransform>();
+        sbRT.anchorMin = new Vector2(1, 0);
+        sbRT.anchorMax = new Vector2(1, 1);
+        sbRT.pivot = new Vector2(1, 0.5f);
+        sbRT.offsetMin = new Vector2(-8f, viewBot);
+        sbRT.offsetMax = new Vector2(0f, -viewTop);
+        scrollbarGO.GetComponent<Image>().color = new Color(0.15f, 0.15f, 0.2f, 0.5f);
+
+        var handleGO = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+        handleGO.transform.SetParent(scrollbarGO.transform, false);
+        var handleRT = handleGO.GetComponent<RectTransform>();
+        handleRT.anchorMin = Vector2.zero;
+        handleRT.anchorMax = Vector2.one;
+        handleRT.sizeDelta = Vector2.zero;
+        handleGO.GetComponent<Image>().color = new Color(0.5f, 0.5f, 0.55f, 0.7f);
+
+        var scrollbar = scrollbarGO.GetComponent<Scrollbar>();
+        scrollbar.handleRect = handleRT;
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+        scrollbar.targetGraphic = handleGO.GetComponent<Image>();
+        completionScrollRect.verticalScrollbar = scrollbar;
+        completionScrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+
+        // Got It button — anchored bottom center
+        var btnGO = new GameObject("GotItButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        btnGO.transform.SetParent(cardGO.transform, false);
+        var btnRT = btnGO.GetComponent<RectTransform>();
+        btnRT.anchorMin = new Vector2(0.5f, 0);
+        btnRT.anchorMax = new Vector2(0.5f, 0);
+        btnRT.pivot = new Vector2(0.5f, 0);
+        btnRT.anchoredPosition = new Vector2(0, btnBot);
+        btnRT.sizeDelta = new Vector2(180, btnH);
+        btnGO.GetComponent<Image>().color = new Color(0.2f, 0.6f, 0.9f, 1f);
+
+        var btnLabelGO = new GameObject("Label", typeof(RectTransform));
+        btnLabelGO.transform.SetParent(btnGO.transform, false);
+        var btnLabelRT = btnLabelGO.GetComponent<RectTransform>();
+        btnLabelRT.anchorMin = Vector2.zero;
+        btnLabelRT.anchorMax = Vector2.one;
+        btnLabelRT.sizeDelta = Vector2.zero;
+        btnLabelRT.offsetMin = Vector2.zero;
+        btnLabelRT.offsetMax = Vector2.zero;
+        var btnLabel = btnLabelGO.AddComponent<TextMeshProUGUI>();
+        btnLabel.text = "Got it";
+        btnLabel.fontSize = ui != null ? ui.Scale(16f) : 16f;
+        btnLabel.alignment = TextAlignmentOptions.Center;
+        btnLabel.color = Color.white;
+        EnsureFont(btnLabel);
+
+        completionGotItButton = btnGO.GetComponent<Button>();
+        completionGotItButton.onClick.AddListener(OnCompletionOverlayDismissed);
+
+        completionOverlay.SetActive(false);
+    }
+
+    private void ShowCompletionOverlay(KnowledgeNodeStateDTO node, string bodyContent)
+    {
+        EnsureCompletionOverlay();
+
+        pendingCompletionNodeId = node.id;
+
+        completionOverlay.SetActive(true);
+        completionOverlay.transform.SetAsLastSibling();
+        completionOverlayGroup.alpha = 1f;
+        completionOverlayGroup.blocksRaycasts = true;
+        completionOverlayActive = true;
+
+        string catLabel = !string.IsNullOrEmpty(node.category)
+            ? node.category.Replace('_', ' ').ToUpper()
+            : "";
+        completionCategoryText.text = catLabel;
+        completionTitleText.text = node.title;
+        completionBodyText.text = bodyContent;
+
+        if (completionScrollRect != null)
+            completionScrollRect.verticalNormalizedPosition = 1f;
+    }
+
+    private void DismissCompletionOverlay()
+    {
+        if (completionOverlay == null || !completionOverlayActive) return;
+        completionOverlayGroup.alpha = 0f;
+        completionOverlayGroup.blocksRaycasts = false;
+        completionOverlay.SetActive(false);
+        completionOverlayActive = false;
+        pendingCompletionNodeId = null;
+    }
+
+    private async void OnCompletionOverlayDismissed()
+    {
+        if (pendingCompletionNodeId == null)
         {
-            caseyTakeShowCompleteAfter = false;
-            OnCompleteLesson();
+            DismissCompletionOverlay();
             return;
         }
-        caseyTakeShowCompleteAfter = false;
+
+        var nodeId = pendingCompletionNodeId;
+        bool alreadyCompleted = nodeLookup.TryGetValue(nodeId, out var n) && n.status == "completed";
+        DismissCompletionOverlay();
+
+        if (alreadyCompleted)
+        {
+            selectedNode = null;
+            if (detailPanel != null) detailPanel.SetActive(false);
+            return;
+        }
+
+        Debug.Log($"[KnowledgeGraphUI] Completing node: {nodeId}");
+        if (completeButton != null) completeButton.gameObject.SetActive(false);
+        if (caseyTakeButton != null) caseyTakeButton.gameObject.SetActive(false);
+
+        await KnowledgeGraphManager.Inst.CompleteNodeAsync(nodeId);
+
+        selectedNode = null;
+        if (detailPanel != null)
+            detailPanel.SetActive(false);
+
+        RenderGraph();
+    }
+
+    private void HandleCompletionOverlayInput()
+    {
+        if (!completionOverlayActive) return;
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+            DismissCompletionOverlay();
+        else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space))
+            OnCompletionOverlayDismissed();
     }
 
     private string[] SplitIntoDialogueLines(string content)
@@ -1248,14 +1533,59 @@ public class KnowledgeGraphUI : MonoBehaviour
 
     private void OnNodeHoverEnter(string nodeId)
     {
-        if (nodeImages.TryGetValue(nodeId, out var img) && originalNodeColors.TryGetValue(nodeId, out var orig))
-            img.color = Color.Lerp(orig, Color.white, 0.2f);
+        hoveredNodeId = nodeId;
+        RefreshNodeColor(nodeId);
     }
 
     private void OnNodeHoverExit(string nodeId)
     {
-        if (nodeImages.TryGetValue(nodeId, out var img) && originalNodeColors.TryGetValue(nodeId, out var orig))
-            img.color = orig;
+        if (hoveredNodeId == nodeId)
+            hoveredNodeId = null;
+        RefreshNodeColor(nodeId);
+    }
+
+    private void RefreshNodeColor(string nodeId)
+    {
+        if (!nodeImages.TryGetValue(nodeId, out var img)) return;
+        if (!nodeLookup.TryGetValue(nodeId, out var node)) return;
+
+        var nodes = KnowledgeGraphManager.Inst?.Nodes;
+        if (nodes == null) return;
+
+        Color color = GetNodeColor(node, nodes);
+
+        // Dim if another node is highlighted and this one isn't a neighbor
+        if (highlightedNodeId != null && nodeId != highlightedNodeId)
+        {
+            bool isNeighbor = neighbors.TryGetValue(highlightedNodeId, out var nset) && nset.Contains(nodeId);
+            if (!isNeighbor)
+            {
+                color.r *= 0.4f;
+                color.g *= 0.4f;
+                color.b *= 0.4f;
+            }
+        }
+
+        // Lighten if hovered
+        if (hoveredNodeId == nodeId)
+            color = Color.Lerp(color, Color.white, 0.2f);
+
+        img.color = color;
+    }
+
+    private void RefreshAllNodeColors()
+    {
+        foreach (var nodeId in nodeImages.Keys)
+            RefreshNodeColor(nodeId);
+    }
+
+    private static TMP_FontAsset _cachedFont;
+    private static void EnsureFont(TMP_Text tmp)
+    {
+        if (_cachedFont == null)
+            _cachedFont = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        if (_cachedFont != null)
+            tmp.font = _cachedFont;
     }
 
     private void ClearGraph()
@@ -1268,8 +1598,9 @@ public class KnowledgeGraphUI : MonoBehaviour
         nodePositions.Clear();
         nodeLookup.Clear();
         nodeImages.Clear();
-        originalNodeColors.Clear();
         neighbors.Clear();
         edgeRegistry.Clear();
+        highlightedNodeId = null;
+        hoveredNodeId = null;
     }
 }

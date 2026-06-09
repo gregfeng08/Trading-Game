@@ -380,6 +380,10 @@ PrefabInstance:
       propertyPath: m_LocalPosition.y
       value: 20
       objectReference: {fileID: 0}
+    - target: {fileID: 4014923334369341545, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4574863321133495610, guid: 896a4d09e60f19d43bb6c4eb681c5a06, type: 3}
       propertyPath: m_IsActive
       value: 1
@@ -1598,6 +1602,14 @@ MonoBehaviour:
   adaptiveUnlockedColor: {r: 0.9, g: 0.5, b: 0.1, a: 1}
   adaptiveCompletedColor: {r: 0.2, g: 0.8, b: 0.3, a: 1}
   edgeColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.5}
+  tierSpacing: 300
+  nodeSpacing: 140
+  forceIterations: 30
+  repulsionStrength: 800
+  attractionStrength: 0.15
+  focusBorderColor: {r: 1, g: 1, b: 1, a: 0.9}
+  focusBorderWidth: 3
+  focusPanDuration: 0.3
 --- !u!114 &470310475
 MonoBehaviour:
   m_ObjectHideFlags: 0

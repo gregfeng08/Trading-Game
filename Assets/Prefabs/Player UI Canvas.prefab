@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 6317784850713334683}
   - component: {fileID: 7053825703104006730}
   - component: {fileID: 1163832773258136105}
+  - component: {fileID: 5372809605833542284}
   m_Layer: 0
   m_Name: Minimap
   m_TagString: Untagged
@@ -72,6 +73,28 @@ MonoBehaviour:
     y: 0
     width: 1
     height: 1
+--- !u!114 &5372809605833542284
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 348151540006864819}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed3b8cf96d0453a4cb09caddbaa0bcb5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MinimapController
+  minimapCamera: {fileID: 0}
+  minimapImage: {fileID: 0}
+  playerTransform: {fileID: 0}
+  cameraHeight: 50
+  orthoSize: 35
+  backgroundColor: {r: 0.12, g: 0.13, b: 0.18, a: 1}
+  renderTextureSize: 256
+  playerIconColor: {r: 1, g: 0.92, b: 0.016, a: 1}
+  playerIconSize: 8
+  markers: []
 --- !u!1 &704992420454906203
 GameObject:
   m_ObjectHideFlags: 0

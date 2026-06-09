@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using Game.API.DTO;
 
 public class DayCycleHUD : MonoBehaviour
 {
@@ -87,9 +88,9 @@ public class DayCycleHUD : MonoBehaviour
         {
             phaseText.text = gpm.CurrentPhase switch
             {
-                GamePhase.PreMarket => $"{date} | PRE-MARKET",
-                GamePhase.Day => $"{date} | DAY ({FormatTime(gpm.DayTimeRemaining)})",
-                GamePhase.PostMarket => $"{date} | POST-MARKET",
+                GamePhase.PreMarket => $"{date}  |  PRE-MARKET (Plan)",
+                GamePhase.Day => $"{date}  |  MARKET HOURS ({FormatTime(gpm.DayTimeRemaining)})",
+                GamePhase.PostMarket => $"{date}  |  POST-MARKET (Review)",
                 _ => date
             };
         }
@@ -121,6 +122,16 @@ public class DayCycleHUD : MonoBehaviour
             string text = $"Cash: ${cash:N2}";
             if (ProgressionGates.ShowNetWorth && gpm.ServerNetWorth > 0)
                 text += $"  |  Net Worth: ${gpm.ServerNetWorth:N2}";
+
+            var kgm = KnowledgeGraphManager.Inst;
+            if (kgm != null && kgm.Nodes != null && kgm.Nodes.Length > 0)
+            {
+                int completed = 0;
+                foreach (var n in kgm.Nodes)
+                    if (n.status == "completed") completed++;
+                text += $"  |  {completed}/{kgm.Nodes.Length} learned";
+            }
+
             cashHudText.text = text;
         }
     }

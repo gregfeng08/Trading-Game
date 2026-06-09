@@ -10,12 +10,15 @@ public class SceneTransitionManager : MonoBehaviour
 
     public string PendingSpawnPoint { get; private set; }
 
-    [SerializeField] private float fadeDuration = 0.4f;
-    [SerializeField] private float minLoadingDisplay = 0.3f;
+    [SerializeField] private float fadeDuration = 0.5f;
+    [SerializeField] private float minLoadingDisplay = 1.8f;
 
     private GameObject fadeCanvas;
     private CanvasGroup fadeGroup;
     private TMP_Text loadingText;
+    private TMP_Text arcTitleText;
+    private TMP_Text arcDescText;
+    private TMP_Text brandText;
     private bool isTransitioning;
 
     private Coroutine activeFade;
@@ -71,12 +74,7 @@ public class SceneTransitionManager : MonoBehaviour
         }
         fadeGroup.alpha = 1f;
 
-        string contextLine = BuildContextLine();
-        if (!string.IsNullOrEmpty(contextLine))
-            loadingText.text = contextLine;
-        else
-            loadingText.text = "Loading...";
-        loadingText.gameObject.SetActive(true);
+        ShowLoadingContent();
 
         var asyncOp = SceneManager.LoadSceneAsync(sceneName);
         asyncOp.allowSceneActivation = false;
@@ -94,7 +92,7 @@ public class SceneTransitionManager : MonoBehaviour
 
         yield return null;
 
-        loadingText.gameObject.SetActive(false);
+        HideLoadingContent();
 
         t = 0f;
         while (t < fadeDuration)
@@ -109,19 +107,43 @@ public class SceneTransitionManager : MonoBehaviour
         activeFade = null;
     }
 
-    private static string BuildContextLine()
+    private void ShowLoadingContent()
     {
         var gpm = GamePhaseManager.Inst;
-        if (gpm == null) return null;
+        var arc = gpm?.CurrentArcDefinition;
 
-        string date = gpm.CurrentDate;
-        if (string.IsNullOrEmpty(date)) return null;
+        if (arc != null && !string.IsNullOrEmpty(arc.name))
+        {
+            arcTitleText.text = arc.name.ToUpper();
+            arcTitleText.gameObject.SetActive(true);
 
-        string arcName = gpm.CurrentArcDefinition?.name;
-        if (!string.IsNullOrEmpty(arcName))
-            return $"{arcName}  —  {FormatDate(date)}";
+            if (!string.IsNullOrEmpty(arc.description))
+            {
+                arcDescText.text = arc.description;
+                arcDescText.gameObject.SetActive(true);
+            }
 
-        return FormatDate(date);
+            string date = gpm.CurrentDate;
+            loadingText.text = !string.IsNullOrEmpty(date) ? FormatDate(date) : "";
+            loadingText.gameObject.SetActive(true);
+        }
+        else
+        {
+            arcTitleText.gameObject.SetActive(false);
+            arcDescText.gameObject.SetActive(false);
+            loadingText.text = "Loading...";
+            loadingText.gameObject.SetActive(true);
+        }
+
+        brandText.gameObject.SetActive(true);
+    }
+
+    private void HideLoadingContent()
+    {
+        loadingText.gameObject.SetActive(false);
+        arcTitleText.gameObject.SetActive(false);
+        arcDescText.gameObject.SetActive(false);
+        brandText.gameObject.SetActive(false);
     }
 
     private static string FormatDate(string isoDate)
@@ -148,6 +170,7 @@ public class SceneTransitionManager : MonoBehaviour
         fadeGroup.alpha = 0f;
         fadeGroup.blocksRaycasts = false;
 
+        // Background
         var bg = new GameObject("Black");
         bg.transform.SetParent(fadeCanvas.transform, false);
         var rt = bg.AddComponent<RectTransform>();
@@ -155,14 +178,49 @@ public class SceneTransitionManager : MonoBehaviour
         rt.anchorMax = Vector2.one;
         rt.sizeDelta = Vector2.zero;
         rt.anchoredPosition = Vector2.zero;
-        bg.AddComponent<Image>().color = Color.black;
+        bg.AddComponent<Image>().color = new Color(0.02f, 0.02f, 0.04f, 1f);
 
-        var textGO = new GameObject("LoadingText");
+        // Arc title — large, centered, upper area
+        var titleGO = new GameObject("ArcTitle");
+        titleGO.transform.SetParent(fadeCanvas.transform, false);
+        var titleRT = titleGO.AddComponent<RectTransform>();
+        titleRT.anchorMin = new Vector2(0.5f, 0.6f);
+        titleRT.anchorMax = new Vector2(0.5f, 0.6f);
+        titleRT.sizeDelta = new Vector2(800, 60);
+        titleRT.anchoredPosition = Vector2.zero;
+        arcTitleText = titleGO.AddComponent<TextMeshProUGUI>();
+        arcTitleText.fontSize = 36;
+        arcTitleText.fontStyle = FontStyles.Bold;
+        arcTitleText.alignment = TextAlignmentOptions.Center;
+        arcTitleText.color = new Color(0.85f, 0.75f, 0.45f, 1f);
+        arcTitleText.characterSpacing = 8f;
+        arcTitleText.raycastTarget = false;
+        titleGO.SetActive(false);
+
+        // Arc description — atmospheric flavor text
+        var descGO = new GameObject("ArcDesc");
+        descGO.transform.SetParent(fadeCanvas.transform, false);
+        var descRT = descGO.AddComponent<RectTransform>();
+        descRT.anchorMin = new Vector2(0.5f, 0.45f);
+        descRT.anchorMax = new Vector2(0.5f, 0.45f);
+        descRT.sizeDelta = new Vector2(700, 100);
+        descRT.anchoredPosition = Vector2.zero;
+        arcDescText = descGO.AddComponent<TextMeshProUGUI>();
+        arcDescText.fontSize = 16;
+        arcDescText.fontStyle = FontStyles.Italic;
+        arcDescText.alignment = TextAlignmentOptions.Center;
+        arcDescText.color = new Color(0.6f, 0.6f, 0.65f, 1f);
+        arcDescText.enableWordWrapping = true;
+        arcDescText.raycastTarget = false;
+        descGO.SetActive(false);
+
+        // Date — below the description
+        var textGO = new GameObject("DateText");
         textGO.transform.SetParent(fadeCanvas.transform, false);
         var textRT = textGO.AddComponent<RectTransform>();
-        textRT.anchorMin = new Vector2(0.5f, 0.3f);
-        textRT.anchorMax = new Vector2(0.5f, 0.3f);
-        textRT.sizeDelta = new Vector2(600, 50);
+        textRT.anchorMin = new Vector2(0.5f, 0.32f);
+        textRT.anchorMax = new Vector2(0.5f, 0.32f);
+        textRT.sizeDelta = new Vector2(600, 40);
         textRT.anchoredPosition = Vector2.zero;
         loadingText = textGO.AddComponent<TextMeshProUGUI>();
         loadingText.fontSize = 18;
@@ -171,6 +229,23 @@ public class SceneTransitionManager : MonoBehaviour
         loadingText.text = "Loading...";
         loadingText.raycastTarget = false;
         textGO.SetActive(false);
+
+        // Brand watermark — bottom center
+        var brandGO = new GameObject("Brand");
+        brandGO.transform.SetParent(fadeCanvas.transform, false);
+        var brandRT = brandGO.AddComponent<RectTransform>();
+        brandRT.anchorMin = new Vector2(0.5f, 0.08f);
+        brandRT.anchorMax = new Vector2(0.5f, 0.08f);
+        brandRT.sizeDelta = new Vector2(400, 30);
+        brandRT.anchoredPosition = Vector2.zero;
+        brandText = brandGO.AddComponent<TextMeshProUGUI>();
+        brandText.fontSize = 12;
+        brandText.alignment = TextAlignmentOptions.Center;
+        brandText.color = new Color(0.35f, 0.35f, 0.4f, 0.6f);
+        brandText.text = "HINDSIGHT FINANCIAL";
+        brandText.characterSpacing = 6f;
+        brandText.raycastTarget = false;
+        brandGO.SetActive(false);
 
         fadeCanvas.SetActive(false);
     }

@@ -22,11 +22,19 @@ public class KnowledgeGraphManager : MonoBehaviour
     private Queue<UnlockedNodeDTO> pendingPopups = new();
     private HashSet<string> unlockedMechanics = new();
 
+    private bool debugInProgress;
+
     void Awake()
     {
         if (Inst != null && Inst != this) { Destroy(gameObject); return; }
         Inst = this;
         DontDestroyOnLoad(gameObject);
+    }
+
+    void Update()
+    {
+        if (Input.GetKey(KeyCode.LeftShift) && Input.GetKeyDown(KeyCode.F9) && !debugInProgress)
+            _ = DebugCompleteAllNodesAsync();
     }
 
     public async Task InitializeAsync()
@@ -113,6 +121,30 @@ public class KnowledgeGraphManager : MonoBehaviour
         }
     }
 
+    public async Task DebugCompleteAllNodesAsync()
+    {
+        if (APIBootstrapper.EntityDbId < 0 || debugInProgress) return;
+        debugInProgress = true;
+
+        try
+        {
+            Debug.Log("[KnowledgeGraph] DEBUG: Completing all nodes...");
+            var resp = await KnowledgeGraphAPI.DebugCompleteAll(APIBootstrapper.EntityDbId);
+            Debug.Log($"[KnowledgeGraph] DEBUG: Completed {resp.completed_count} nodes");
+            await RefreshGraphAsync();
+            await RefreshUnlocksAsync();
+            ProgressionGates.Evaluate();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[KnowledgeGraph] DEBUG complete all failed: {ex.Message}");
+        }
+        finally
+        {
+            debugInProgress = false;
+        }
+    }
+
     public bool HasMechanic(string mechanic) => unlockedMechanics.Contains(mechanic);
 
     public bool IsNodeCompleted(string nodeId)
@@ -121,6 +153,32 @@ public class KnowledgeGraphManager : MonoBehaviour
         foreach (var n in Nodes)
             if (n.id == nodeId && n.status == "completed") return true;
         return false;
+    }
+
+    public List<string> GetPrerequisiteChain(string nodeId)
+    {
+        var chain = new List<string>();
+        var visited = new HashSet<string>();
+        CollectPrerequisites(nodeId, chain, visited);
+        return chain;
+    }
+
+    private void CollectPrerequisites(string nodeId, List<string> chain, HashSet<string> visited)
+    {
+        if (!visited.Add(nodeId)) return;
+        if (Nodes == null) return;
+
+        foreach (var node in Nodes)
+        {
+            if (node.id != nodeId) continue;
+            if (node.prerequisites != null)
+            {
+                foreach (var prereq in node.prerequisites)
+                    CollectPrerequisites(prereq, chain, visited);
+            }
+            break;
+        }
+        chain.Add(nodeId);
     }
 
     public IReadOnlyCollection<string> UnlockedMechanics => unlockedMechanics;

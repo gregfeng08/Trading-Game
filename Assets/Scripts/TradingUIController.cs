@@ -65,10 +65,12 @@ public class TradingUIController : MonoBehaviour
     [SerializeField] private Button advanceDayButton;
     [SerializeField] private TMP_Text advanceButtonText;
     [SerializeField] private TMP_Text ordersText;
+    [SerializeField] private Transform ordersContainer;
 
-    private TMP_Dropdown orderTypeDropdown;
-    private TMP_InputField priceInput;
-    private TMP_Text priceInputLabel;
+    [Header("Order Type")]
+    [SerializeField] private TMP_Dropdown orderTypeDropdown;
+    [SerializeField] private TMP_InputField priceInput;
+    [SerializeField] private TMP_Text priceInputLabel;
     private string selectedOrderType = "market";
 
     [Header("Portfolio Tab")]
@@ -83,6 +85,11 @@ public class TradingUIController : MonoBehaviour
     [SerializeField] private TMP_Text statusText;
 
     private enum BottomTab { Trade, Portfolio, History }
+
+    private static readonly HashSet<string> starterTickers = new()
+    {
+        "AAPL", "GOOG", "AMZN", "MSFT", "JPM", "GE", "WMT", "DIS"
+    };
 
     private TickerDTO[] tickers;
     private static string selectedTicker;
@@ -109,14 +116,39 @@ public class TradingUIController : MonoBehaviour
     private GameObject dismissBg;
 
     private bool hasOpenedBefore;
+    private readonly List<GameObject> orderRowObjects = new();
+
+    public bool TutorialMode { get; set; }
+    public bool TutorialTradeConfirmed { get; private set; }
+    public bool IsDataLoaded { get; private set; }
+
+    private bool tutorialOrderQueued;
+    private string tutorialOrderTicker;
+    private string tutorialOrderSide;
+    private int tutorialOrderQty;
+
+    private GameObject tutCaseyPanel;
+    private TMP_Text tutCaseyBody;
+    private bool tutCaseyTyping;
+    private int tutCaseyTotalChars;
+    private float tutCaseyCharAccum;
+    private const float TutCaseyCharsPerSec = 50f;
 
     public void Open()
     {
-        ShowDismissBackground();
+        IsDataLoaded = false;
+        TutorialTradeConfirmed = false;
+        tutorialOrderQueued = false;
+        if (!TutorialMode)
+            ShowDismissBackground();
         tradingPanel.SetActive(true);
-        PlayerStateController.Inst.OpenUI(PlayerState.TRADING, ClosePanel);
+        if (!TutorialMode)
+            PlayerStateController.Inst.OpenUI(PlayerState.TRADING, ClosePanel);
 
-        closeButton.onClick.AddListener(Close);
+        if (TutorialMode)
+            closeButton.gameObject.SetActive(false);
+        else
+            closeButton.onClick.AddListener(Close);
         if (tickerDropdown != null && tickerSearchInput == null)
             tickerDropdown.onValueChanged.AddListener(OnTickerChanged);
         BindTimeframeButtons();
@@ -130,21 +162,90 @@ public class TradingUIController : MonoBehaviour
             hasOpenedBefore = true;
         }
 
-        SetChartVisibility();
+        if (ohlcChart != null) ohlcChart.gameObject.SetActive(false);
+        if (portfolioChart != null) portfolioChart.gameObject.SetActive(false);
         ProgressionGates.OnGatesChanged += ApplyProgressionGates;
-        BuildOrderTypeUI();
+        if (orderTypeDropdown != null)
+            orderTypeDropdown.onValueChanged.AddListener(OnOrderTypeChanged);
+        UpdateOrderTypeUI();
 
         _ = LoadInitialData();
     }
 
     public void Close()
     {
+        if (TutorialMode) { ClosePanel(); return; }
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.SetState(PlayerState.MOVING);
     }
 
+    public void ForceTutorialReady()
+    {
+        currentPhase = GamePhase.PreMarket;
+        currentGameDate = "2007-04-02";
+        currentEstimatedPrice = 97.14;
+
+        if (tickers == null || tickers.Length == 0)
+        {
+            tickers = new TickerDTO[]
+            {
+                new() { ticker_id = "AAPL", company_name = "Apple Inc." },
+                new() { ticker_id = "GOOG", company_name = "Google Inc." },
+                new() { ticker_id = "MSFT", company_name = "Microsoft Corp." },
+                new() { ticker_id = "AMZN", company_name = "Amazon.com Inc." },
+                new() { ticker_id = "JPM", company_name = "JPMorgan Chase & Co." },
+                new() { ticker_id = "GE", company_name = "General Electric Co." },
+            };
+
+            if (tickerSearchInput != null)
+            {
+                BuildSearchResultsPanel();
+                tickerSearchInput.onValueChanged.RemoveAllListeners();
+                tickerSearchInput.onValueChanged.AddListener(OnSearchTyping);
+                tickerSearchInput.onSelect.AddListener(_ => OnSearchFocused());
+                tickerSearchInput.onDeselect.AddListener(_ => DelayedCloseSearch());
+                tickerSearchInput.onSubmit.AddListener(_ => OnSearchSubmit());
+            }
+            else if (tickerDropdown != null)
+            {
+                tickerDropdown.ClearOptions();
+                var options = new List<string>();
+                foreach (var t in tickers)
+                    options.Add($"{t.ticker_id} — {t.company_name}");
+                tickerDropdown.AddOptions(options);
+            }
+        }
+
+        selectedTicker = "AAPL";
+        if (tickerSearchInput != null)
+            tickerSearchInput.SetTextWithoutNotify(FormatTickerLabel("AAPL"));
+        else if (tickerDropdown != null)
+            tickerDropdown.SetValueWithoutNotify(0);
+        if (companyNameText != null)
+            companyNameText.text = "Apple Inc.";
+        if (priceText != null)
+            priceText.text = "$97.14";
+        if (dateText != null)
+            dateText.text = FormatDateHeader();
+        if (cashText != null)
+            cashText.text = "Cash: $10,000.00";
+        if (netWorthText != null)
+            netWorthText.text = "Net Worth: <color=#26BF59>$10,000.00</color>";
+        if (quantityInput != null)
+            quantityInput.SetTextWithoutNotify("10");
+
+        ApplyPhaseUI();
+        SwitchTab(BottomTab.Trade);
+        buyButton.interactable = true;
+        sellButton.interactable = true;
+        if (advanceDayButton != null) advanceDayButton.interactable = true;
+        tickerTradableToday = true;
+        IsDataLoaded = true;
+    }
+
     private void ClosePanel()
     {
+        closeButton.gameObject.SetActive(true);
         closeButton.onClick.RemoveAllListeners();
         buyButton.onClick.RemoveAllListeners();
         sellButton.onClick.RemoveAllListeners();
@@ -164,7 +265,9 @@ public class TradingUIController : MonoBehaviour
         UnbindChartTabs();
         UnbindBottomTabs();
 
+        ClearOrderRows();
         HideDismissBackground();
+        HideTutCaseyPanel();
         tradingPanel.SetActive(false);
     }
 
@@ -255,167 +358,6 @@ public class TradingUIController : MonoBehaviour
 
     // ── Order Type UI ──
 
-    private void BuildOrderTypeUI()
-    {
-        if (orderTypeDropdown != null) return;
-        if (quantityInput == null) return;
-
-        var parent = quantityInput.transform.parent;
-        var sourceFont = quantityInput.textComponent.font;
-        var sourceMat = quantityInput.textComponent.fontSharedMaterial;
-        var qtyRT = quantityInput.GetComponent<RectTransform>();
-
-        // Order type dropdown — placed below quantity input
-        var dropGO = new GameObject("OrderTypeDropdown", typeof(RectTransform));
-        dropGO.transform.SetParent(parent, false);
-        var dropRT = dropGO.GetComponent<RectTransform>();
-        dropRT.anchorMin = qtyRT.anchorMin;
-        dropRT.anchorMax = qtyRT.anchorMax;
-        dropRT.anchoredPosition = qtyRT.anchoredPosition + new Vector2(0, -(qtyRT.rect.height + 6));
-        dropRT.sizeDelta = qtyRT.sizeDelta;
-
-        orderTypeDropdown = dropGO.AddComponent<TMP_Dropdown>();
-        var dropImg = dropGO.AddComponent<Image>();
-        dropImg.color = new Color(0.18f, 0.19f, 0.24f, 1f);
-        orderTypeDropdown.targetGraphic = dropImg;
-
-        var labelGO = new GameObject("Label");
-        labelGO.transform.SetParent(dropGO.transform, false);
-        var labelRT = labelGO.AddComponent<RectTransform>();
-        labelRT.anchorMin = Vector2.zero;
-        labelRT.anchorMax = Vector2.one;
-        labelRT.offsetMin = new Vector2(8, 0);
-        labelRT.offsetMax = new Vector2(-25, 0);
-        var labelTMP = labelGO.AddComponent<TextMeshProUGUI>();
-        labelTMP.font = sourceFont;
-        labelTMP.fontSharedMaterial = sourceMat;
-        labelTMP.fontSize = 14;
-        labelTMP.color = Color.white;
-        labelTMP.alignment = TextAlignmentOptions.MidlineLeft;
-        orderTypeDropdown.captionText = labelTMP;
-
-        // Template (minimal — Unity TMP_Dropdown needs this)
-        var templateGO = new GameObject("Template", typeof(RectTransform));
-        templateGO.transform.SetParent(dropGO.transform, false);
-        var templateRT = templateGO.GetComponent<RectTransform>();
-        templateRT.anchorMin = new Vector2(0, 0);
-        templateRT.anchorMax = new Vector2(1, 0);
-        templateRT.pivot = new Vector2(0.5f, 1f);
-        templateRT.anchoredPosition = Vector2.zero;
-        templateRT.sizeDelta = new Vector2(0, 120);
-        templateGO.AddComponent<Image>().color = new Color(0.14f, 0.15f, 0.18f, 0.97f);
-        var templateSR = templateGO.AddComponent<ScrollRect>();
-
-        var viewportGO = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
-        viewportGO.transform.SetParent(templateGO.transform, false);
-        var vpRT = viewportGO.GetComponent<RectTransform>();
-        vpRT.anchorMin = Vector2.zero; vpRT.anchorMax = Vector2.one; vpRT.sizeDelta = Vector2.zero;
-        templateSR.viewport = vpRT;
-
-        var contentGO = new GameObject("Content", typeof(RectTransform));
-        contentGO.transform.SetParent(viewportGO.transform, false);
-        var contentRT = contentGO.GetComponent<RectTransform>();
-        contentRT.anchorMin = new Vector2(0, 1); contentRT.anchorMax = new Vector2(1, 1);
-        contentRT.pivot = new Vector2(0.5f, 1f); contentRT.sizeDelta = new Vector2(0, 28);
-        templateSR.content = contentRT;
-
-        var itemGO = new GameObject("Item", typeof(RectTransform));
-        itemGO.transform.SetParent(contentGO.transform, false);
-        var itemRT = itemGO.GetComponent<RectTransform>();
-        itemRT.anchorMin = new Vector2(0, 0.5f); itemRT.anchorMax = new Vector2(1, 0.5f);
-        itemRT.sizeDelta = new Vector2(0, 28);
-        itemGO.AddComponent<Image>().color = new Color(0.18f, 0.19f, 0.24f, 1f);
-        var toggle = itemGO.AddComponent<Toggle>();
-
-        var itemLabelGO = new GameObject("Item Label");
-        itemLabelGO.transform.SetParent(itemGO.transform, false);
-        var itemLabelRT = itemLabelGO.AddComponent<RectTransform>();
-        itemLabelRT.anchorMin = Vector2.zero; itemLabelRT.anchorMax = Vector2.one;
-        itemLabelRT.offsetMin = new Vector2(8, 0); itemLabelRT.offsetMax = new Vector2(-8, 0);
-        var itemLabelTMP = itemLabelGO.AddComponent<TextMeshProUGUI>();
-        itemLabelTMP.font = sourceFont;
-        itemLabelTMP.fontSharedMaterial = sourceMat;
-        itemLabelTMP.fontSize = 14;
-        itemLabelTMP.color = Color.white;
-        itemLabelTMP.alignment = TextAlignmentOptions.MidlineLeft;
-
-        orderTypeDropdown.itemText = itemLabelTMP;
-        orderTypeDropdown.template = templateRT;
-        templateGO.SetActive(false);
-
-        orderTypeDropdown.ClearOptions();
-        orderTypeDropdown.AddOptions(new List<string> { "Market", "Limit", "Stop", "Stop Limit" });
-        orderTypeDropdown.onValueChanged.AddListener(OnOrderTypeChanged);
-
-        // Price input — below the dropdown
-        var priceGO = new GameObject("PriceInput", typeof(RectTransform));
-        priceGO.transform.SetParent(parent, false);
-        var priceRT = priceGO.GetComponent<RectTransform>();
-        priceRT.anchorMin = dropRT.anchorMin;
-        priceRT.anchorMax = dropRT.anchorMax;
-        priceRT.anchoredPosition = dropRT.anchoredPosition + new Vector2(0, -(qtyRT.rect.height + 6));
-        priceRT.sizeDelta = qtyRT.sizeDelta;
-
-        // Label above
-        var priceLabelGO = new GameObject("PriceLabel");
-        priceLabelGO.transform.SetParent(parent, false);
-        var priceLabelRT = priceLabelGO.AddComponent<RectTransform>();
-        priceLabelRT.anchorMin = priceRT.anchorMin;
-        priceLabelRT.anchorMax = priceRT.anchorMax;
-        priceLabelRT.anchoredPosition = priceRT.anchoredPosition + new Vector2(0, priceRT.sizeDelta.y * 0.5f + 10);
-        priceLabelRT.sizeDelta = new Vector2(priceRT.sizeDelta.x, 20);
-        priceInputLabel = priceLabelGO.AddComponent<TextMeshProUGUI>();
-        priceInputLabel.font = sourceFont;
-        priceInputLabel.fontSharedMaterial = sourceMat;
-        priceInputLabel.fontSize = 12;
-        priceInputLabel.color = new Color(0.6f, 0.6f, 0.65f);
-        priceInputLabel.text = "Price";
-
-        priceInput = priceGO.AddComponent<TMP_InputField>();
-        var priceImg = priceGO.AddComponent<Image>();
-        priceImg.color = new Color(0.18f, 0.19f, 0.24f, 1f);
-        priceInput.targetGraphic = priceImg;
-        priceInput.contentType = TMP_InputField.ContentType.DecimalNumber;
-
-        var priceTextGO = new GameObject("Text");
-        priceTextGO.transform.SetParent(priceGO.transform, false);
-        var ptRT = priceTextGO.AddComponent<RectTransform>();
-        ptRT.anchorMin = Vector2.zero; ptRT.anchorMax = Vector2.one;
-        ptRT.offsetMin = new Vector2(8, 0); ptRT.offsetMax = new Vector2(-8, 0);
-        var ptTMP = priceTextGO.AddComponent<TextMeshProUGUI>();
-        ptTMP.font = sourceFont;
-        ptTMP.fontSharedMaterial = sourceMat;
-        ptTMP.fontSize = 14;
-        ptTMP.color = Color.white;
-
-        var phTextGO = new GameObject("Placeholder");
-        phTextGO.transform.SetParent(priceGO.transform, false);
-        var phRT = phTextGO.AddComponent<RectTransform>();
-        phRT.anchorMin = Vector2.zero; phRT.anchorMax = Vector2.one;
-        phRT.offsetMin = new Vector2(8, 0); phRT.offsetMax = new Vector2(-8, 0);
-        var phTMP = phTextGO.AddComponent<TextMeshProUGUI>();
-        phTMP.font = sourceFont;
-        phTMP.fontSharedMaterial = sourceMat;
-        phTMP.fontSize = 14;
-        phTMP.color = new Color(0.5f, 0.5f, 0.5f);
-        phTMP.text = "Price...";
-        phTMP.fontStyle = FontStyles.Italic;
-
-        priceInput.textComponent = ptTMP;
-        priceInput.placeholder = phTMP;
-
-        var textArea = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
-        textArea.transform.SetParent(priceGO.transform, false);
-        var taRT = textArea.GetComponent<RectTransform>();
-        taRT.anchorMin = Vector2.zero; taRT.anchorMax = Vector2.one;
-        taRT.offsetMin = new Vector2(8, 0); taRT.offsetMax = new Vector2(-8, 0);
-        priceTextGO.transform.SetParent(textArea.transform, false);
-        phTextGO.transform.SetParent(textArea.transform, false);
-        priceInput.textViewport = taRT;
-
-        UpdateOrderTypeUI();
-    }
-
     private void OnOrderTypeChanged(int index)
     {
         selectedOrderType = index switch
@@ -474,7 +416,51 @@ public class TradingUIController : MonoBehaviour
         ApplyPhaseUI();
         ApplyProgressionGates();
         SwitchTab(activeTab);
-        SetStatus("Ready");
+
+        SetChartVisibility();
+
+        if (ShouldGuideFirstTrade())
+            ApplyFirstTradeGuidance();
+        else
+            SetStatus("Ready");
+
+        IsDataLoaded = true;
+    }
+
+    private bool isFirstTradeGuided;
+
+    private bool ShouldGuideFirstTrade()
+    {
+        var kgm = KnowledgeGraphManager.Inst;
+        if (kgm == null || !kgm.IsInitialized) return false;
+        return !kgm.IsNodeCompleted("market_buy_sell");
+    }
+
+    private void ApplyFirstTradeGuidance()
+    {
+        isFirstTradeGuided = true;
+
+        // Pre-select AAPL if available
+        if (tickers != null)
+        {
+            int aaplIdx = System.Array.FindIndex(tickers, t => t.ticker_id == "AAPL");
+            if (aaplIdx >= 0)
+            {
+                selectedTicker = "AAPL";
+                if (tickerSearchInput != null)
+                    tickerSearchInput.SetTextWithoutNotify(FormatTickerLabel("AAPL"));
+                else if (tickerDropdown != null)
+                    tickerDropdown.SetValueWithoutNotify(aaplIdx);
+                UpdateCompanyName(aaplIdx);
+                _ = RefreshPrice();
+            }
+        }
+
+        // Pre-fill quantity
+        if (quantityInput != null)
+            quantityInput.SetTextWithoutNotify("10");
+
+        SetStatus("Casey: Pick a stock and hit Buy to queue your first trade.");
     }
 
     private async Task SyncPhase()
@@ -635,31 +621,33 @@ public class TradingUIController : MonoBehaviour
         int count = 0;
         int totalMatches = 0;
 
-        // Count total matches first
-        if (upper != null)
+        // Build ordered index: starter tickers first when query is empty
+        List<int> displayOrder = new List<int>();
+        if (upper == null)
+        {
+            for (int i = 0; i < tickers.Length; i++)
+                if (tickers[i].ticker_id != null && starterTickers.Contains(tickers[i].ticker_id))
+                    displayOrder.Add(i);
+            for (int i = 0; i < tickers.Length; i++)
+                if (tickers[i].ticker_id == null || !starterTickers.Contains(tickers[i].ticker_id))
+                    displayOrder.Add(i);
+            totalMatches = tickers.Length;
+        }
+        else
         {
             for (int i = 0; i < tickers.Length; i++)
             {
                 var t = tickers[i];
                 bool match = (t.ticker_id != null && t.ticker_id.ToUpperInvariant().Contains(upper))
                           || (t.company_name != null && t.company_name.ToUpperInvariant().Contains(upper));
-                if (match) totalMatches++;
+                if (match) { displayOrder.Add(i); totalMatches++; }
             }
-        }
-        else
-        {
-            totalMatches = tickers.Length;
         }
 
-        for (int i = 0; i < tickers.Length && count < searchResultLimit; i++)
+        for (int di = 0; di < displayOrder.Count && count < searchResultLimit; di++)
         {
+            int i = displayOrder[di];
             var t = tickers[i];
-            if (upper != null)
-            {
-                bool match = (t.ticker_id != null && t.ticker_id.ToUpperInvariant().Contains(upper))
-                          || (t.company_name != null && t.company_name.ToUpperInvariant().Contains(upper));
-                if (!match) continue;
-            }
 
             var itemGO = new GameObject("Result", typeof(RectTransform), typeof(CanvasRenderer),
                 typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.Button),
@@ -806,9 +794,7 @@ public class TradingUIController : MonoBehaviour
                     advanceDayButton.gameObject.SetActive(true);
                     advanceDayButton.interactable = true;
                     advanceDayButton.onClick.AddListener(OnConfirmPostMarketOrders);
-                    SetAdvanceButtonText(GamePhaseManager.Inst != null
-                        && GamePhaseManager.Inst.PendingOrders.Count > 0
-                        ? "Confirm Trades" : "End Day");
+                    SetAdvanceButtonText("Confirm Trades");
                 }
 
                 buyButton.onClick.AddListener(OnQueueBuy);
@@ -836,7 +822,10 @@ public class TradingUIController : MonoBehaviour
             netWorthText.gameObject.SetActive(ProgressionGates.ShowNetWorth);
 
         if (ohlcChart != null)
+        {
+            ohlcChart.ShowCandlesticks = ProgressionGates.ShowCandlesticks;
             ohlcChart.ShowWicks = ProgressionGates.ShowWicks;
+        }
 
         if (portfolioChartButton != null)
             portfolioChartButton.gameObject.SetActive(ProgressionGates.ShowPortfolioChart);
@@ -882,6 +871,7 @@ public class TradingUIController : MonoBehaviour
     {
         if (ordersText == null) return;
 
+        ClearOrderRows();
         var sb = new System.Text.StringBuilder();
 
         switch (currentPhase)
@@ -892,15 +882,7 @@ public class TradingUIController : MonoBehaviour
                     var orders = GamePhaseManager.Inst.PendingOrders;
                     if (orders.Count > 0)
                     {
-                        foreach (var o in orders)
-                        {
-                            string sideColor = o.side == "buy" ? "#26BF59" : "#D93838";
-                            string typeTag = o.orderType != "market" ? $" <color=#888888>[{o.orderType}]</color>" : "";
-                            string priceTag = "";
-                            if (o.limitPrice > 0) priceTag += $" lmt ${FmtPrice(o.limitPrice)}";
-                            if (o.stopPrice > 0) priceTag += $" stp ${FmtPrice(o.stopPrice)}";
-                            sb.AppendLine($"<color={sideColor}>{o.side.ToUpper()}</color>  {o.quantity} {o.ticker}  ~${FmtPrice(o.estimatedPrice)}{typeTag}{priceTag}");
-                        }
+                        BuildInteractiveOrderRows(orders);
                     }
                     else
                     {
@@ -979,11 +961,7 @@ public class TradingUIController : MonoBehaviour
                     {
                         sb.AppendLine();
                         sb.AppendLine("<b>Pending orders:</b>");
-                        foreach (var o in pmOrders)
-                        {
-                            string sideColor = o.side == "buy" ? "#26BF59" : "#D93838";
-                            sb.AppendLine($"<color={sideColor}>{o.side.ToUpper()}</color>  {o.quantity} {o.ticker}  ~${FmtPrice(o.estimatedPrice)}");
-                        }
+                        BuildInteractiveOrderRows(pmOrders);
                     }
                 }
                 break;
@@ -1129,23 +1107,36 @@ public class TradingUIController : MonoBehaviour
 
     private void QueueOrder(string side)
     {
-        if (GamePhaseManager.Inst == null) return;
-
         if (string.IsNullOrEmpty(selectedTicker))
         {
-            SetStatus("Select a ticker first.");
+            if (TutorialMode) ShowTutCaseyMessage("Pick a stock from the list first.");
+            else SetStatus("Select a ticker first.");
             return;
         }
         if (!tickerTradableToday)
         {
-            SetStatus("This ticker has no data today (halted/delisted).");
+            if (TutorialMode) ShowTutCaseyMessage("That stock isn't available right now. Try a different one.");
+            else SetStatus("This ticker has no data today (halted/delisted).");
             return;
         }
         if (!int.TryParse(quantityInput.text, out int qty) || qty <= 0)
         {
-            SetStatus("Enter a valid quantity.");
+            if (TutorialMode) ShowTutCaseyMessage("Enter a number of shares first — try 10.");
+            else SetStatus("Enter a valid quantity.");
             return;
         }
+
+        if (TutorialMode)
+        {
+            tutorialOrderQueued = true;
+            tutorialOrderTicker = selectedTicker;
+            tutorialOrderSide = side;
+            tutorialOrderQty = qty;
+            ShowTutCaseyMessage("Good — now hit Confirm Trades to execute it.");
+            return;
+        }
+
+        if (GamePhaseManager.Inst == null) return;
 
         double limitPrice = 0;
         double stopPrice = 0;
@@ -1177,7 +1168,10 @@ public class TradingUIController : MonoBehaviour
         if (success)
         {
             string typeLabel = selectedOrderType == "market" ? "" : $" ({selectedOrderType})";
-            SetStatus($"Queued: {side.ToUpper()} {qty} {selectedTicker}{typeLabel}");
+            if (isFirstTradeGuided)
+                SetStatus("Casey: Good — now hit Confirm Trades to execute it.");
+            else
+                SetStatus($"Queued: {side.ToUpper()} {qty} {selectedTicker}{typeLabel}");
             RefreshCashDisplay();
             if (activeTab == BottomTab.Trade)
                 RefreshOrdersDisplay();
@@ -1200,12 +1194,11 @@ public class TradingUIController : MonoBehaviour
     {
         if (GamePhaseManager.Inst == null) return;
 
-        bool isEndDay = GamePhaseManager.Inst.PendingOrders.Count == 0;
         if (GameSettings.RequireDoubleConfirm && !confirmTradesPending)
         {
             confirmTradesPending = true;
             savedAdvanceButtonText = advanceButtonText != null ? advanceButtonText.text : "";
-            SetAdvanceButtonText(isEndDay ? "Are you sure? Click again" : "Confirm? Click again");
+            SetAdvanceButtonText("Confirm? Click again");
             if (confirmResetCoroutine != null) StopCoroutine(confirmResetCoroutine);
             confirmResetCoroutine = StartCoroutine(ResetConfirmAfterDelay());
             return;
@@ -1230,20 +1223,45 @@ public class TradingUIController : MonoBehaviour
             else failed++;
         }
 
-        string msg = filled > 0 ? $"{filled} order(s) filled at close." : "No orders filled.";
-        if (failed > 0) msg += $" {failed} failed.";
-        SetStatus(msg);
+        string msg2;
+        if (isFirstTradeGuided && filled > 0)
+        {
+            msg2 = "Casey: You own shares now. Check back tomorrow to see how they move.";
+            isFirstTradeGuided = false;
+        }
+        else
+        {
+            msg2 = filled > 0 ? $"{filled} order(s) filled at close." : "No orders filled.";
+            if (failed > 0) msg2 += $" {failed} failed.";
+        }
+        SetStatus(msg2);
+
+        if (filled > 0) _ = HandleFirstTradeCompletion();
 
         await RefreshPortfolio();
         if (showingPortfolioChart)
             await LoadPortfolioChart();
         RefreshOrdersDisplay();
 
-        Close();
+        if (!TutorialMode)
+            Close();
     }
 
     private async void OnOpenMarkets()
     {
+        if (TutorialMode)
+        {
+            if (!tutorialOrderQueued)
+            {
+                ShowTutCaseyMessage("Queue a trade first — pick a stock, set quantity, and hit Buy.");
+                return;
+            }
+            ShowTutCaseyMessage($"{tutorialOrderQty} share(s) of {tutorialOrderTicker} filled! You own stock now.");
+            tutorialOrderQueued = false;
+            TutorialTradeConfirmed = true;
+            return;
+        }
+
         if (GamePhaseManager.Inst == null) return;
 
         if (GameSettings.RequireDoubleConfirm && !confirmTradesPending)
@@ -1263,6 +1281,7 @@ public class TradingUIController : MonoBehaviour
         var results = await GamePhaseManager.Inst.OpenMarkets();
         if (results == null)
         {
+            Debug.LogWarning($"[TradingUI] OpenMarkets returned null. Phase={GamePhaseManager.Inst.CurrentPhase}, IsTransitioning={GamePhaseManager.Inst.IsTransitioning}");
             SetStatus("Cannot open markets right now.");
             advanceDayButton.interactable = true;
             return;
@@ -1275,9 +1294,20 @@ public class TradingUIController : MonoBehaviour
             else failed++;
         }
 
-        string msg = filled > 0 ? $"{filled} order(s) filled." : "Markets open — no orders.";
-        if (failed > 0) msg += $" {failed} failed.";
+        string msg;
+        if (isFirstTradeGuided && filled > 0)
+        {
+            msg = "Casey: You own shares now. Check back after market hours to see how you did.";
+            isFirstTradeGuided = false;
+        }
+        else
+        {
+            msg = filled > 0 ? $"{filled} order(s) filled." : "Markets open — no orders.";
+            if (failed > 0) msg += $" {failed} failed.";
+        }
         SetStatus(msg);
+
+        if (filled > 0) _ = HandleFirstTradeCompletion();
 
         currentPhase = GamePhase.Day;
         dateText.text = FormatDateHeader();
@@ -1288,7 +1318,110 @@ public class TradingUIController : MonoBehaviour
         ApplyPhaseUI();
         SwitchTab(activeTab);
 
-        Close();
+        if (!TutorialMode)
+            Close();
+    }
+
+    private void ClearOrderRows()
+    {
+        foreach (var go in orderRowObjects)
+            if (go != null) Destroy(go);
+        orderRowObjects.Clear();
+    }
+
+    private void BuildInteractiveOrderRows(IReadOnlyList<GamePhaseManager.LocalPendingOrder> orders)
+    {
+        Transform parent = ordersContainer != null ? ordersContainer : ordersText?.transform.parent;
+        if (parent == null) return;
+
+        for (int i = 0; i < orders.Count; i++)
+        {
+            var o = orders[i];
+            int orderIndex = i;
+
+            var row = new GameObject($"OrderRow_{i}", typeof(RectTransform));
+            row.transform.SetParent(parent, false);
+            var rowRT = row.GetComponent<RectTransform>();
+            rowRT.sizeDelta = new Vector2(0, 22);
+
+            var hlg = row.AddComponent<HorizontalLayoutGroup>();
+            hlg.childAlignment = TextAnchor.MiddleLeft;
+            hlg.spacing = 4;
+            hlg.childForceExpandWidth = false;
+            hlg.childForceExpandHeight = true;
+            hlg.padding = new RectOffset(2, 2, 0, 0);
+
+            string sideColor = o.side == "buy" ? "#26BF59" : "#D93838";
+            string typeTag = o.orderType != "market" ? $" [{o.orderType}]" : "";
+            string priceTag = "";
+            if (o.limitPrice > 0) priceTag += $" lmt ${FmtPrice(o.limitPrice)}";
+            if (o.stopPrice > 0) priceTag += $" stp ${FmtPrice(o.stopPrice)}";
+
+            var textGO = new GameObject("Text", typeof(RectTransform));
+            textGO.transform.SetParent(row.transform, false);
+            var tmp = textGO.AddComponent<TextMeshProUGUI>();
+            tmp.text = $"<color={sideColor}>{o.side.ToUpper()}</color>  {o.quantity} {o.ticker}  ~${FmtPrice(o.estimatedPrice)}{typeTag}{priceTag}";
+            tmp.fontSize = 13;
+            tmp.enableWordWrapping = false;
+            var textLE = textGO.AddComponent<LayoutElement>();
+            textLE.flexibleWidth = 1;
+
+            var cancelGO = new GameObject("Cancel", typeof(RectTransform));
+            cancelGO.transform.SetParent(row.transform, false);
+            var cancelBtn = cancelGO.AddComponent<Button>();
+            var cancelImg = cancelGO.AddComponent<Image>();
+            cancelImg.color = new Color(0.85f, 0.22f, 0.22f, 0.8f);
+            var cancelLE = cancelGO.AddComponent<LayoutElement>();
+            cancelLE.minWidth = 20;
+            cancelLE.minHeight = 18;
+            cancelLE.preferredWidth = 20;
+
+            var cancelTextGO = new GameObject("X", typeof(RectTransform));
+            cancelTextGO.transform.SetParent(cancelGO.transform, false);
+            var cancelTmp = cancelTextGO.AddComponent<TextMeshProUGUI>();
+            cancelTmp.text = "✕";
+            cancelTmp.fontSize = 12;
+            cancelTmp.alignment = TextAlignmentOptions.Center;
+            cancelTmp.color = Color.white;
+            var crt = cancelTextGO.GetComponent<RectTransform>();
+            crt.anchorMin = Vector2.zero;
+            crt.anchorMax = Vector2.one;
+            crt.sizeDelta = Vector2.zero;
+
+            cancelBtn.onClick.AddListener(() =>
+            {
+                if (GamePhaseManager.Inst != null)
+                {
+                    GamePhaseManager.Inst.RemoveOrder(orderIndex);
+                    RefreshOrdersDisplay();
+                }
+            });
+
+            orderRowObjects.Add(row);
+        }
+    }
+
+    private async Task HandleFirstTradeCompletion()
+    {
+        try
+        {
+            if (KnowledgeGraphManager.Inst == null || !KnowledgeGraphManager.Inst.IsInitialized) return;
+            if (KnowledgeGraphManager.Inst.IsNodeCompleted("market_buy_sell")) return;
+
+            if (!KnowledgeGraphManager.Inst.IsNodeCompleted("market_buy_sell"))
+                await KnowledgeGraphManager.Inst.CompleteNodeAsync("market_buy_sell");
+
+            if (PlayerObjectivesUI.Inst != null)
+            {
+                PlayerObjectivesUI.Inst.CompleteObjective("tutorial_first_trade");
+                await System.Threading.Tasks.Task.Delay(2000);
+                PlayerObjectivesUI.Inst.RemoveObjective("tutorial_first_trade");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[TradingUI] First trade completion failed: {e.Message}");
+        }
     }
 
     private System.Collections.IEnumerator ResetConfirmAfterDelay()
@@ -1816,5 +1949,90 @@ public class TradingUIController : MonoBehaviour
         }
 
         return $"{currentGameDate ?? "---"} | {phaseLabel}{timeStr}";
+    }
+
+    // ── Tutorial Casey Dialogue Panel ──
+
+    private void EnsureTutCaseyPanel()
+    {
+        if (tutCaseyPanel != null) return;
+
+        tutCaseyPanel = new GameObject("TutCaseyPanel", typeof(RectTransform), typeof(Image));
+        tutCaseyPanel.transform.SetParent(tradingPanel.transform, false);
+        tutCaseyPanel.transform.SetAsLastSibling();
+
+        var rt = tutCaseyPanel.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.05f, 0.02f);
+        rt.anchorMax = new Vector2(0.95f, 0.18f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = Vector2.zero;
+        tutCaseyPanel.GetComponent<Image>().color = new Color(0.06f, 0.06f, 0.1f, 0.95f);
+
+        var nameGO = new GameObject("Name", typeof(RectTransform));
+        nameGO.transform.SetParent(tutCaseyPanel.transform, false);
+        var nameRT = nameGO.GetComponent<RectTransform>();
+        nameRT.anchorMin = new Vector2(0f, 1f);
+        nameRT.anchorMax = new Vector2(1f, 1f);
+        nameRT.pivot = new Vector2(0f, 1f);
+        nameRT.anchoredPosition = new Vector2(14f, -6f);
+        nameRT.sizeDelta = new Vector2(-28f, 22f);
+        var nameTMP = nameGO.AddComponent<TextMeshProUGUI>();
+        nameTMP.text = "Casey";
+        nameTMP.fontSize = UIConfig.Inst != null ? UIConfig.Inst.Scale(18f) : 18f;
+        nameTMP.fontStyle = FontStyles.Bold;
+        nameTMP.color = new Color(0.4f, 0.85f, 0.7f);
+        nameTMP.raycastTarget = false;
+
+        var bodyGO = new GameObject("Body", typeof(RectTransform));
+        bodyGO.transform.SetParent(tutCaseyPanel.transform, false);
+        var bodyRT = bodyGO.GetComponent<RectTransform>();
+        bodyRT.anchorMin = Vector2.zero;
+        bodyRT.anchorMax = Vector2.one;
+        bodyRT.offsetMin = new Vector2(14f, 8f);
+        bodyRT.offsetMax = new Vector2(-14f, -30f);
+        tutCaseyBody = bodyGO.AddComponent<TextMeshProUGUI>();
+        tutCaseyBody.fontSize = UIConfig.Inst != null ? UIConfig.Inst.Scale(15f) : 15f;
+        tutCaseyBody.color = Color.white;
+        tutCaseyBody.enableWordWrapping = true;
+        tutCaseyBody.overflowMode = TextOverflowModes.Ellipsis;
+        tutCaseyBody.raycastTarget = false;
+
+        tutCaseyPanel.SetActive(false);
+    }
+
+    private void ShowTutCaseyMessage(string text)
+    {
+        EnsureTutCaseyPanel();
+        tutCaseyPanel.SetActive(true);
+        tutCaseyPanel.transform.SetAsLastSibling();
+        tutCaseyBody.text = text;
+        tutCaseyBody.ForceMeshUpdate();
+        tutCaseyTotalChars = tutCaseyBody.textInfo.characterCount;
+        tutCaseyBody.maxVisibleCharacters = 0;
+        tutCaseyCharAccum = 0f;
+        tutCaseyTyping = true;
+        StopCoroutine(nameof(TutCaseyTypewriterCo));
+        StartCoroutine(TutCaseyTypewriterCo());
+    }
+
+    private System.Collections.IEnumerator TutCaseyTypewriterCo()
+    {
+        while (tutCaseyTyping)
+        {
+            tutCaseyCharAccum += Time.deltaTime * TutCaseyCharsPerSec;
+            int visible = Mathf.Min(tutCaseyTotalChars, (int)tutCaseyCharAccum);
+            tutCaseyBody.maxVisibleCharacters = visible;
+            if (visible >= tutCaseyTotalChars)
+                tutCaseyTyping = false;
+            yield return null;
+        }
+    }
+
+    private void HideTutCaseyPanel()
+    {
+        if (tutCaseyPanel != null)
+            tutCaseyPanel.SetActive(false);
+        tutCaseyTyping = false;
     }
 }

@@ -106,4 +106,18 @@ namespace Game.API.DTO
         public string content;
         public bool is_personalized;
     }
+
+    [Serializable]
+    public class DebugCompleteAllResponse
+    {
+        public string status;
+        public int completed_count;
+    }
+
+    [Serializable]
+    public class TutorialConfigResponse
+    {
+        public string status;
+        public string[] foundational_nodes;
+    }
 }

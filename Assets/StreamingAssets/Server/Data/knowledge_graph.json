@@ -31,11 +31,17 @@
     {
       "id": "market_buy_sell",
       "title": "Market Buy / Sell",
-      "type": "knowledge",
+      "type": "adaptive",
       "description": "Execute your first trade at the current market price.",
       "content": "A market order buys or sells a stock immediately at the best available price. You're saying 'I want this stock now, whatever the current price is.' It's the simplest and fastest way to trade.",
-      "prerequisites": ["what_is_a_stock"],
-      "priority": "normal",
+      "prerequisites": ["what_is_a_company"],
+      "triggers": [
+        { "path": "tutorial", "type": "player_event", "params": { "event_type": "tutorial_first_trade", "min_count": 1 } },
+        { "path": "normal", "type": "trade_count", "params": { "min_trades": 1 } }
+      ],
+      "trigger_explanation": "You just executed your first trade — buying stock at the current market price.",
+      "correct_action": "Market orders are the simplest way to trade. As you gain experience, you'll learn when speed matters more than price control.",
+      "priority": "high",
       "position": { "x": 400, "y": 0 },
       "category": "fundamentals"
     },

@@ -1376,6 +1376,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.API.APIBootstrapper
   config: {fileID: 11400000, guid: 8e926983648d3dd4f9c3dddac9b4714b, type: 2}
+  uiConfig: {fileID: 0}
   dontDestroyOnLoad: 0
   verboseLogs: 1
 --- !u!114 &5671690517642353795
@@ -1394,6 +1395,7 @@ MonoBehaviour:
   playButtonObj: {fileID: 2891997694255631380}
   newGameButtonObj: {fileID: 6567872909103798334}
   resetButtonObj: {fileID: 1823345299800395968}
+  quitButtonObj: {fileID: 2963402841347077645}
   bootstrapper: {fileID: 8965128015854492336}
 --- !u!1 &8604962324812836429
 GameObject:

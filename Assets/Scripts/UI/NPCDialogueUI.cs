@@ -13,14 +13,7 @@ public class NPCDialogueUI : MonoBehaviour
     private GameObject dialoguePanel;
     private TMP_Text nameText;
     private TMP_Text bodyText;
-    private TMP_Text questText;
     private Button closeButton;
-    private Button questButton;
-    private TMP_Text questButtonLabel;
-
-    private string currentNpcType;
-    private NpcQuestDTO[] cachedQuests;
-    private bool questsLoaded;
 
     void Awake()
     {
@@ -28,42 +21,15 @@ public class NPCDialogueUI : MonoBehaviour
         Inst = this;
         DontDestroyOnLoad(gameObject);
         BuildUI();
-        _ = LoadQuests();
-    }
-
-    private async Task LoadQuests()
-    {
-        try
-        {
-            var resp = await PlayerEventsAPI.GetQuests();
-            cachedQuests = resp.quests;
-            questsLoaded = true;
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogWarning($"[NPCDialogueUI] Failed to load quests: {ex.Message}");
-        }
     }
 
     public void Open(string npcType, string displayName)
     {
-        currentNpcType = npcType;
-
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.OpenUI(PlayerState.TRADING, ClosePanel);
 
         nameText.text = displayName;
         bodyText.text = GetDialogueLine(npcType);
-
-        var quest = FindQuest(npcType);
-        bool hasQuest = quest != null;
-        questText.gameObject.SetActive(hasQuest);
-        questButton.gameObject.SetActive(hasQuest);
-        if (hasQuest)
-        {
-            questText.text = quest.quest_dialogue_hint ?? $"{displayName} can teach you something new.";
-            questButtonLabel.text = "Learn";
-        }
 
         dialoguePanel.SetActive(true);
         _ = RecordInteraction(npcType);
@@ -91,14 +57,6 @@ public class NPCDialogueUI : MonoBehaviour
         return "...";
     }
 
-    private NpcQuestDTO FindQuest(string npcType)
-    {
-        if (!questsLoaded || cachedQuests == null) return null;
-        foreach (var q in cachedQuests)
-            if (q.npc_type == npcType) return q;
-        return null;
-    }
-
     private async Task RecordInteraction(string npcType)
     {
         try
@@ -114,44 +72,6 @@ public class NPCDialogueUI : MonoBehaviour
         catch (System.Exception ex)
         {
             Debug.LogWarning($"[NPCDialogueUI] Failed to record interaction: {ex.Message}");
-        }
-    }
-
-    private async void OnQuestComplete()
-    {
-        if (string.IsNullOrEmpty(currentNpcType)) return;
-
-        questButton.interactable = false;
-        questButtonLabel.text = "Learning...";
-
-        try
-        {
-            var req = new NpcQuestCompleteRequestDTO
-            {
-                entity_id = APIBootstrapper.EntityDbId,
-                npc_type = currentNpcType
-            };
-            var resp = await PlayerEventsAPI.CompleteQuest(req);
-
-            if (resp.unlocked_nodes != null && resp.unlocked_nodes.Length > 0)
-            {
-                questText.text = $"<color=#26BF59>Unlocked {resp.unlocked_nodes.Length} new concept(s)!</color>";
-                questButton.gameObject.SetActive(false);
-
-                if (KnowledgeGraphManager.Inst != null)
-                    _ = KnowledgeGraphManager.Inst.CheckTriggersAsync();
-            }
-            else
-            {
-                questText.text = "Nothing new to learn right now.";
-                questButton.gameObject.SetActive(false);
-            }
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogWarning($"[NPCDialogueUI] Quest completion failed: {ex.Message}");
-            questButtonLabel.text = "Learn";
-            questButton.interactable = true;
         }
     }
 
@@ -219,7 +139,7 @@ public class NPCDialogueUI : MonoBehaviour
         var bodyGO = new GameObject("Body");
         bodyGO.transform.SetParent(box.transform, false);
         var bodyRect = bodyGO.AddComponent<RectTransform>();
-        bodyRect.anchorMin = new Vector2(0, 0.3f);
+        bodyRect.anchorMin = new Vector2(0, 0.15f);
         bodyRect.anchorMax = new Vector2(1, 0.85f);
         bodyRect.sizeDelta = Vector2.zero;
         bodyRect.offsetMin = new Vector2(20, 0);
@@ -229,46 +149,6 @@ public class NPCDialogueUI : MonoBehaviour
         bodyText.color = new Color(0.85f, 0.85f, 0.9f);
         bodyText.alignment = TextAlignmentOptions.TopLeft;
         bodyText.enableWordWrapping = true;
-
-        // Quest hint
-        var questGO = new GameObject("QuestHint");
-        questGO.transform.SetParent(box.transform, false);
-        var questRect = questGO.AddComponent<RectTransform>();
-        questRect.anchorMin = new Vector2(0, 0);
-        questRect.anchorMax = new Vector2(0.7f, 0.3f);
-        questRect.sizeDelta = Vector2.zero;
-        questRect.offsetMin = new Vector2(20, 10);
-        questRect.offsetMax = new Vector2(-10, -5);
-        questText = questGO.AddComponent<TextMeshProUGUI>();
-        questText.fontSize = 15;
-        questText.fontStyle = FontStyles.Italic;
-        questText.color = new Color(0.7f, 0.8f, 0.6f);
-        questText.alignment = TextAlignmentOptions.BottomLeft;
-        questText.enableWordWrapping = true;
-
-        // Quest button
-        var questBtnGO = new GameObject("QuestButton");
-        questBtnGO.transform.SetParent(box.transform, false);
-        var questBtnRect = questBtnGO.AddComponent<RectTransform>();
-        questBtnRect.anchorMin = new Vector2(0.75f, 0.05f);
-        questBtnRect.anchorMax = new Vector2(0.95f, 0.25f);
-        questBtnRect.sizeDelta = Vector2.zero;
-        var questBtnImg = questBtnGO.AddComponent<Image>();
-        questBtnImg.color = new Color(0.2f, 0.5f, 0.3f, 1f);
-        questButton = questBtnGO.AddComponent<Button>();
-        questButton.onClick.AddListener(OnQuestComplete);
-
-        var qLabelGO = new GameObject("Label");
-        qLabelGO.transform.SetParent(questBtnGO.transform, false);
-        var qLabelRect = qLabelGO.AddComponent<RectTransform>();
-        qLabelRect.anchorMin = Vector2.zero;
-        qLabelRect.anchorMax = Vector2.one;
-        qLabelRect.sizeDelta = Vector2.zero;
-        questButtonLabel = qLabelGO.AddComponent<TextMeshProUGUI>();
-        questButtonLabel.text = "Learn";
-        questButtonLabel.fontSize = 16;
-        questButtonLabel.alignment = TextAlignmentOptions.Center;
-        questButtonLabel.color = Color.white;
 
         // Close button
         var closeBtnGO = new GameObject("CloseButton");

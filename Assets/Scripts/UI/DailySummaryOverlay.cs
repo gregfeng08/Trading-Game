@@ -51,14 +51,24 @@ public class DailySummaryOverlay : MonoBehaviour
     private GameObject dividerReview;
     private TMP_Text reviewHeader;
     private TMP_Text reviewBody;
+    private GameObject dividerCasey;
+    private TMP_Text caseyLabel;
+    private TMP_Text caseyComment;
     private TMP_Text continueText;
+    private GameObject buttonRow;
+    private Button continueButton;
+    private Button skipWeekButton;
 
     private bool waitingForInput;
+    private bool weekSkipChosen;
     private bool skipRequested;
     private float showStartTime;
     private Coroutine activeSequence;
     private bool showInProgress;
     private Action onDismissed;
+
+    private string caseyLlmLine;
+    private bool caseyFetchDone;
 
     // scrollRect removed — using simple centered content like ArcTransitionOverlay
 
@@ -81,9 +91,7 @@ public class DailySummaryOverlay : MonoBehaviour
 
     void Update()
     {
-        if (waitingForInput && Input.anyKeyDown)
-            waitingForInput = false;
-        else if (!waitingForInput && showInProgress && Input.anyKeyDown
+        if (!waitingForInput && showInProgress && Input.anyKeyDown
                  && Time.time - showStartTime > fadeToBlackDuration + 0.5f)
             skipRequested = true;
     }
@@ -108,6 +116,8 @@ public class DailySummaryOverlay : MonoBehaviour
             _ = FetchDataAsync(date);
         else
             dataFetched = true;
+
+        _ = FetchCaseyCommentAsync();
 
         activeSequence = StartCoroutine(SummarySequence());
     }
@@ -183,6 +193,23 @@ public class DailySummaryOverlay : MonoBehaviour
         dataFetched = true;
     }
 
+    private async Task FetchCaseyCommentAsync()
+    {
+        caseyLlmLine = null;
+        caseyFetchDone = false;
+        try
+        {
+            var resp = await CaseyAPI.GetDailyComment(APIBootstrapper.EntityExternalId);
+            if (resp != null && !string.IsNullOrEmpty(resp.comment))
+                caseyLlmLine = resp.comment;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[DailySummary] Casey comment fetch failed: {ex.Message}");
+        }
+        caseyFetchDone = true;
+    }
+
     private IEnumerator Stagger()
     {
         if (skipRequested) yield break;
@@ -230,6 +257,12 @@ public class DailySummaryOverlay : MonoBehaviour
             dividerReview.SetActive(true);
             reviewHeader.gameObject.SetActive(true);
             reviewBody.gameObject.SetActive(true);
+        }
+        if (caseyComment != null && !string.IsNullOrEmpty(caseyComment.text))
+        {
+            dividerCasey.SetActive(true);
+            caseyLabel.gameObject.SetActive(true);
+            caseyComment.gameObject.SetActive(true);
         }
     }
 
@@ -442,9 +475,31 @@ public class DailySummaryOverlay : MonoBehaviour
         }
         yield return Stagger();
 
+        // Casey's closing thought — wait for LLM or timeout to static fallback
+        {
+            dividerCasey.SetActive(true);
+            SetText(caseyLabel, "CASEY", new Color(0.55f, 0.78f, 0.65f, 1f));
+
+            if (!caseyFetchDone)
+            {
+                SetText(caseyComment, "Casey is thinking...", dimColor);
+                float caseyWait = 0f;
+                while (!caseyFetchDone && caseyWait < 12f)
+                {
+                    caseyWait += Time.deltaTime;
+                    yield return null;
+                }
+            }
+
+            string caseyLine = !string.IsNullOrEmpty(caseyLlmLine) ? caseyLlmLine : PickCaseyLine();
+            SetText(caseyComment, $"\"{caseyLine}\"", new Color(0.82f, 0.85f, 0.80f, 1f));
+            yield return Stagger();
+        }
+
         if (skipRequested) RevealAll();
 
-        SetText(continueText, "Press any key to continue", dimColor);
+        buttonRow.SetActive(true);
+        weekSkipChosen = false;
         skipRequested = false;
         waitingForInput = true;
         yield return new WaitUntil(() => !waitingForInput);
@@ -463,9 +518,60 @@ public class DailySummaryOverlay : MonoBehaviour
 
         UnlockPlayer();
 
-        var callback = onDismissed;
-        onDismissed = null;
-        callback?.Invoke();
+        if (weekSkipChosen)
+        {
+            weekSkipChosen = false;
+            onDismissed = null;
+            _ = RunWeekSkip();
+        }
+        else
+        {
+            var callback = onDismissed;
+            onDismissed = null;
+            callback?.Invoke();
+        }
+    }
+
+    private async Task RunWeekSkip()
+    {
+        if (PlayerStateController.Inst != null)
+            PlayerStateController.Inst.SetState(PlayerState.CUTSCENE);
+
+        try
+        {
+            var gpm = GamePhaseManager.Inst;
+            if (gpm == null) return;
+
+            var resp = await gpm.AdvanceWeek(5);
+            if (resp != null && WeekReviewOverlay.Inst != null)
+            {
+                WeekReviewOverlay.Inst.Show(resp, () =>
+                {
+                    if (PlayerStateController.Inst != null)
+                        PlayerStateController.Inst.SetState(PlayerState.MOVING);
+                });
+                return;
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[DailySummary] Week skip failed: {e.Message}");
+        }
+
+        if (PlayerStateController.Inst != null)
+            PlayerStateController.Inst.SetState(PlayerState.MOVING);
+    }
+
+    private void OnContinueClicked()
+    {
+        weekSkipChosen = false;
+        waitingForInput = false;
+    }
+
+    private void OnSkipWeekClicked()
+    {
+        weekSkipChosen = true;
+        waitingForInput = false;
     }
 
     private void LockPlayer()
@@ -515,7 +621,11 @@ public class DailySummaryOverlay : MonoBehaviour
         if (dividerReview != null) dividerReview.SetActive(false);
         if (reviewHeader != null) reviewHeader.gameObject.SetActive(false);
         if (reviewBody != null) reviewBody.gameObject.SetActive(false);
+        if (dividerCasey != null) dividerCasey.SetActive(false);
+        if (caseyLabel != null) caseyLabel.gameObject.SetActive(false);
+        if (caseyComment != null) caseyComment.gameObject.SetActive(false);
         continueText.gameObject.SetActive(false);
+        if (buttonRow != null) buttonRow.SetActive(false);
     }
 
     private static void SetText(TMP_Text el, string text, Color color)
@@ -537,6 +647,163 @@ public class DailySummaryOverlay : MonoBehaviour
             return dt.ToString("MMMM d, yyyy");
         return isoDate;
     }
+
+    // ── Casey's Daily Comment ──
+
+    private string PickCaseyLine()
+    {
+        bool traded = capturedResults != null && capturedResults.Count > 0;
+        double dayChange = capturedNetWorth - capturedPrevNetWorth;
+        double dayChangePct = capturedPrevNetWorth > 0 ? (dayChange / capturedPrevNetWorth) * 100.0 : 0;
+
+        double maxConcentration = 0;
+        string concentratedTicker = null;
+        if (capturedHoldings != null && capturedNetWorth > 0)
+        {
+            foreach (var h in capturedHoldings)
+            {
+                double pct = h.market_value / capturedNetWorth;
+                if (pct > maxConcentration)
+                {
+                    maxConcentration = pct;
+                    concentratedTicker = h.ticker_id;
+                }
+            }
+        }
+
+        double cashRatio = 0;
+        var gpm = GamePhaseManager.Inst;
+        if (gpm != null && capturedNetWorth > 0)
+        {
+            double cash = capturedNetWorth - TotalHoldingsValue();
+            cashRatio = cash / capturedNetWorth;
+        }
+
+        bool hasUnlockedNodes = false;
+        if (KnowledgeGraphManager.Inst?.Nodes != null)
+        {
+            foreach (var n in KnowledgeGraphManager.Inst.Nodes)
+                if (n.status == "unlocked") { hasUnlockedNodes = true; break; }
+        }
+
+        string arcName = gpm?.ArcName;
+        bool isMeltdown = arcName != null && arcName.Contains("Meltdown");
+        bool isUnraveling = arcName != null && arcName.Contains("Unraveling");
+
+        // Priority-ordered conditions — first match wins
+        if (dayChangePct <= -5.0)
+            return Pick(bigLossLines);
+        if (dayChangePct >= 5.0)
+            return Pick(bigGainLines);
+        if (maxConcentration > 0.7 && traded)
+            return Pick(concentrationLines);
+        if (cashRatio < 0.1 && capturedHoldings != null && capturedHoldings.Length > 0)
+            return Pick(lowCashLines);
+        if (hasUnlockedNodes)
+            return Pick(newInsightLines);
+        if (!traded && isMeltdown)
+            return Pick(meltdownQuietLines);
+        if (!traded && isUnraveling)
+            return Pick(unravelingQuietLines);
+        if (!traded)
+            return Pick(noTradeLines);
+        if (dayChangePct < -1.0)
+            return Pick(mildLossLines);
+        if (dayChangePct > 1.0)
+            return Pick(mildGainLines);
+
+        return Pick(neutralLines);
+    }
+
+    private double TotalHoldingsValue()
+    {
+        if (capturedHoldings == null) return 0;
+        double total = 0;
+        foreach (var h in capturedHoldings) total += h.market_value;
+        return total;
+    }
+
+    private static string Pick(string[] pool)
+    {
+        return pool[UnityEngine.Random.Range(0, pool.Length)];
+    }
+
+    private static readonly string[] bigLossLines = {
+        "Rough one. Take a breath. One day doesn't define your whole run.",
+        "Days like this are where the learning actually happens. Doesn't make it fun though.",
+        "The market took a bite today. The question is what you do tomorrow, not what happened today.",
+        "Yeah. That hurts. But you're still in the game — that counts for something."
+    };
+
+    private static readonly string[] bigGainLines = {
+        "Good day on paper. Just remember — the market gives before it takes.",
+        "Nice numbers. Don't let one green day convince you you've figured it all out.",
+        "Solid. Now the hard part: not chasing that feeling tomorrow.",
+        "Strong day. Enjoy it, but don't mistake luck for skill just yet."
+    };
+
+    private static readonly string[] concentrationLines = {
+        "You're leaning hard into one name. That's a bet, not a portfolio.",
+        "Just flagging — most of your eggs are in one basket right now.",
+        "High conviction is fine. Just make sure it's conviction and not inertia.",
+        "You've got a lot riding on one ticker. Make sure that's deliberate."
+    };
+
+    private static readonly string[] lowCashLines = {
+        "You're running thin on cash. If something moves against you, there's no cushion.",
+        "Low cash means low options. Something to think about.",
+        "Not a lot of dry powder left. If an opportunity shows up tomorrow, can you take it?",
+        "Just noting — you're nearly fully deployed. That's fine until it isn't."
+    };
+
+    private static readonly string[] newInsightLines = {
+        "New insight unlocked. Might be worth checking the knowledge graph before tomorrow.",
+        "The lattice picked something up from your trading today. Take a look when you get a chance.",
+        "Something clicked today — the graph's got a new node for you.",
+        "You triggered a new lesson. That means you did something worth learning from."
+    };
+
+    private static readonly string[] noTradeLines = {
+        "Quiet day. Sometimes watching is the move.",
+        "No trades today. Nothing wrong with observing.",
+        "Sat this one out. That's a valid strategy too.",
+        "Rest day. The market will still be there tomorrow."
+    };
+
+    private static readonly string[] meltdownQuietLines = {
+        "Smart to stay quiet when everything's on fire.",
+        "Not trading in a panic is harder than it sounds. Good discipline.",
+        "Sometimes survival means doing nothing. Today was one of those days.",
+        "Sitting on your hands during chaos takes more guts than people think."
+    };
+
+    private static readonly string[] unravelingQuietLines = {
+        "Hard to know what to do when the signals are mixed. Watching is fair.",
+        "Nobody knows where the floor is right now. Caution isn't cowardice.",
+        "The uncertainty gets to everyone. No shame in stepping back.",
+        "Tricky market. Sometimes the best trade is the one you don't make."
+    };
+
+    private static readonly string[] mildLossLines = {
+        "Slightly down. Comes with the territory.",
+        "Small red day. Not every day's a winner — the question is the trend.",
+        "A little in the red. Nothing to panic about, but worth a check on your thesis.",
+        "Minor setback. Keep your eye on the bigger picture."
+    };
+
+    private static readonly string[] mildGainLines = {
+        "Modest green day. Steady works.",
+        "Small win. Those add up if you stay consistent.",
+        "In the green. Nothing flashy, but that's usually how good trading looks.",
+        "Positive day. Boring is fine — boring compounds."
+    };
+
+    private static readonly string[] neutralLines = {
+        "Flat day. The market's thinking. You should be too.",
+        "Not much movement. Good time to review your positions.",
+        "Sideways. These days feel pointless, but they're where plans get made.",
+        "Nothing dramatic. Use the quiet to think about what's next."
+    };
 
     // ── UI Construction (matches ArcTransitionOverlay pattern) ──
 
@@ -607,8 +874,27 @@ public class DailySummaryOverlay : MonoBehaviour
         dividerReview = MakeDivider();
         reviewHeader = MakeText("ReviewHeader", 16, FontStyles.Bold, TextAlignmentOptions.Center);
         reviewBody   = MakeText("ReviewBody", 16, FontStyles.Normal, TextAlignmentOptions.Center);
+        dividerCasey = MakeDivider();
+        caseyLabel   = MakeText("CaseyLabel", 14, FontStyles.Bold, TextAlignmentOptions.Center);
+        caseyComment = MakeText("CaseyComment", 17, FontStyles.Italic, TextAlignmentOptions.Center);
         MakeSpacer(20);
-        continueText = MakeText("Continue", 14, FontStyles.Normal, TextAlignmentOptions.Center);
+        continueText = MakeText("ContinueLabel", 14, FontStyles.Normal, TextAlignmentOptions.Center);
+
+        buttonRow = new GameObject("ButtonRow");
+        buttonRow.transform.SetParent(contentRoot.transform, false);
+        buttonRow.AddComponent<RectTransform>();
+        var hlg = buttonRow.AddComponent<HorizontalLayoutGroup>();
+        hlg.childAlignment = TextAnchor.MiddleCenter;
+        hlg.spacing = 30;
+        hlg.childForceExpandWidth = false;
+        hlg.childForceExpandHeight = false;
+        hlg.childControlWidth = false;
+        hlg.childControlHeight = false;
+        var rowLE = buttonRow.AddComponent<LayoutElement>();
+        rowLE.preferredHeight = 44;
+
+        continueButton = MakeSummaryButton(buttonRow.transform, "Continue", new Color(0.18f, 0.32f, 0.18f), OnContinueClicked);
+        skipWeekButton = MakeSummaryButton(buttonRow.transform, "Skip Week", new Color(0.22f, 0.22f, 0.35f), OnSkipWeekClicked);
 
         HideAll();
         overlayCanvas.SetActive(false);
@@ -639,6 +925,33 @@ public class DailySummaryOverlay : MonoBehaviour
         le.preferredHeight = 1;
         le.flexibleWidth = 1;
         return go;
+    }
+
+    private Button MakeSummaryButton(Transform parent, string label, Color bgColor, UnityEngine.Events.UnityAction onClick)
+    {
+        var go = new GameObject(label + "Btn");
+        go.transform.SetParent(parent, false);
+        var rect = go.AddComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(160, 38);
+        var img = go.AddComponent<Image>();
+        img.color = bgColor;
+        var btn = go.AddComponent<Button>();
+        btn.onClick.AddListener(onClick);
+
+        var textGO = new GameObject("Label");
+        textGO.transform.SetParent(go.transform, false);
+        var textRect = textGO.AddComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.sizeDelta = Vector2.zero;
+        var tmp = textGO.AddComponent<TextMeshProUGUI>();
+        tmp.text = label;
+        tmp.fontSize = 16;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = new Color(0.85f, 0.85f, 0.9f);
+        tmp.raycastTarget = false;
+
+        return btn;
     }
 
     private void MakeSpacer(float height)

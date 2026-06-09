@@ -25,5 +25,12 @@ namespace Game.API
 
         public static Task<NodeContentResponse> GetNodeContent(int entityId, string nodeId)
             => APIClient.GetAsync<NodeContentResponse>($"knowledge_graph/node_content?entityId={entityId}&nodeId={nodeId}");
+
+        public static Task<DebugCompleteAllResponse> DebugCompleteAll(int entityId)
+            => APIClient.PostAsync<object, DebugCompleteAllResponse>(
+                $"knowledge_graph/debug/complete_all?entityId={entityId}", null);
+
+        public static Task<TutorialConfigResponse> GetTutorialConfig()
+            => APIClient.GetAsync<TutorialConfigResponse>("knowledge_graph/tutorial");
     }
 }

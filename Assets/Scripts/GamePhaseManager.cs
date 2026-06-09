@@ -99,6 +99,11 @@ public class GamePhaseManager : MonoBehaviour
             var go = new GameObject("WeekReviewOverlay");
             go.AddComponent<WeekReviewOverlay>();
         }
+        if (AdaptationHistoryUI.Inst == null)
+        {
+            var go = new GameObject("AdaptationHistoryUI");
+            go.AddComponent<AdaptationHistoryUI>();
+        }
     }
 
     void Update()

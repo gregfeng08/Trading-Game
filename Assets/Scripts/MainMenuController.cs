@@ -12,6 +12,7 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private GameObject playButtonObj;
     [SerializeField] private GameObject newGameButtonObj;
     [SerializeField] private GameObject resetButtonObj;
+    [SerializeField] private GameObject quitButtonObj;
 
     [Header("Bootstrap")]
     [SerializeField] private APIBootstrapper bootstrapper;
@@ -20,12 +21,15 @@ public class MainMenuController : MonoBehaviour
     private Button playButton;
     private Button newGameButton;
     private Button resetButton;
+    private Button quitButton;
 
     private void Awake()
     {
         playButton = playButtonObj.GetComponent<Button>();
         newGameButton = newGameButtonObj.GetComponent<Button>();
         resetButton = resetButtonObj.GetComponent<Button>();
+        if (quitButtonObj != null)
+            quitButton = quitButtonObj.GetComponent<Button>();
     }
 
     private void OnEnable()
@@ -97,6 +101,12 @@ public class MainMenuController : MonoBehaviour
         resetButtonObj.SetActive(true);
         resetButton.onClick.AddListener(OnReset);
 
+        if (quitButtonObj != null)
+        {
+            quitButtonObj.SetActive(true);
+            quitButton.onClick.AddListener(OnQuit);
+        }
+
         statusText.text = hasSave ? "Welcome back" : "Ready to start";
     }
 
@@ -116,6 +126,15 @@ public class MainMenuController : MonoBehaviour
     {
         SetAllButtonsInteractable(false);
         StartCoroutine(ResetFlow());
+    }
+
+    private void OnQuit()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
     }
 
     private IEnumerator NewGameFlow()

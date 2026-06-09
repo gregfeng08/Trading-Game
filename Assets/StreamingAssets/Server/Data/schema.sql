@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS pending_orders (
     quantity INTEGER NOT NULL,
     order_type TEXT NOT NULL DEFAULT 'market',
     limit_price REAL,
+    stop_price REAL,
     queued_at TEXT NOT NULL,
     FOREIGN KEY(entity_id) REFERENCES entity(entity_id),
     FOREIGN KEY(ticker_id) REFERENCES loaded_ticker_list(ticker_id)
@@ -159,8 +160,43 @@ CREATE TABLE IF NOT EXISTS dynamic_node_content (
     node_id TEXT NOT NULL,
     content TEXT NOT NULL,
     trigger_context TEXT,
+    trigger_path TEXT,
     generated_at TEXT NOT NULL,
     PRIMARY KEY (entity_id, node_id),
+    FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
+);
+
+-- Player events (newspaper reads, NPC interactions — used as knowledge triggers)
+CREATE TABLE IF NOT EXISTS player_events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    event_date TEXT NOT NULL,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE(entity_id, event_type, event_date),
+    FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
+);
+
+-- NPC quest progress (typed NPC conversations that unlock knowledge nodes)
+CREATE TABLE IF NOT EXISTS npc_quest_progress (
+    entity_id INTEGER NOT NULL,
+    npc_type TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'available',
+    started_at TEXT,
+    completed_at TEXT,
+    PRIMARY KEY (entity_id, npc_type, node_id),
+    FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
+);
+
+-- Casey's daily closing comments (LLM-generated, cached per day)
+CREATE TABLE IF NOT EXISTS casey_daily_comments (
+    entity_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    comment TEXT NOT NULL,
+    generated_at TEXT NOT NULL,
+    PRIMARY KEY (entity_id, date),
     FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
 );
 
@@ -172,3 +208,5 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_progress_entity ON knowledge_node_progr
 CREATE INDEX IF NOT EXISTS idx_pending_orders_entity ON pending_orders(entity_id);
 CREATE INDEX IF NOT EXISTS idx_dynamic_dialogue_date_phase ON dynamic_npc_dialogue(date, phase);
 CREATE INDEX IF NOT EXISTS idx_static_dialogue_npc_phase ON static_npc_dialogue(npc_type, phase, mood);
+CREATE INDEX IF NOT EXISTS idx_player_events_entity_type ON player_events(entity_id, event_type);
+CREATE INDEX IF NOT EXISTS idx_npc_quest_progress_entity ON npc_quest_progress(entity_id);

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 public static class ProgressionGates
 {
     public static bool ShowNetWorth { get; private set; }
+    public static bool ShowCandlesticks { get; private set; }
     public static bool ShowPriceChange { get; private set; }
     public static bool ShowWicks { get; private set; }
     public static bool ShowCostBasis { get; private set; }
@@ -20,7 +21,7 @@ public static class ProgressionGates
     private static readonly Dictionary<string, Action<bool>> GateMap = new()
     {
         { "what_is_a_stock",  v => ShowNetWorth = v },
-        { "market_buy_sell",  v => ShowPriceChange = v },
+        { "market_buy_sell",  v => { ShowCandlesticks = v; ShowPriceChange = v; } },
         { "volatility",       v => ShowWicks = v },
         { "cost_basis",       v => ShowCostBasis = v },
         { "diversification",  v => ShowFullTickerUniverse = v },
@@ -78,7 +79,7 @@ public static class ProgressionGates
     private static readonly Dictionary<string, string> FeatureLabels = new()
     {
         { "what_is_a_stock",  "Net worth display" },
-        { "market_buy_sell",  "Price change indicators" },
+        { "market_buy_sell",  "Candlestick chart & price change indicators" },
         { "volatility",       "Candlestick wicks (high/low price range)" },
         { "cost_basis",       "Portfolio cost basis and gain/loss" },
         { "paper_gains",      "Portfolio value chart" },
@@ -98,7 +99,7 @@ public static class ProgressionGates
         return nodeId switch
         {
             "what_is_a_stock"  => ShowNetWorth,
-            "market_buy_sell"  => ShowPriceChange,
+            "market_buy_sell"  => ShowCandlesticks,
             "volatility"       => ShowWicks,
             "cost_basis"       => ShowCostBasis,
             "diversification"  => ShowFullTickerUniverse,

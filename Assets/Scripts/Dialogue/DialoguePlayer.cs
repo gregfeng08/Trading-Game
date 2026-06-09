@@ -62,6 +62,12 @@ public class DialoguePlayer : MonoBehaviour
         activeBubble.Show(line.speaker, line.text, SpeakerColor(line.speaker));
     }
 
+    public void ForceEnd()
+    {
+        if (!IsPlaying) return;
+        End();
+    }
+
     private void End()
     {
         activeBubble.Hide();
