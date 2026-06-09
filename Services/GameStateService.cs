@@ -256,7 +256,7 @@ public class GameStateService
         using var conn = _db.Open();
         using var tx = conn.BeginTransaction();
 
-        foreach (var table in new[] { "arc_grades", "pending_orders", "newspaper", "knowledge_node_progress", "portfolio", "trade_history", "net_worth_history", "save_state", "dynamic_npc_dialogue", "dynamic_node_content" })
+        foreach (var table in new[] { "arc_grades", "pending_orders", "newspaper", "portfolio", "trade_history", "net_worth_history", "save_state", "dynamic_npc_dialogue", "knowledge_node_progress", "player_events", "dynamic_node_content", "npc_quest_progress", "casey_daily_comments" })
         {
             using var del = conn.CreateCommand();
             del.Transaction = tx;

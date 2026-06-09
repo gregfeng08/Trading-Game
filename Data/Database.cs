@@ -35,6 +35,7 @@ public class Database
         cmd.ExecuteNonQuery();
 
         MigrateNetWorthHistory(conn);
+        MigrateNewColumns(conn);
 
         var seedPath = Path.Combine(Path.GetDirectoryName(_schemaPath)!, "seed_static_dialogue.sql");
         if (File.Exists(seedPath))
@@ -85,6 +86,37 @@ public class Database
             DROP TABLE net_worth_history_old;
             """;
         migrate.ExecuteNonQuery();
+    }
+
+    private static void MigrateNewColumns(SqliteConnection conn)
+    {
+        // Add trigger_path to dynamic_node_content if missing
+        if (!HasColumn(conn, "dynamic_node_content", "trigger_path"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE dynamic_node_content ADD COLUMN trigger_path TEXT;";
+            cmd.ExecuteNonQuery();
+        }
+
+        // Add stop_price to pending_orders if missing
+        if (!HasColumn(conn, "pending_orders", "stop_price"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE pending_orders ADD COLUMN stop_price REAL;";
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static bool HasColumn(SqliteConnection conn, string table, string column)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table});";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (reader.GetString(1) == column) return true;
+        }
+        return false;
     }
 
     public void DropAllTables()

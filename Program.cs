@@ -53,6 +53,10 @@ builder.Services.AddSingleton(sp => new DynamicNodeContentService(
     sp.GetRequiredService<Database>(),
     sp.GetRequiredService<PlayerContextService>(),
     sp.GetRequiredService<KnowledgeGraphService>()));
+builder.Services.AddSingleton(sp => new CaseyCommentService(
+    sp.GetRequiredService<Database>(),
+    sp.GetRequiredService<PlayerContextService>(),
+    sp.GetRequiredService<KnowledgeGraphService>()));
 builder.Services.AddSingleton(sp => new NpcDialogueService(
     sp.GetRequiredService<Database>(),
     sp.GetRequiredService<GameStateService>(),

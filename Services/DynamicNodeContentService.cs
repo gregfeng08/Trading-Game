@@ -26,7 +26,8 @@ public class DynamicNodeContentService
     }
 
     public async Task<string?> GeneratePersonalizedContent(
-        int entityId, string nodeId, string gameDate, string? triggerDescription, string? triggerPath = null)
+        int entityId, string nodeId, string gameDate, string? triggerDescription,
+        string? triggerPath = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(_apiKey))
             return null;
@@ -106,7 +107,7 @@ public class DynamicNodeContentService
             request.Headers.Add("x-api-key", _apiKey);
             request.Headers.Add("anthropic-version", "2023-06-01");
 
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 Console.WriteLine($"[DynamicContent] Claude API error for {nodeId}: {response.StatusCode}");

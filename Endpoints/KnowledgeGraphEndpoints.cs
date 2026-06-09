@@ -45,7 +45,22 @@ public static class KnowledgeGraphEndpoints
         app.MapGet("/knowledge_graph/config", (KnowledgeGraphService kg) =>
             Results.Ok(kg.Config));
 
-        app.MapGet("/knowledge_graph/node_content", (int entityId, string nodeId,
+        app.MapGet("/knowledge_graph/tutorial", (KnowledgeGraphService kg) =>
+            Results.Ok(new
+            {
+                status = "ok",
+                foundational_nodes = kg.Config.Tutorial?.FoundationalNodes ?? new List<string>()
+            }));
+
+        app.MapPost("/knowledge_graph/debug/complete_all", (int entityId, KnowledgeGraphService kg, GameStateService game) =>
+        {
+            var dateResp = game.GetGameDate();
+            var gameDate = dateResp.CurrentDate ?? "1970-01-01";
+            var count = kg.DebugCompleteAllNodes(entityId, gameDate);
+            return Results.Ok(new { status = "ok", completed_count = count });
+        });
+
+        app.MapGet("/knowledge_graph/node_content", async (int entityId, string nodeId,
             DynamicNodeContentService? dynContent, KnowledgeGraphService kg, GameStateService game) =>
         {
             var node = kg.Config.Nodes.FirstOrDefault(n => n.Id == nodeId);
@@ -60,11 +75,19 @@ public static class KnowledgeGraphEndpoints
 
             var dateResp = game.GetGameDate();
             var gameDate = dateResp.CurrentDate ?? "1970-01-01";
-            _ = Task.Run(async () =>
+
+            try
             {
-                try { await dynContent.GeneratePersonalizedContent(entityId, nodeId, gameDate, node?.TriggerExplanation); }
-                catch (Exception ex) { Console.WriteLine($"[NodeContent] Background generation failed: {ex.Message}"); }
-            });
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                var personalized = await dynContent.GeneratePersonalizedContent(
+                    entityId, nodeId, gameDate, node?.TriggerExplanation, null, cts.Token);
+                if (personalized is not null)
+                    return Results.Ok(new { status = "ok", node_id = nodeId, content = personalized, is_personalized = true });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[NodeContent] Generation failed: {ex.Message}");
+            }
 
             return Results.Ok(new { status = "ok", node_id = nodeId, content = staticContent, is_personalized = false });
         });

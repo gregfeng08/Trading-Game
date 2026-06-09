@@ -190,6 +190,16 @@ CREATE TABLE IF NOT EXISTS npc_quest_progress (
     FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
 );
 
+-- Casey's daily closing comments (LLM-generated, cached per day)
+CREATE TABLE IF NOT EXISTS casey_daily_comments (
+    entity_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    comment TEXT NOT NULL,
+    generated_at TEXT NOT NULL,
+    PRIMARY KEY (entity_id, date),
+    FOREIGN KEY (entity_id) REFERENCES entity(entity_id)
+);
+
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_ticker_prices_ticker_date ON ticker_prices(ticker_id, date);
 CREATE INDEX IF NOT EXISTS idx_portfolio_entity_ticker ON portfolio(entity_id, ticker_id);

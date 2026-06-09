@@ -14,8 +14,8 @@ public static class PlayerEventsEndpoints
             if (dateResp.CurrentDate is null)
                 return Results.Json(new ErrorResponse("error", "No active game"), statusCode: 400);
 
-            if (req.EventType is not "newspaper_read" and not "npc_interaction")
-                return Results.Json(new ErrorResponse("error", "event_type must be 'newspaper_read' or 'npc_interaction'"), statusCode: 400);
+            if (req.EventType is not "newspaper_read" and not "npc_interaction" and not "tutorial_first_trade")
+                return Results.Json(new ErrorResponse("error", "event_type must be 'newspaper_read', 'npc_interaction', or 'tutorial_first_trade'"), statusCode: 400);
 
             var metadataJson = req.MetadataJson
                 ?? (req.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(req.Metadata) : null);

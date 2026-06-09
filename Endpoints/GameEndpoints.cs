@@ -1,3 +1,4 @@
+using TradingGame.Data;
 using TradingGame.Models;
 using TradingGame.Services;
 
@@ -69,6 +70,89 @@ public static class GameEndpoints
 
         app.MapGet("/dialogue", (string? date, string? npcType, string? tickerId, string? category, GameStateService game) =>
             Results.Ok(game.GetDialogue(date, npcType, tickerId, category)));
+
+        app.MapPost("/tutorial/cleanup", (string entityId, Database db, EntityService entities, PlayerContextService? playerContext) =>
+        {
+            try
+            {
+                var entityDbId = entities.ResolveExternalId(entityId);
+                if (entityDbId is null)
+                    return Results.Json(new ErrorResponse("error", $"Entity '{entityId}' not found"), statusCode: 404);
+
+                using var conn = db.Open();
+                using var tx = conn.BeginTransaction();
+
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = "DELETE FROM portfolio WHERE entity_id = @eid;";
+                    cmd.Parameters.AddWithValue("@eid", entityDbId.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = "DELETE FROM trade_history WHERE entity_id = @eid;";
+                    cmd.Parameters.AddWithValue("@eid", entityDbId.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = "DELETE FROM pending_orders WHERE entity_id = @eid;";
+                    cmd.Parameters.AddWithValue("@eid", entityDbId.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = "DELETE FROM net_worth_history WHERE entity_id = @eid;";
+                    cmd.Parameters.AddWithValue("@eid", entityDbId.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = "UPDATE entity SET available_cash = 10000.0 WHERE entity_id = @eid;";
+                    cmd.Parameters.AddWithValue("@eid", entityDbId.Value);
+                    cmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+                playerContext?.InvalidateCache();
+
+                return Results.Ok(new { status = "ok", message = "Tutorial trades cleared, cash reset to $10,000" });
+            }
+            catch (Exception)
+            {
+                return Results.Json(new ErrorResponse("error", "Failed to clean up tutorial"), statusCode: 500);
+            }
+        });
+
+        app.MapGet("/casey_comment", async (string entityId, CaseyCommentService? casey,
+            GameStateService game, EntityService entities) =>
+        {
+            if (casey is null)
+                return Results.Json(new ErrorResponse("error", "Casey comment service not available"), statusCode: 503);
+
+            try
+            {
+                var dateResp = game.GetGameDate();
+                if (dateResp.CurrentDate is null)
+                    return Results.Json(new ErrorResponse("error", "No active game"), statusCode: 400);
+
+                var entityDbId = entities.ResolveExternalId(entityId);
+                if (entityDbId is null)
+                    return Results.Json(new ErrorResponse("error", $"Entity '{entityId}' not found"), statusCode: 404);
+
+                var comment = await casey.GenerateComment(entityDbId.Value, dateResp.CurrentDate);
+                return Results.Ok(new { comment = comment ?? "" });
+            }
+            catch (Exception)
+            {
+                return Results.Ok(new { comment = "" });
+            }
+        });
 
         app.MapPost("/dialogue/generate", async (string? entityId, NpcDialogueService? dialogueService,
             GameStateService game, EntityService entities) =>

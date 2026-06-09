@@ -165,7 +165,7 @@ public class KnowledgeGraphService
         {
             "trade_count" => CheckTradeCount(conn, entityId, trigger.Params),
             "held_stock_daily_change" => CheckHeldStockChange(conn, entityId, gameDate, trigger.Params),
-            "portfolio_concentration" => CheckConcentration(conn, entityId, trigger.Params),
+            "portfolio_concentration" => CheckConcentration(conn, entityId, gameDate, trigger.Params),
             "first_profitable_sell" => CheckFirstProfitableSell(conn, entityId),
             "first_losing_sell" => CheckFirstLosingSell(conn, entityId),
             "same_ticker_multiple_buys" => CheckMultipleBuys(conn, entityId, trigger.Params),
@@ -181,6 +181,7 @@ public class KnowledgeGraphService
             "trading_days_elapsed" => CheckTradingDaysElapsed(conn, entityId, trigger.Params),
             "newspaper_read" => CheckNewspaperRead(conn, entityId, trigger.Params),
             "npc_interaction" => CheckNpcInteraction(conn, entityId, trigger.Params),
+            "player_event" => CheckPlayerEvent(conn, entityId, trigger.Params),
             _ => false
         };
     }
@@ -222,17 +223,20 @@ public class KnowledgeGraphService
         return false;
     }
 
-    private bool CheckConcentration(SqliteConnection conn, int entityId, Dictionary<string, JsonElement> p)
+    private bool CheckConcentration(SqliteConnection conn, int entityId, string gameDate, Dictionary<string, JsonElement> p)
     {
         var maxPct = p.TryGetValue("max_single_ticker_pct", out var mc) ? mc.GetDouble() : 80.0;
 
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT ticker_id, SUM(shares_held * price) as value
-            FROM portfolio WHERE entity_id = @eid AND shares_held > 0
-            GROUP BY ticker_id;
+            SELECT pf.ticker_id, SUM(pf.shares_held * tp.close_price) as value
+            FROM portfolio pf
+            JOIN ticker_prices tp ON tp.ticker_id = pf.ticker_id AND tp.date = @date
+            WHERE pf.entity_id = @eid AND pf.shares_held > 0
+            GROUP BY pf.ticker_id;
             """;
         cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.Parameters.AddWithValue("@date", gameDate);
 
         var values = new List<double>();
         using var reader = cmd.ExecuteReader();
@@ -563,6 +567,23 @@ public class KnowledgeGraphService
         return count >= minInteractions;
     }
 
+    private bool CheckPlayerEvent(SqliteConnection conn, int entityId, Dictionary<string, JsonElement> p)
+    {
+        var eventType = p.TryGetValue("event_type", out var et) ? et.GetString()! : "";
+        var minCount = p.TryGetValue("min_count", out var mc) ? mc.GetInt32() : 1;
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM player_events
+            WHERE entity_id = @eid AND event_type = @type;
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityId);
+        cmd.Parameters.AddWithValue("@type", eventType);
+        var count = Convert.ToInt32(cmd.ExecuteScalar());
+
+        return count >= minCount;
+    }
+
     // ── NPC Quest system ──
 
     public NpcQuestCompleteResponse CompleteNpcQuest(int entityId, string npcType, string gameDate)
@@ -598,6 +619,7 @@ public class KnowledgeGraphService
             """;
         cmd.Parameters.AddWithValue("@eid", entityId);
         cmd.Parameters.AddWithValue("@npc", npcType);
+        cmd.Parameters.AddWithValue("@nid", "");
         cmd.Parameters.AddWithValue("@date", gameDate);
 
         foreach (var nodeId in unlocked)
@@ -696,6 +718,18 @@ public class KnowledgeGraphService
         cmd.ExecuteNonQuery();
     }
 
+    public int DebugCompleteAllNodes(int entityId, string gameDate)
+    {
+        using var conn = _db.Open();
+        int count = 0;
+        foreach (var node in _config.Nodes)
+        {
+            SetProgress(conn, entityId, node.Id, "completed", gameDate, gameDate);
+            count++;
+        }
+        return count;
+    }
+
     private record NodeProgress(string Status, string? UnlockedAt, string? CompletedAt);
 }
 
@@ -714,6 +748,9 @@ public class KnowledgeGraphConfig
 
     [JsonPropertyName("npc_quests")]
     public List<NpcQuestConfig>? NpcQuests { get; set; }
+
+    [JsonPropertyName("tutorial")]
+    public TutorialConfig? Tutorial { get; set; }
 
     [JsonPropertyName("settings")]
     public GraphSettings Settings { get; set; } = new();
@@ -835,6 +872,12 @@ public class CategoryConfig
 
     [JsonPropertyName("label")]
     public string Label { get; set; } = "";
+}
+
+public class TutorialConfig
+{
+    [JsonPropertyName("foundational_nodes")]
+    public List<string> FoundationalNodes { get; set; } = [];
 }
 
 public class GraphSettings
