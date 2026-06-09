@@ -32,7 +32,7 @@ public class OnboardingController : MonoBehaviour
     void OnEnable() => SceneManager.sceneLoaded += OnSceneLoaded;
     void OnDisable() => SceneManager.sceneLoaded -= OnSceneLoaded;
 
-    private bool onboardingCompleted;
+    private static bool onboardingCompleted;
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
@@ -47,6 +47,11 @@ public class OnboardingController : MonoBehaviour
             onboardingCompleted = true;
             _ = CleanupTutorialAndInit();
         }
+    }
+
+    public static void MarkOnboardingComplete()
+    {
+        onboardingCompleted = true;
     }
 
     private async System.Threading.Tasks.Task CleanupTutorialAndInit()

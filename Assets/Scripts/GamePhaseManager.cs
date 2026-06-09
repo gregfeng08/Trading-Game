@@ -134,7 +134,7 @@ public class GamePhaseManager : MonoBehaviour
 
         await RefreshArcStatus();
         _ = NPCBark.RefreshDialogue(CurrentDate);
-        _ = FetchInitialPortfolio();
+        await FetchInitialPortfolio();
     }
 
     private async Task FetchInitialPortfolio()
@@ -250,6 +250,13 @@ public class GamePhaseManager : MonoBehaviour
     }
 
     public void ClearLocalOrders() => localOrders.Clear();
+
+    public void PauseForMenu()
+    {
+        DayTimerActive = false;
+        localOrders.Clear();
+        IsTransitioning = false;
+    }
 
     // ── Phase Transitions (ACID via server) ──
 

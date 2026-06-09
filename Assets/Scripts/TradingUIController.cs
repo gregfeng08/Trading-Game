@@ -237,7 +237,7 @@ public class TradingUIController : MonoBehaviour
         ApplyPhaseUI();
         SwitchTab(BottomTab.Trade);
         buyButton.interactable = true;
-        sellButton.interactable = true;
+        sellButton.interactable = false;
         if (advanceDayButton != null) advanceDayButton.interactable = true;
         tickerTradableToday = true;
         IsDataLoaded = true;
@@ -1128,11 +1128,21 @@ public class TradingUIController : MonoBehaviour
 
         if (TutorialMode)
         {
+            if (tutorialOrderQueued)
+            {
+                ShowTutCaseyMessage("We're just practicing with one stock for now. Hit Confirm Trades to see how it executes.");
+                return;
+            }
             tutorialOrderQueued = true;
             tutorialOrderTicker = selectedTicker;
             tutorialOrderSide = side;
             tutorialOrderQty = qty;
-            ShowTutCaseyMessage("Good — now hit Confirm Trades to execute it.");
+            if (ordersText != null)
+                ordersText.text = $"<b>{side.ToUpper()}</b>  {qty}  {selectedTicker}  (Market)";
+            double estimatedCost = currentEstimatedPrice * qty;
+            if (cashText != null)
+                cashText.text = $"Cash: ${(10000.0 - estimatedCost):N2}";
+            ShowTutCaseyMessage("Good — now hit Confirm Trades to execute the demo trade.");
             return;
         }
 
@@ -1256,7 +1266,7 @@ public class TradingUIController : MonoBehaviour
                 ShowTutCaseyMessage("Queue a trade first — pick a stock, set quantity, and hit Buy.");
                 return;
             }
-            ShowTutCaseyMessage($"{tutorialOrderQty} share(s) of {tutorialOrderTicker} filled! You own stock now.");
+            ShowTutCaseyMessage($"Demo trade filled — {tutorialOrderQty} share(s) of {tutorialOrderTicker}! That's how it works. You'll start fresh when real trading begins.");
             tutorialOrderQueued = false;
             TutorialTradeConfirmed = true;
             return;
@@ -1327,12 +1337,95 @@ public class TradingUIController : MonoBehaviour
         foreach (var go in orderRowObjects)
             if (go != null) Destroy(go);
         orderRowObjects.Clear();
+        ordersScrollRect = null;
+        ordersContentRT = null;
+    }
+
+    private ScrollRect ordersScrollRect;
+    private RectTransform ordersContentRT;
+
+    private void EnsureOrdersScroll()
+    {
+        if (ordersScrollRect != null) return;
+
+        Transform parent = ordersContainer != null ? ordersContainer : ordersText?.transform.parent;
+        if (parent == null) return;
+
+        var parentRT = parent.GetComponent<RectTransform>();
+
+        var viewportGO = new GameObject("OrdersViewport", typeof(RectTransform), typeof(RectMask2D));
+        viewportGO.transform.SetParent(parent, false);
+        var viewportRT = viewportGO.GetComponent<RectTransform>();
+        viewportRT.anchorMin = Vector2.zero;
+        viewportRT.anchorMax = Vector2.one;
+        viewportRT.sizeDelta = Vector2.zero;
+        viewportRT.offsetMin = Vector2.zero;
+        viewportRT.offsetMax = Vector2.zero;
+
+        var contentGO = new GameObject("OrdersContent", typeof(RectTransform));
+        contentGO.transform.SetParent(viewportGO.transform, false);
+        ordersContentRT = contentGO.GetComponent<RectTransform>();
+        ordersContentRT.anchorMin = new Vector2(0, 1);
+        ordersContentRT.anchorMax = new Vector2(1, 1);
+        ordersContentRT.pivot = new Vector2(0.5f, 1);
+        ordersContentRT.anchoredPosition = Vector2.zero;
+        ordersContentRT.sizeDelta = new Vector2(0, 0);
+
+        var vlg = contentGO.AddComponent<VerticalLayoutGroup>();
+        vlg.childAlignment = TextAnchor.UpperLeft;
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = false;
+        vlg.childForceExpandWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.spacing = 2;
+
+        var csf = contentGO.AddComponent<ContentSizeFitter>();
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+
+        ordersScrollRect = viewportGO.AddComponent<ScrollRect>();
+        ordersScrollRect.viewport = viewportRT;
+        ordersScrollRect.content = ordersContentRT;
+        ordersScrollRect.vertical = true;
+        ordersScrollRect.horizontal = false;
+        ordersScrollRect.movementType = ScrollRect.MovementType.Clamped;
+        ordersScrollRect.scrollSensitivity = 20f;
+
+        var scrollbarGO = new GameObject("OrdersScrollbar", typeof(RectTransform), typeof(Image), typeof(Scrollbar));
+        scrollbarGO.transform.SetParent(parent, false);
+        var sbRT = scrollbarGO.GetComponent<RectTransform>();
+        sbRT.anchorMin = new Vector2(1, 0);
+        sbRT.anchorMax = new Vector2(1, 1);
+        sbRT.pivot = new Vector2(1, 0.5f);
+        sbRT.offsetMin = new Vector2(-6f, 0f);
+        sbRT.offsetMax = new Vector2(0f, 0f);
+        scrollbarGO.GetComponent<Image>().color = new Color(0.15f, 0.15f, 0.2f, 0.3f);
+
+        var handleGO = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+        handleGO.transform.SetParent(scrollbarGO.transform, false);
+        var handleRT = handleGO.GetComponent<RectTransform>();
+        handleRT.anchorMin = Vector2.zero;
+        handleRT.anchorMax = Vector2.one;
+        handleRT.sizeDelta = Vector2.zero;
+        handleGO.GetComponent<Image>().color = new Color(0.5f, 0.5f, 0.55f, 0.5f);
+
+        var scrollbar = scrollbarGO.GetComponent<Scrollbar>();
+        scrollbar.handleRect = handleRT;
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+        scrollbar.targetGraphic = handleGO.GetComponent<Image>();
+        ordersScrollRect.verticalScrollbar = scrollbar;
+        ordersScrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+
+        orderRowObjects.Add(viewportGO);
+        orderRowObjects.Add(scrollbarGO);
     }
 
     private void BuildInteractiveOrderRows(IReadOnlyList<GamePhaseManager.LocalPendingOrder> orders)
     {
-        Transform parent = ordersContainer != null ? ordersContainer : ordersText?.transform.parent;
-        if (parent == null) return;
+        EnsureOrdersScroll();
+        Transform rowParent = ordersContentRT != null ? ordersContentRT : ordersContainer;
+        if (rowParent == null) rowParent = ordersText?.transform.parent;
+        if (rowParent == null) return;
 
         for (int i = 0; i < orders.Count; i++)
         {
@@ -1340,7 +1433,7 @@ public class TradingUIController : MonoBehaviour
             int orderIndex = i;
 
             var row = new GameObject($"OrderRow_{i}", typeof(RectTransform));
-            row.transform.SetParent(parent, false);
+            row.transform.SetParent(rowParent, false);
             var rowRT = row.GetComponent<RectTransform>();
             rowRT.sizeDelta = new Vector2(0, 22);
 
@@ -1368,9 +1461,10 @@ public class TradingUIController : MonoBehaviour
 
             var cancelGO = new GameObject("Cancel", typeof(RectTransform));
             cancelGO.transform.SetParent(row.transform, false);
-            var cancelBtn = cancelGO.AddComponent<Button>();
             var cancelImg = cancelGO.AddComponent<Image>();
             cancelImg.color = new Color(0.85f, 0.22f, 0.22f, 0.8f);
+            var cancelBtn = cancelGO.AddComponent<Button>();
+            cancelBtn.targetGraphic = cancelImg;
             var cancelLE = cancelGO.AddComponent<LayoutElement>();
             cancelLE.minWidth = 20;
             cancelLE.minHeight = 18;
@@ -1379,10 +1473,11 @@ public class TradingUIController : MonoBehaviour
             var cancelTextGO = new GameObject("X", typeof(RectTransform));
             cancelTextGO.transform.SetParent(cancelGO.transform, false);
             var cancelTmp = cancelTextGO.AddComponent<TextMeshProUGUI>();
-            cancelTmp.text = "✕";
+            cancelTmp.text = "X";
             cancelTmp.fontSize = 12;
             cancelTmp.alignment = TextAlignmentOptions.Center;
             cancelTmp.color = Color.white;
+            cancelTmp.raycastTarget = false;
             var crt = cancelTextGO.GetComponent<RectTransform>();
             crt.anchorMin = Vector2.zero;
             crt.anchorMax = Vector2.one;
@@ -1394,6 +1489,7 @@ public class TradingUIController : MonoBehaviour
                 {
                     GamePhaseManager.Inst.RemoveOrder(orderIndex);
                     RefreshOrdersDisplay();
+                    RefreshCashDisplay();
                 }
             });
 
@@ -1407,9 +1503,6 @@ public class TradingUIController : MonoBehaviour
         {
             if (KnowledgeGraphManager.Inst == null || !KnowledgeGraphManager.Inst.IsInitialized) return;
             if (KnowledgeGraphManager.Inst.IsNodeCompleted("market_buy_sell")) return;
-
-            if (!KnowledgeGraphManager.Inst.IsNodeCompleted("market_buy_sell"))
-                await KnowledgeGraphManager.Inst.CompleteNodeAsync("market_buy_sell");
 
             if (PlayerObjectivesUI.Inst != null)
             {

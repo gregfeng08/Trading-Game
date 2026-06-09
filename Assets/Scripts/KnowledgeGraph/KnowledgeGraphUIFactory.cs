@@ -42,10 +42,10 @@ public static class KnowledgeGraphUIFactory
         graphPanel.SetActive(false);
 
         // Close button
-        var closeBtn = CreateButton("CloseButton", graphPanel.transform, "X", BtnRed, 50, 50);
+        var closeBtn = CreateButton("CloseButton", graphPanel.transform, "X", BtnRed, 32, 32);
         var cbRT = closeBtn.GetComponent<RectTransform>();
         cbRT.anchorMin = cbRT.anchorMax = cbRT.pivot = new Vector2(1, 1);
-        cbRT.anchoredPosition = new Vector2(-30, -30);
+        cbRT.anchoredPosition = new Vector2(-16, -16);
 
         // Title label
         var titleTMP = CreateTMP("GraphTitle", graphPanel.transform, "Knowledge Graph", 28, TextAlignmentOptions.TopLeft);

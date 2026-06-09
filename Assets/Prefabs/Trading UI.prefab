@@ -1818,8 +1818,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -157.99762, y: -294.1457}
-  m_SizeDelta: {x: 924.4305, y: 79.0432}
+  m_AnchoredPosition: {x: -34.494064, y: -294.1457}
+  m_SizeDelta: {x: 1171.4377, y: 79.0432}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2195571045900854594
 CanvasRenderer:
@@ -5369,6 +5369,8 @@ MonoBehaviour:
       m_Calls: []
   bullColor: {r: 0.15, g: 0.75, b: 0.35, a: 1}
   bearColor: {r: 0.85, g: 0.22, b: 0.22, a: 1}
+  lineColor: {r: 0.5, g: 0.72, b: 1, a: 1}
+  lineWidth: 2
   bodyWidthRatio: 0.65
   wickWidth: 1.5
   drawGrid: 1

@@ -37,55 +37,114 @@ public class WeekReviewOverlay : MonoBehaviour
         StartCoroutine(FadeInSequence());
     }
 
+    private const string GainHex = "#66E666";
+    private const string LossHex = "#E66666";
+    private const string DimHex = "#666673";
+    private const string AccentHex = "#D9BF73";
+
     private void PopulateContent(WeekReviewResponse data)
     {
-        headerText.text = $"<color=#D4A878>WEEK IN REVIEW</color>\n{data.start_date}  →  {data.end_date}  ({data.days_advanced} trading days)";
+        headerText.text = $"<color={DimHex}>WEEK IN REVIEW</color>\n<size=28><color={AccentHex}>{FormatDate(data.start_date)}  →  {FormatDate(data.end_date)}</color></size>\n<size=16><color={DimHex}>{data.days_advanced} trading days</color></size>";
 
         var sb = new System.Text.StringBuilder();
 
-        if (data.daily_summaries != null)
+        if (data.daily_summaries != null && data.daily_summaries.Length > 0)
         {
-            double startNw = data.daily_summaries.Length > 0 ? data.daily_summaries[0].net_worth : 0;
-            double endNw = data.daily_summaries.Length > 0 ? data.daily_summaries[^1].net_worth : 0;
+            double startNw = data.daily_summaries[0].net_worth;
+            double endNw = data.daily_summaries[^1].net_worth;
             double weekChange = endNw - startNw;
             double weekPct = startNw > 0 ? weekChange / startNw * 100 : 0;
             string sign = weekChange >= 0 ? "+" : "";
-            string clr = weekChange >= 0 ? "#26BF59" : "#D93838";
+            string clr = weekChange >= 0 ? GainHex : LossHex;
 
-            sb.AppendLine($"<b>Net Worth: ${endNw:N2}</b>  <color={clr}>{sign}${weekChange:N2} ({sign}{weekPct:F1}%)</color>");
+            sb.AppendLine($"<size=22><b>Portfolio: ${endNw:N2}</b>  <color={clr}>{sign}${weekChange:N2} ({sign}{weekPct:F1}%)</color></size>");
             sb.AppendLine();
 
-            sb.AppendLine("<color=#666D78>─────────────────────────────</color>");
-            sb.AppendLine("<b>DAILY BREAKDOWN</b>");
-            sb.AppendLine();
-
+            var holdingTotals = new System.Collections.Generic.Dictionary<string, double>();
             foreach (var day in data.daily_summaries)
             {
-                sb.Append($"  {day.date}  ${day.net_worth:N2}");
+                if (day.top_movers == null) continue;
+                foreach (var m in day.top_movers)
+                {
+                    if (!holdingTotals.ContainsKey(m.ticker))
+                        holdingTotals[m.ticker] = 0;
+                    holdingTotals[m.ticker] += m.change_pct;
+                }
+            }
+
+            if (holdingTotals.Count > 0)
+            {
+                sb.AppendLine($"<color={DimHex}>─────────────────────────────────</color>");
+                sb.AppendLine($"<color={DimHex}>YOUR HOLDINGS THIS WEEK</color>");
+                sb.AppendLine();
+
+                var sorted = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, double>>(holdingTotals);
+                sorted.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+                foreach (var kvp in sorted)
+                {
+                    string hSign = kvp.Value >= 0 ? "+" : "";
+                    string hClr = kvp.Value >= 0 ? GainHex : LossHex;
+                    sb.AppendLine($"  {kvp.Key,-6} <color={hClr}>{hSign}{kvp.Value:F1}% cumulative</color>");
+                }
+                sb.AppendLine();
+            }
+
+            sb.AppendLine($"<color={DimHex}>─────────────────────────────────</color>");
+            sb.AppendLine($"<color={DimHex}>DAILY BREAKDOWN</color>");
+            sb.AppendLine();
+
+            double prevNw = startNw;
+            foreach (var day in data.daily_summaries)
+            {
+                double dayChange = day.net_worth - prevNw;
+                string dSign = dayChange >= 0 ? "+" : "";
+                string dClr = dayChange >= 0 ? GainHex : LossHex;
+
+                sb.Append($"  {FormatDateShort(day.date)}  ${day.net_worth:N2}  <color={dClr}>{dSign}${dayChange:N2}</color>");
+
                 if (day.top_movers != null && day.top_movers.Length > 0)
                 {
-                    sb.Append("  ");
+                    sb.Append("   ");
+                    int shown = 0;
                     foreach (var m in day.top_movers)
                     {
+                        if (shown >= 3) break;
                         string mSign = m.change_pct >= 0 ? "+" : "";
-                        string mClr = m.change_pct >= 0 ? "#26BF59" : "#D93838";
+                        string mClr = m.change_pct >= 0 ? GainHex : LossHex;
                         sb.Append($"<color={mClr}>{m.ticker} {mSign}{m.change_pct:F1}%</color>  ");
+                        shown++;
                     }
                 }
                 sb.AppendLine();
+                prevNw = day.net_worth;
             }
         }
 
         if (data.unlocked_nodes != null && data.unlocked_nodes.Length > 0)
         {
             sb.AppendLine();
-            sb.AppendLine("<color=#666D78>─────────────────────────────</color>");
-            sb.AppendLine($"<b><color=#D4A878>NEW CONCEPTS UNLOCKED ({data.unlocked_nodes.Length})</color></b>");
+            sb.AppendLine($"<color={DimHex}>─────────────────────────────────</color>");
+            sb.AppendLine($"<b><color={AccentHex}>NEW CONCEPTS UNLOCKED ({data.unlocked_nodes.Length})</color></b>");
             foreach (var node in data.unlocked_nodes)
                 sb.AppendLine($"  • {node.title}");
         }
 
         summaryText.text = sb.ToString().TrimEnd();
+    }
+
+    private static string FormatDate(string isoDate)
+    {
+        if (System.DateTime.TryParse(isoDate, out var dt))
+            return dt.ToString("MMM d, yyyy");
+        return isoDate;
+    }
+
+    private static string FormatDateShort(string isoDate)
+    {
+        if (System.DateTime.TryParse(isoDate, out var dt))
+            return dt.ToString("ddd M/d");
+        return isoDate;
     }
 
     void Update()
@@ -153,7 +212,7 @@ public class WeekReviewOverlay : MonoBehaviour
         bgRect.anchorMin = Vector2.zero;
         bgRect.anchorMax = Vector2.one;
         bgRect.sizeDelta = Vector2.zero;
-        bg.AddComponent<Image>().color = new Color(0.04f, 0.04f, 0.06f, 0.96f);
+        bg.AddComponent<Image>().color = new Color(0f, 0f, 0f, 1f);
 
         // Header
         var headerGO = new GameObject("Header");
@@ -167,17 +226,17 @@ public class WeekReviewOverlay : MonoBehaviour
         headerText.alignment = TextAlignmentOptions.Center;
         headerText.color = new Color(0.85f, 0.85f, 0.9f);
 
-        // Summary body (scrollable)
+        // Summary body (centered column)
         var bodyGO = new GameObject("Summary");
         bodyGO.transform.SetParent(overlayCanvas.transform, false);
         var bodyRect = bodyGO.AddComponent<RectTransform>();
-        bodyRect.anchorMin = new Vector2(0.12f, 0.12f);
-        bodyRect.anchorMax = new Vector2(0.88f, 0.8f);
+        bodyRect.anchorMin = new Vector2(0.2f, 0.1f);
+        bodyRect.anchorMax = new Vector2(0.8f, 0.8f);
         bodyRect.sizeDelta = Vector2.zero;
         summaryText = bodyGO.AddComponent<TextMeshProUGUI>();
         summaryText.fontSize = 17;
-        summaryText.alignment = TextAlignmentOptions.TopLeft;
-        summaryText.color = new Color(0.75f, 0.75f, 0.8f);
+        summaryText.alignment = TextAlignmentOptions.Top;
+        summaryText.color = new Color(0.72f, 0.72f, 0.76f);
         summaryText.enableWordWrapping = true;
         summaryText.richText = true;
 
@@ -193,7 +252,7 @@ public class WeekReviewOverlay : MonoBehaviour
         continueText.fontSize = 16;
         continueText.fontStyle = FontStyles.Italic;
         continueText.alignment = TextAlignmentOptions.Center;
-        continueText.color = new Color(0.5f, 0.5f, 0.55f);
+        continueText.color = new Color(0.4f, 0.4f, 0.45f);
         contGO.SetActive(false);
 
         overlayCanvas.SetActive(false);

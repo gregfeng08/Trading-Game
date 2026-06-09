@@ -85,6 +85,8 @@ public class OptionsMenuUI : MonoBehaviour
     private void ReturnToMainMenu()
     {
         Time.timeScale = 1f;
+        if (GamePhaseManager.Inst != null)
+            GamePhaseManager.Inst.PauseForMenu();
         SceneManager.LoadScene("Main Menu");
     }
 }

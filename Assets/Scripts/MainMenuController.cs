@@ -113,6 +113,27 @@ public class MainMenuController : MonoBehaviour
     private void OnPlay()
     {
         SetAllButtonsInteractable(false);
+        StartCoroutine(PlayFlow());
+    }
+
+    private IEnumerator PlayFlow()
+    {
+        statusText.text = "Loading...";
+
+        OnboardingController.MarkOnboardingComplete();
+
+        if (GamePhaseManager.Inst != null)
+        {
+            var syncTask = GamePhaseManager.Inst.SyncWithServer();
+            yield return new WaitUntil(() => syncTask.IsCompleted);
+        }
+
+        if (KnowledgeGraphManager.Inst != null)
+        {
+            var kgTask = KnowledgeGraphManager.Inst.InitializeAsync();
+            yield return new WaitUntil(() => kgTask.IsCompleted);
+        }
+
         LoadRoom();
     }
 
@@ -185,7 +206,10 @@ public class MainMenuController : MonoBehaviour
             GamePhaseManager.Inst.PendingArcIntro = true;
         }
 
-        LoadOnboarding();
+        if (GameSettings.ShowTutorial)
+            LoadOnboarding();
+        else
+            LoadRoom();
     }
 
     private IEnumerator ResetFlow()

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Game.API.DTO;
 
 namespace Game.API
@@ -36,6 +37,7 @@ namespace Game.API
         {
             if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
             if (uiConfig != null) uiConfig.Register();
+            DebugManager.instance.enableRuntimeUI = false;
         }
 
         public void TryStart()

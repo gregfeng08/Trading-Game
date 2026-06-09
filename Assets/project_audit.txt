@@ -1,7 +1,7 @@
 HIGHSIGHT FINANCIAL — PROJECT AUDIT
 ====================================
 Generated: 2026-05-18
-Updated:   2026-05-26
+Updated:   2026-06-07
 
 
 THE FULL SYSTEM AT A GLANCE
@@ -36,7 +36,9 @@ CORE GAME LOOP
 
 - Order system: Queue buy/sell during pre-market (execute at open on confirm)
   or post-market (execute at close on confirm). Same batch/confirm flow in
-  both phases. ACID transactions, FIFO lot tracking for portfolio
+  both phases. Supports market, limit, stop, and stop-limit order types.
+  Order type UI gated behind limit_buy_sell knowledge node. ACID transactions,
+  FIFO lot tracking for portfolio
 - Trading terminal UI: Ticker dropdown, OHLC candlestick chart with 5 timeframes
   (1W/1M/3M/1Y/5Y), portfolio line chart tab, cash/net worth display, holdings +
   orders panel, phase-dependent controls
@@ -62,10 +64,14 @@ KNOWLEDGE GRAPH
   (11 adaptive nodes)
 - Two node types: Knowledge (prerequisite-based, auto-complete on dismiss) and
   Adaptive (triggered by player trading behavior)
-- 11 trigger evaluators: trade_count, held_stock_daily_change,
+- 16 trigger evaluators: trade_count, held_stock_daily_change,
   portfolio_concentration, first_profitable_sell, first_losing_sell,
   same_ticker_multiple_buys, unrealized_gain_pct, bought_after_decline,
-  low_cash_ratio, market_wide_decline, traded_both_phases
+  low_cash_ratio, market_wide_decline, traded_both_phases,
+  maintained_diversification, maintained_cash_reserves,
+  trading_days_elapsed, newspaper_read, npc_interaction
+- Dual-path triggers: Each node supports negative/positive/time trigger
+  paths with first-wins evaluation against frontier nodes only
 - Reward/mechanic unlock system: Nodes can optionally unlock game mechanics
   (e.g., limit_buy_sell unlocks limit_orders)
 - Full UI: Pannable/zoomable graph viewer, color-coded nodes (knowledge vs
@@ -151,22 +157,21 @@ BROKEN
    gate reveals, with Learn More / Dismiss buttons and auto-dismiss timer.
 
 NOT YET BUILT
-1. Dynamic NPC dialogue -- The DB tables exist (static_npc_dialogue,
-   dynamic_npc_dialogue), the /dialogue endpoint exists, and there's a Python
-   generator script. But nothing in Unity fetches or displays NPC dialogue
-   dynamically. NPCs walk around silently. No "walk up to NPC and they talk"
-   system.
+1. [FIXED] Dynamic NPC dialogue -- NPCBark system fetches archetype-relevant
+   dialogue from backend. Typed NPCs (analyst/broker/trader/historian) have
+   InteractionZone triggers and NPCDialogueUI overlay for player conversations.
 
-2. NPC interaction -- NPCs have no colliders/triggers for player interaction. You
-   can't talk to them.
+2. [FIXED] NPC interaction -- Typed NPCs now have SphereCollider triggers
+   (radius 2.5) with InteractionZone. Player can walk up and press E to talk.
+   NPCInteraction component attached by NPCSpawner to interactable types.
 
 3. Tutorial/guided intro -- The onboarding scene has 6 hardcoded lines from
    Casey, but there's no guided "walk here, open this, place your first trade"
    sequence.
 
-4. Limit order UI gating -- The HasMechanic("limit_orders") check exists in
-   KnowledgeGraphManager but nothing in TradingUIController uses it to hide/show
-   limit order controls. The mechanic unlock is tracked but not enforced.
+4. [FIXED] Limit order UI gating -- Order type dropdown (Market/Limit/Stop/
+   Stop Limit) and price input field dynamically built in TradingUIController.
+   Gated behind ProgressionGates.ShowLimitOrders (limit_buy_sell node).
 
 5. Knowledge graph terminal placement -- Two KnowledgeGraphTerminal objects exist
    in the Room scene but may not be properly positioned or connected to
@@ -272,23 +277,32 @@ RECENTLY COMPLETED (2026-05-31)
   KNOWLEDGE section with completed/unlocked nodes. Verified: analyst NPC
   referenced "Your AAPL position is holding up" during a selloff day.
 
-POST-DEMO TODO (Designed, Not Yet Implemented)
-- Dual-path knowledge triggers: Each adaptive node would support three trigger
-  paths — negative (current failure-based triggers like concentration > 80%),
-  positive (success triggers like maintaining diversification across 4+ stocks
-  for N days), and time-based (fallback unlock after N trading days to ensure
-  curriculum completeness). Same node, different trigger_explanation and
-  personalized content per path. Requires: multiple trigger configs per node in
-  knowledge_graph.json, first-wins evaluation in KnowledgeGraphService. No
-  changes to PlayerContextService needed — it already provides the raw data
-  that all three paths would evaluate against.
-- Weekend review / skip-week: Player can choose to "review the week" instead
-  of playing each day. Server advances N days, auto-executing any standing
-  orders, and presents a compressed summary (daily P&L, movers, triggers that
-  fired). Narratively framed as Hindsight Financial's training program
-  controlling replay speed — Casey says "Let's review what happened this week."
-  Preserves the historical immersion while respecting player time. One Bull
-  Market arc (148 trading days × 5 min = 12+ hours) is too long without this.
+RECENTLY COMPLETED (2026-06-07)
+- Dual-path knowledge triggers: Each adaptive node supports multiple trigger
+  paths — negative (failure-based), positive (success-based), and time-based
+  (fallback after N trading days). First-wins evaluation against frontier
+  nodes only. Implemented in KnowledgeGraphService with 5 new trigger
+  evaluators. knowledge_graph.json updated with triggers arrays for
+  diversification, cash_management, first_loss nodes.
+- Weekend review / skip-week: "Skip Week" button on DailySummaryOverlay.
+  Backend /advance_week endpoint advances N days with compressed daily
+  summaries. WeekReviewOverlay displays net worth delta, daily breakdown
+  with movers, and unlocked nodes.
+- Newspaper/NPC knowledge triggers: player_events table tracks newspaper_read
+  and npc_interaction events. Two new trigger types in KnowledgeGraphService.
+  NewspaperUI records reads, NPCDialogueUI records interactions. Events
+  evaluated against frontier nodes on record.
+- NPC interaction system: Typed NPCs (analyst/broker/trader/historian) with
+  InteractionZone-based dialogue. NPCDialogueUI overlay shows archetype-
+  relevant dialogue from NPCBark system. Records npc_interaction events.
+- Stop orders: Full pipeline — UI dropdown (Market/Limit/Stop/Stop Limit),
+  GamePhaseManager queue with order type + prices, InlineOrderDTO to backend,
+  OrderService validation + OHLC-based fill logic (stop triggers on Low/High,
+  stop_limit checks stop then limit). Gated behind limit_buy_sell node.
+- Limit order UI: Order type dropdown and price input dynamically built in
+  TradingUIController. Gated behind ProgressionGates.ShowLimitOrders.
+
+POST-DEMO TODO (Not Yet Implemented)
 - Adaptive day pacing (future extension of weekend review): Days with low
   interestingness scores (< 0.15) auto-compress with a brief summary card.
   Active days (big market moves, trigger fires, arc transitions) play fully.
@@ -302,17 +316,14 @@ POST-DEMO TODO (Designed, Not Yet Implemented)
   personalization nodes (market_wide_decline, market_hours) get concept-first
   explanations with a brief connection to the player's position. Currently
   all nodes use the same system prompt weight.
-- Newspaper/NPC knowledge triggers: new player_events DB table tracking
-  newspaper reads (deduped per day) and NPC interactions. Two new trigger types
-  (newspaper_read, npc_interaction) in KnowledgeGraphService.
-- NPC quest system: Typed NPCs (Historian, Quant, Risk Manager, Floor Trader)
-  that unlock specific knowledge nodes through conversation.
-- Limit order UI: Backend fully supports limit orders. Frontend needs order
-  type selector dropdown, limit price input field. Gated behind limit_buy_sell
-  knowledge node.
-- Stop orders: Not implemented anywhere.
-- Refactoring: TradingUIController (1400 LOC) → split into TickerSearch,
-  TradingChart, TradingView controllers.
+- NPC quest system: Typed NPCs that unlock specific knowledge nodes through
+  structured conversation/quest sequences. Backend tables (npc_quest_progress)
+  and endpoints (/npc_quest/complete, GET /npc_quests) exist. Frontend quest
+  UI not yet built — deferred for separate implementation.
+- Refactoring: TradingUIController (~1800 LOC) → split into TickerSearch,
+  TradingChart, TradingView controllers. Handle with care.
+- Principal briefing scene: Narrative scene with the principal character.
+  Design TBD.
 
 KNOWN IMMERSION ISSUES (Low Priority)
 - Ticker symbols use modern names (e.g., GOOGL instead of 2007-era GOOG).

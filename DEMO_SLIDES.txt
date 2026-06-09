@@ -1,0 +1,327 @@
+HINDSIGHT FINANCIAL — DEMO SLIDE PLAN
+======================================
+
+
+SLIDE 1: TITLE
+--------------
+"Hindsight Financial: An Adaptive Educational Trading Game
+ Using Reactive Knowledge Graphs and LLM Contextualization"
+
+Your name, institution, date.
+Subtitle: "Teaching financial literacy through lived experience
+in a historical market simulation."
+
+
+SLIDE 2: PROBLEM STATEMENT
+---------------------------
+- Financial literacy education is abstract and disconnected from
+  experience. Textbooks teach "diversification" as a concept; students
+  nod and forget.
+- Games can provide experiential learning, but most trading sims are
+  sandboxes with no pedagogical structure — players learn by accident
+  or not at all.
+- Research question: Can a game system detect what a player is doing
+  wrong (or right), deliver the right concept at the right moment,
+  and personalize the explanation to their actual situation?
+
+
+SLIDE 3: THESIS CONTRIBUTION — THE THREE-LAYER LOOP
+-----------------------------------------------------
+Diagram showing the three layers feeding each other:
+
+  Layer 1: GAME LOOP
+    Player trades, portfolio changes, day cycles.
+    (TradingService, OrderService, GameStateService)
+           |
+           v  portfolio state + trade history
+  Layer 2: REACTIVE KNOWLEDGE GRAPH
+    36 nodes, 18 trigger types, dual-path triggers.
+    Evaluates player behavior against pedagogical conditions.
+    (KnowledgeGraphService)
+           |
+           v  OnNodeUnlocked + PlayerContext
+  Layer 3: LLM CONTEXTUALIZATION
+    4 Claude integrations personalize content based on
+    what the player actually did.
+    (DynamicNodeContent, NpcDialogue, Newspaper, CaseyComment)
+           |
+           v  unlocked features + personalized feedback
+    ...influences how player trades in Layer 1 (loop closes)
+
+Key point: Each layer is independently testable and the game
+functions without the LLM layer (graceful degradation).
+
+
+SLIDE 4: SYSTEM ARCHITECTURE
+------------------------------
+Diagram: Unity 6 client <--REST/localhost:5000--> ASP.NET Core backend
+
+Unity side:
+  - Game rendering, input, NPC movement, UI overlays, timers
+  - Zero direct DB access; pure view layer
+  - Singleton controllers (GamePhaseManager, KnowledgeGraphManager,
+    PlayerStateController)
+
+Backend side:
+  - SQLite database (17 tables)
+  - All business logic (trade execution, trigger evaluation, KG)
+  - All LLM calls (Anthropic Claude API)
+  - Server-authoritative: backend is the source of truth
+
+Why this split matters: The entire pedagogical layer lives in one
+place. You can instrument, log, and analyze every learning moment
+without touching the game client.
+
+
+SLIDE 5: THE GAME LOOP — A TRADING DAY
+----------------------------------------
+Three-phase day cycle (Stardew Valley-inspired pacing):
+
+  PRE-MARKET: Queue orders. Plan your trades. NPC density low (0.6x).
+       |
+  DAY: Markets open. 6-minute timer. Prices move. Can nap to end early.
+       |
+  POST-MARKET: Review results. Place closing trades. Read newspaper.
+       |
+  SLEEP: Daily summary (P&L, market movers, Casey's comment).
+         Advance to next day. Check for arc transitions.
+
+Demo walkthrough: Show a complete day cycle.
+- Queue a buy order pre-market
+- Watch the timer tick during day phase
+- See the daily summary with Casey's AI-generated comment
+- Advance to next day
+
+
+SLIDE 6: THE KNOWLEDGE GRAPH
+------------------------------
+Two node types:
+  - KNOWLEDGE nodes: Unlock when prerequisites completed. Static content.
+    (What is a Company, What is a Stock, etc.)
+  - ADAPTIVE nodes: Unlock when prerequisites met AND a behavioral
+    trigger fires from the player's actual trading.
+
+36 nodes across 7 categories: fundamentals, trading, risk, strategies,
+psychology, market_structure, historical.
+
+Demo: Show the KG UI. Point out locked vs unlocked vs completed nodes.
+Show a node unlocking in real-time after a trade.
+
+
+SLIDE 7: TRIGGER SYSTEM — LEARNING FROM BEHAVIOR
+--------------------------------------------------
+18 trigger types, each a SQL query against player data:
+
+Examples to highlight:
+  - portfolio_concentration: "You put 80%+ in one stock"
+    -> Unlocks: Diversification
+  - held_stock_daily_change: "A stock you hold moved 5%+ in a day"
+    -> Unlocks: Volatility
+  - unrealized_loss_pct: "You're sitting on a 15%+ unrealized loss"
+    -> Unlocks: Sunk Cost & Holding Too Long
+  - bought_after_decline: "You bought after a 10%+ drop"
+    -> Unlocks: Buying the Dip
+
+DUAL-PATH TRIGGERS (key contribution):
+Same concept, different entry point:
+  - NEGATIVE path: "You concentrated 80% in BAC — here's why
+    diversification matters"
+  - POSITIVE path: "You've maintained 4+ tickers for 5 days —
+    here's the principle behind what you're doing"
+  - TIME fallback: After N days, ensures no concept is permanently
+    locked behind unreachable behavior
+
+This means careful players and reckless players both learn the
+same concepts, but through different pedagogical framing.
+
+
+SLIDE 8: PROGRESSION GATES — GRADUAL COMPLEXITY
+-------------------------------------------------
+UI features are hidden until the player learns the concept:
+
+  what_is_a_stock  ->  Net worth display appears
+  market_buy_sell  ->  Price change indicators appear
+  volatility       ->  Candlestick wicks appear on chart
+  cost_basis       ->  Cost basis column in portfolio
+  paper_gains      ->  Portfolio line chart unlocks
+  limit_buy_sell   ->  Limit order dropdown appears
+  cash_management  ->  Cash breakdown details
+  market_timing    ->  All chart timeframes (1W/1M/3M/1Y/5Y)
+
+Demo: Show a before/after of the trading UI — sparse at first,
+fully featured after learning.
+
+Key point: Prevents information overload. The player earns
+complexity by understanding it first.
+
+
+SLIDE 9: PLAYER CONTEXT SERVICE — THE CONNECTIVE TISSUE
+---------------------------------------------------------
+Single aggregation point consumed by ALL four LLM services:
+
+  PlayerContext = {
+    Portfolio:     holdings, P&L%, cash, net worth, cash ratio
+    Concentration: max single-ticker %, position count
+    Knowledge:     completed nodes, recently unlocked, progress
+    RecentTrades:  today's trades, last 10 trades, total count
+    Arc:           current arc, days remaining, grade, tone
+    Market:        top gainers/losers, advancing/declining counts
+  }
+
+Cached per (entityId, gameDate). Invalidated on day advance.
+All LLM services see the same consistent snapshot.
+
+This is what makes every AI response player-specific rather than
+generic.
+
+
+SLIDE 10: LLM INTEGRATION — FOUR SERVICES
+-------------------------------------------
+All use Anthropic Claude. All fail gracefully without API key.
+All are cached (one generation per trigger, immutable).
+
+1. DYNAMIC NODE CONTENT
+   When: Automatically on knowledge node unlock (background task)
+   What: 2-3 paragraphs connecting the concept to the player's
+         actual portfolio and trades
+   Example: "You've got 80% in BAC right now. If Bank of America
+   has a bad day, that's going to hit harder than it needs to..."
+
+2. NPC DIALOGUE
+   When: Phase transitions, gated by interestingness score (0-1)
+   What: 2-4 lines per archetype (analyst/broker/trader/anchor)
+   Each personality gets a tailored fact sheet and voice instruction
+
+3. NEWSPAPER
+   When: Once per game date
+   What: AI-written "Market Tribune" with headline, 3 articles,
+         market recap. Uses real 2007-2009 historical events.
+         Arc tone shifts editorial posture.
+
+4. CASEY DAILY COMMENT
+   When: End of day summary screen
+   What: 1-2 sentence mentor reaction to the player's day
+   Warm, honest, matches arc tone. Never gives specific advice.
+
+
+SLIDE 11: PROMPT ENGINEERING PATTERNS
+---------------------------------------
+Consistent patterns across all four services:
+
+1. EXPLICIT FACT SHEETS — only reference provided data, never
+   "recall from training"
+2. TEMPORAL GROUNDING — "Write as someone living on {date} who
+   does not know what happens next" (prevents spoiling the crisis)
+3. ARC TONE INJECTION — bullish_confident / cautiously_optimistic /
+   fearful_volatile / uncertain_mixed shifts all generated content
+4. NEGATIVE CONSTRAINTS — no invented prices, no trading advice,
+   no future events, no fourth-wall breaks
+5. PLAYER-SPECIFIC GROUNDING — reference actual holdings, trades,
+   and portfolio state
+
+Example system prompt excerpt (Casey):
+  "You are Casey, a mentor at Hindsight Financial. Write exactly
+   ONE sentence reacting to the trainee's day. Match the arc tone.
+   Do NOT give specific trading advice."
+
+
+SLIDE 12: THE ARC SYSTEM — NARRATIVE STRUCTURE
+------------------------------------------------
+Three arcs corresponding to the 2007-2009 financial crisis:
+
+  BULL MARKET     — Confident tone, markets climbing
+  THE UNRAVELING  — Cautious tone, cracks appearing
+  MELTDOWN        — Fearful tone, crisis in full swing
+
+Each arc has:
+  - Date range within historical data
+  - Grade thresholds (S/A/B/C/D) based on portfolio return %
+  - Cash multiplier consequence (good grade = more starting cash)
+  - Tone string that permeates ALL LLM generation
+
+The player doesn't know they're heading into a crisis. The
+newspaper editorial tone shifts gradually. NPC dialogue gets
+more anxious. Casey gets more serious. The learning is: this
+is what it felt like to live through 2008 without hindsight.
+
+
+SLIDE 13: NPC SYSTEM
+----------------------
+Four spawn categories: persistent (route walkers), leyline
+wanderers, commuters (edge-to-edge), pedestrians (one-way route).
+
+Population scales by phase (0.6x/1.0x/0.3x).
+
+Four archetypes with distinct AI voices:
+  - ANALYST: Data-driven, references numbers, explains implications
+  - BROKER: Sentiment-focused, "the street" jargon, opinionated
+  - TRADER: Punchy, gut-feel, price action, colorful language
+  - ANCHOR: Neutral, formal, broadcast tone
+
+Interestingness scoring decides whether to spend LLM tokens:
+  >= 0.5: Generate for all 4 types
+  >= 0.2: Generate for analyst + anchor only
+  < 0.2:  Static fallback barks only
+
+Demo: Walk up to different NPCs, show how their dialogue
+reflects the same market events through different personalities.
+
+
+SLIDE 14: LIVE DEMO
+---------------------
+Walkthrough hitting these beats:
+1. Open trading terminal — show sparse UI (early progression)
+2. Place a trade — trigger a knowledge node unlock
+3. Show the personalized explanation that appears
+4. Read the newspaper — note the arc-appropriate editorial tone
+5. Talk to NPCs — show archetype personality differences
+6. End the day — show Casey's comment on the summary screen
+7. (If time) Show the KG with completed vs locked nodes
+8. (If time) Show progression gates unlocking UI features
+
+
+SLIDE 15: TECHNICAL VALIDATION
+--------------------------------
+What's working:
+  - 36-node knowledge graph with 18 trigger types
+  - Dual-path triggers (negative/positive/time)
+  - 4 independent LLM integrations, all cached, all fail-safe
+  - Server-authoritative architecture (all logic in one place)
+  - Progression gates gradually reveal UI complexity
+  - Real 2007-2009 market data (250 tickers, daily OHLC)
+  - 100+ real historical events feeding newspaper generation
+  - FIFO lot-based portfolio with forced liquidation
+
+Bugs fixed this session:
+  - Week skip stuck state (player locked in CUTSCENE forever)
+  - async void crash risk in first trade handler
+  - CheckConcentration using purchase price instead of market price
+  - SQL parameter bug in NPC quest completion
+
+
+SLIDE 16: FUTURE WORK
+-----------------------
+  - Casey persistent context (remembers player history across days)
+  - Guided spatial tutorial (walk here, open this)
+  - Adaptive day pacing (auto-compress boring days)
+  - Arc-reactive city ambience (lighting/mood shifts)
+  - Classroom deployment (teacher dashboard)
+  - Procedural arcs (any historical period, not just 2007-2009)
+  - User studies measuring learning outcomes
+
+
+SLIDE 17: CONCLUSION
+----------------------
+Hindsight Financial demonstrates that:
+  - A reactive knowledge graph can detect pedagogically relevant
+    moments from natural gameplay behavior
+  - LLM contextualization can transform abstract concepts into
+    personalized, situationally grounded explanations
+  - Dual-path triggers address the failure-bias problem in
+    experiential learning systems
+  - The three-layer architecture (game loop / knowledge graph /
+    LLM contextualization) is modular, testable, and degrades
+    gracefully
+
+The player doesn't study finance — they live through 2008 and
+the system teaches them why what happened to their portfolio matters.

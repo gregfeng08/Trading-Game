@@ -1,348 +1,281 @@
-HINDSIGHT FINANCIAL - THESIS NARRATIVE & FRAMING
-================================================
+hindsight FINANCIAL — THESIS NARRATIVE & FRAMING
+=================================================
 Created: 2026-05-26
-Updated: 2026-05-29
 
 
 UNIFIED THESIS
 --------------
 Static financial education fails because students memorize definitions without
 building intuition. Trading simulators improve on textbooks but remain
-fundamentally static: same lessons, same feedback, same content regardless of
-what the student actually does.
+fundamentally static — same lessons, same feedback, same content regardless of
+what the student actually does. Hindsight Financial bridges this gap by
+combining three mutually reinforcing design pillars:
 
-Hindsight Financial bridges this gap with an adaptive game-based learning loop
-centered on a reactive knowledge graph and reinforced by LLM-generated context.
-The player knowingly relives the 2007-2009 financial crisis, but with one key
-constraint: they know the era, not tomorrow. This preserves historical
-hindsight as a framing device without turning the game into trivia arbitrage.
+  1. GAMIFICATION as the WHY — Embodied experience creates durable memory.
+     A student who lives through the 2008 financial crisis in-game remembers
+     what a flash crash feels like, not just what the textbook says. The arc
+     system, knowledge graph, and day cycle create a Stardew Valley-inspired
+     rhythm that makes learning feel like play.
 
-The thesis contribution is one integrated system with three mutually dependent
-parts:
+  2. LLM-GENERATED CONTENT as the HOW — Dynamic content is what separates
+     this from every other trading sim. The newspaper contextualizes the market
+     conditions the player is actually trading in. NPC dialogue reacts to the
+     player's portfolio and decisions. The adaptive knowledge graph triggers
+     educational content precisely when the player's behavior makes it relevant
+     (e.g., a lesson on stop-losses surfaces after the player experiences a
+     preventable loss). No two players receive the same educational experience.
 
-  1. GAME LOOP as the EXPERIENCE GENERATOR
-     The day cycle, trading terminal, arc system, city hub, and portfolio
-     consequences create lived financial experiences. A student who trades
-     through the 2008 crisis remembers what volatility, overconfidence, and
-     panic feel like, not just what those terms mean.
+  3. SERVER-AUTHORITATIVE ARCHITECTURE as the WHAT MAKES IT POSSIBLE — The
+     server holds trading history, portfolio state, knowledge progress, and
+     market context. This state is what feeds into LLM prompts to generate
+     contextually relevant content. The architecture is not a feature — it is
+     the infrastructure that connects gamification to adaptivity.
 
-  2. REACTIVE KNOWLEDGE GRAPH as the PEDAGOGICAL MECHANISM
-     The graph detects meaningful player behavior and unlocks instruction at
-     the moment it is most relevant. It is the core thesis mechanism: learning
-     is delivered through the player's own decisions.
-
-  3. LLM-GENERATED CONTENT as the CONTEXTUALIZATION LAYER
-     Newspapers, NPC commentary, and adaptive lesson language make the world
-     respond to the player's current market date, portfolio, and recent trades.
-     The LLM layer turns static historical data into situated feedback.
-
-These are not three separate contributions. They are three layers of one loop:
-the game creates experiences, the server records them, the knowledge graph
-classifies them pedagogically, and LLM content makes them legible inside the
-world.
+These are not three separate contributions. They are three layers of one
+system: the game creates experiences, the server tracks them, and the LLM
+makes them pedagogically meaningful.
 
 
 WORKING TITLE
 -------------
-"Hindsight Financial: An Adaptive Game-Based Trading Simulation for
- Experiential Financial Literacy"
+"Adaptive Experience-Driven Financial Education Through Game-Based Learning
+ and Generative AI"
 
 Alternative titles:
-- "Learning Through Hindsight: Reactive Knowledge Graphs and Generative AI in
-   Financial Education"
-- "Adaptive Experience-Driven Financial Education Through Historical Market
-   Replay"
-- "Trading Through History: A Generative AI-Enhanced Simulation for Financial
-   Literacy"
+- "hindsight Financial: A Generative AI-Enhanced Trading Simulation for
+   Experiential Financial Literacy"
+- "Learning by Trading: Reactive Knowledge Graphs and LLM-Generated Content
+   in Game-Based Financial Education"
 
 
 THE CENTRAL CONTRIBUTION
 ------------------------
 The reactive knowledge graph is the thesis's crown jewel. It is the mechanism
-by which gameplay, adaptivity, and instruction converge.
+by which gamification and LLM adaptivity converge:
 
   - Traditional approach: Student reads Chapter 5 on risk management after
     finishing Chapter 4. Linear. Context-free. Forgettable.
 
-  - Hindsight approach: Student over-concentrates their portfolio in one stock.
+  - hindsight approach: Student over-concentrates their portfolio in one stock.
     The knowledge graph detects this via the "portfolio_concentration" trigger.
     A node on diversification unlocks. The content explains exactly what the
     player did and why it matters. The lesson arrives at the moment of maximum
     relevance.
 
-This is constructivist learning operationalized through game mechanics: the
-student constructs understanding from their own actions, and the system ensures
-the right scaffolding appears when that action has made the concept meaningful.
+This is constructivist learning (Piaget) operationalized through game
+mechanics — the student constructs understanding from their own experience,
+and the system ensures the right scaffolding appears at the right time.
 
-The behavioral triggers currently implemented include:
-  - trade_count               (trading activity threshold)
-  - held_stock_daily_change   (experiencing price movement)
-  - portfolio_concentration   (over-allocation risk)
-  - first_profitable_sell     (experiencing profit)
-  - first_losing_sell         (experiencing loss)
+The 11 behavioral triggers currently implemented:
+  - trade_count              (trading activity threshold)
+  - held_stock_daily_change  (experiencing price movement)
+  - portfolio_concentration  (over-allocation risk)
+  - first_profitable_sell    (experiencing profit)
+  - first_losing_sell        (experiencing loss)
   - same_ticker_multiple_buys (averaging down/up behavior)
-  - unrealized_gain_pct       (paper gains awareness)
-  - unrealized_loss_pct       (deep unrealized loss)
-  - bought_after_decline      (buy-the-dip behavior)
-  - low_cash_ratio            (cash management)
-  - market_wide_decline       (systemic risk exposure)
-  - traded_both_phases        (market timing awareness)
-  - held_overnight_gap        (overnight gap risk)
+  - unrealized_gain_pct      (paper gains awareness)
+  - bought_after_decline     (buy-the-dip behavior)
+  - low_cash_ratio           (cash management)
+  - market_wide_decline      (systemic risk exposure)
+  - traded_both_phases       (market timing awareness)
 
 Each trigger maps to a real pedagogical moment. This is not gamification for
-engagement alone. It is gameplay as curriculum delivery.
-
-DUAL-PATH TRIGGERS (DESIGNED, NOT YET IMPLEMENTED)
-The current triggers assume failure as the entry point for learning. But what
-if the player does well? What if they diversify from day one? The system should
-recognize both failure and success as pedagogical moments.
-
-Each adaptive node would support three trigger paths:
-  - NEGATIVE: Current failure-based triggers (e.g., concentration > 80%)
-  - POSITIVE: Success-based triggers (e.g., maintained diversification across
-    4+ stocks for N days, kept cash reserves above 20% for N days)
-  - TIME-BASED: Fallback unlock after N trading days to ensure curriculum
-    completeness regardless of player behavior
-
-Same node, same concept, different trigger_explanation and personalized
-content. The negative path says "You concentrated 82% in NVDA — here's why
-diversification matters." The positive path says "You've maintained a balanced
-portfolio across 4 sectors — here's the principle behind what you're already
-doing." The time-based path ensures no concept is permanently locked behind
-a behavior the player may never exhibit.
-
-This addresses a pedagogical gap: the system should teach through both
-corrective feedback (you made a mistake, here's why) and reinforcement
-(you're doing well, here's why that works). The architecture supports this
-without changes to PlayerContextService — it already provides the raw data
-that all three paths would evaluate against.
-
-
-UNIFIED PLAYER CONTEXT (IMPLEMENTED 2026-05-31)
-The three thesis layers (game loop, knowledge graph, LLM content) are connected
-through PlayerContextService — a unified snapshot of the player's trading
-behavior, portfolio state, and learning progress. This is the connective tissue
-that makes "one loop" real rather than aspirational.
-
-Each LLM consumer draws from the same canonical profile:
-  - NPC dialogue fact sheets include PLAYER KNOWLEDGE section
-  - DynamicNodeContentService generates personalized node explanations
-    referencing the player's actual trades and portfolio
-  - Newspaper player sidebar cross-references holdings with market movers
-
-The service assembles raw data blocks (market snapshot, portfolio, trades,
-knowledge state, arc info). Each consumer selects and formats what it needs.
-The service does not know about NPC personalities or newspaper editorial
-tone — it provides the data layer.
-
-
-WHY HISTORICAL HINDSIGHT WORKS
-------------------------------
-The player knows they are entering 2007-2009. That knowledge is part of the
-fiction and the learning design. The point is not to test whether the player
-remembers exact dates; the point is to show that broad historical knowledge is
-not the same as disciplined decision-making.
-
-The player may know that a crisis is coming, but they still face uncertainty:
-  - Which stocks are vulnerable today?
-  - How much cash should be kept in reserve?
-  - When is a dip an opportunity versus a trap?
-  - How long can the player stay rational while prices move against them?
-  - Does knowing the ending prevent emotional mistakes?
-
-This turns hindsight into the game's central tension. The player has the
-advantage of era-level knowledge, but the game teaches that investing still
-requires process, risk management, and self-control.
+engagement — it is gamification as curriculum delivery.
 
 
 HOW THE LLM LAYER REINFORCES THIS
----------------------------------
+----------------------------------
 The LLM-generated content serves three functions:
 
   1. NEWSPAPER ("The Market Tribune")
-     - Generated per game-day using Claude API.
-     - Prompt context includes arc tone, real historical events near the date,
-       market movers, and available player context.
-     - Purpose: present-tense historical immersion. The player reads the day
-       as it would have felt then, not as a retrospective summary.
+     - Generated per game-day using Claude API
+     - System prompt includes: arc narrative tone, real historical events for
+       the date, market movers (top gainers/losers), player's portfolio context
+     - Output: headline + articles that contextualize the market the player is
+       trading in
+     - Purpose: Immersion. The player reads a newspaper that describes the
+       world they are living in, not a static flavor text blob. This makes
+       historical market events feel present-tense and personal.
 
   2. NPC DIALOGUE
-     - Generated or selected based on current phase, recent trades, portfolio
-       state, market conditions, and NPC personality type.
-     - Analyst, broker, trader, and anchor archetypes provide conflicting
-       interpretations of the same market.
-     - Purpose: model the real information environment, where investors must
-       synthesize partial, biased, and emotionally charged perspectives.
+     - Dynamic dialogue generated based on: current phase, player's recent
+       trades, portfolio state, market conditions, NPC personality type
+       (analyst, broker, trader, anchor)
+     - Four personality archetypes produce different perspectives on the same
+       market events
+     - Purpose: Multiple viewpoints. A student hears a bullish broker and a
+       cautious analyst react to the same crash differently. This models the
+       real-world information environment where investors must synthesize
+       conflicting opinions.
 
   3. ADAPTIVE KNOWLEDGE CONTENT
-     - When a behavioral trigger fires, the unlocked node can explain the
-       player's action in context.
-     - Purpose: personalized instruction. The system does not merely say
-       "diversification matters"; it can connect that idea to the player's
-       concentrated position and its consequences.
+     - When a behavioral trigger fires, the unlocked node's content can
+       reference what the player actually did
+     - Purpose: Personalized instruction. The system doesn't just say
+       "diversification is important" — it says "you had 80% of your portfolio
+       in one stock when it dropped 12%."
 
 
-NARRATIVE PREMISE
------------------
-Hindsight Financial is a real institution built around historical market
-replay. It trains new analysts by placing them inside reconstructed financial
-periods and evaluating how they act under uncertainty.
-
-The player knows they are entering a 2007-2009 training cycle. Hindsight does
-not hide the historical era. Instead, it insists that knowing the broad ending
-will not save the player from bad process.
-
-Core institutional line:
-  "You know how this ends. That will not help you as much as you think."
-
-The city is a real Hindsight district/campus: offices, terminals, market media,
-employees, trainees, and public spaces all orbit the institution's training
-mission. The uncanny quality comes from how calmly the institution treats
-historical crisis as curriculum.
-
-
-NARRATIVE FLOW FOR DEMO
------------------------
-The demo should walk through one complete game day to show the integrated
-adaptive learning loop:
+NARRATIVE FLOW FOR DEMO (June 2)
+---------------------------------
+The demo should walk through one complete game day to show all three pillars
+in action:
 
   1. PRE-MARKET PHASE
-     - Player is in the Room or Hindsight training floor.
-     - Show the current arc/date and establish that this is a historical
-       replay of 2007-2009.
-     - Read the newspaper for today's date.
-     - Queue a buy order and show it in the pending queue.
-     - Talking point: "The player knows the era, but not the day's outcome.
-       The newspaper reconstructs the market's present-tense information
-       environment."
+     - Player is in the Room. Walk to terminal.
+     - Show the newspaper for today's date (LLM-generated, contextual).
+     - Queue a buy order. Show the order in the pending queue.
+     - Talking point: "The newspaper is generated by Claude API using real
+       historical events and the player's portfolio context."
 
   2. DAY PHASE
-     - Transition to City. Timer counts down.
-     - NPCs move through the Hindsight district.
-     - Walk near an NPC and show contextual dialogue about market conditions.
-     - Visit the knowledge graph terminal.
-     - Talking point: "The city is not just scenery. It is an information
-       environment around the player's trading behavior."
+     - Transition to City. Timer counting down.
+     - NPCs walking around (leyline pathfinding).
+     - Walk near an NPC — show dynamic dialogue about market conditions.
+     - Visit the knowledge graph terminal. Show current state: some locked,
+       some unlocked, some completed.
+     - Talking point: "Every element in this city responds to the player's
+       trading behavior and the current market context."
 
   3. POST-MARKET PHASE
      - Timer expires or player returns to Room.
-     - Daily summary overlay shows trades, P&L, movers, and portfolio state.
-     - Player can queue and confirm orders at the close price.
-     - A knowledge graph trigger fires.
-     - Open the graph and show the newly unlocked node.
+     - Daily summary overlay: trades executed, P&L, market movers.
+     - A knowledge graph trigger fires (e.g., first_profitable_sell after
+       a winning trade). Notification appears.
+     - Open knowledge graph — show the newly unlocked node with contextual
+       content.
      - Talking point: "The system detected what the player experienced and
-       surfaced the relevant educational content at that moment."
+       surfaced the relevant educational content at that exact moment."
 
   4. ARC CONTEXT
-     - Show current arc, days remaining, return, and projected grade.
-     - Explain that arc performance affects starting capital in later arcs.
-     - Talking point: "The arc system turns historical market periods into
-       staged learning conditions: confidence, uncertainty, panic, survival."
+     - Show the DayCycleHUD: current arc, days remaining, projected grade.
+     - Briefly explain arc grading and cash multiplier consequences.
+     - Talking point: "Arcs create narrative progression and stakes. A D grade
+       in the bull market means starting the crisis arc with less capital."
 
 
-PRESENTATION STRUCTURE
-----------------------
-Suggested slide structure:
+NARRATIVE FLOW FOR PRESENTATION (June 9)
+-----------------------------------------
+Suggested slide structure (~15-20 slides, 15-20 minutes):
 
-  Slide 1:  Title - Hindsight Financial
-  Slide 2:  Problem - financial literacy education lacks experiential retention
-  Slide 3:  Thesis - adaptive game-based learning loop
-  Slide 4:  Contribution - game loop + reactive graph + LLM context
-  Slide 5:  Why historical hindsight is useful but insufficient
-  Slide 6:  System architecture - Unity, ASP.NET API, SQLite, Claude API
-  Slide 7:  Game loop - Pre-Market / Day / Post-Market
-  Slide 8:  Arc system - Bull Market / The Unraveling / Meltdown
-  Slide 9:  Reactive knowledge graph - node types and prerequisites
-  Slide 10: Behavioral triggers - concrete trigger-to-lesson examples
-  Slide 11: LLM newspaper pipeline
-  Slide 12: LLM NPC dialogue pipeline
-  Slide 13: Demo walkthrough
-  Slide 14: Implementation decisions - server authority, historical data, SQLite
-  Slide 15: Limitations - no user study, limited content, single-player
-  Slide 16: Future work - classroom dashboard, studies, procedural arcs
-  Slide 17: Conclusion
+  Slide 1:  Title slide
+  Slide 2:  Problem — "Financial literacy education has a retention problem"
+            Stats on financial literacy gaps, limitations of static curricula
+  Slide 3:  Thesis statement — the three-layer stack
+  Slide 4:  Related work — game-based learning (Gee, Squire), adaptive
+            systems, LLMs in education
+  Slide 5:  System architecture diagram — Unity client, ASP.NET API, SQLite,
+            Claude API. Show data flow arrows.
+  Slide 6:  The game loop — Pre-Market / Day / Post-Market cycle diagram
+  Slide 7:  Arc system — seasonal progression, grading, consequences
+  Slide 8:  Knowledge graph design — node types, prerequisite chains,
+            behavioral triggers
+  Slide 9:  Adaptive trigger examples — show 2-3 specific trigger-to-lesson
+            mappings with before/after screenshots
+  Slide 10: LLM newspaper pipeline — game state -> prompt -> Claude API ->
+            rendered newspaper
+  Slide 11: LLM NPC dialogue — personality archetypes, contextual generation
+  Slide 12: Demo video or live walkthrough (3-5 minutes)
+  Slide 13: Development methodology — AI-assisted development with Claude
+            Code, solo developer building multi-system architecture
+  Slide 14: Technical decisions — why server-authoritative, why SQLite,
+            why historical data over simulated
+  Slide 15: Limitations — no user study, single-player, limited arc content
+  Slide 16: Future work — classroom deployment, professor dashboard,
+            user studies, procedural arcs
+  Slide 17: Conclusion — restate thesis, summarize contribution
   Slide 18: Questions
 
 
-PAPER STRUCTURE
----------------
-ABSTRACT
-- Problem: static financial education lacks experiential engagement.
-- Approach: historical trading sim with reactive knowledge graph and LLM
-  contextualization.
-- Contribution: an adaptive game-based learning loop that delivers instruction
-  based on player behavior.
+PAPER STRUCTURE (ACM SIG FORMAT, ~10-12 pages)
+-----------------------------------------------
 
-1. INTRODUCTION
-- Financial literacy gap.
-- Limits of textbooks and static trading simulators.
-- Hindsight Financial premise.
-- Contribution summary.
+  ABSTRACT (~150 words)
+  - Problem: static financial education lacks experiential engagement
+  - Approach: game-based trading sim with reactive knowledge graph + LLM
+  - Key result: system that adapts educational content to player behavior
 
-2. RELATED WORK
-- Game-based learning and situated cognition.
-- Adaptive learning systems and knowledge tracing.
-- LLMs in education.
-- Financial literacy tools and trading simulators.
-- Knowledge graphs in pedagogy.
+  1. INTRODUCTION (~1.5 pages)
+  - Financial literacy gap statistics
+  - Limitations of current approaches (textbooks, static sims)
+  - Thesis statement and contribution summary
+  - Paper organization
 
-3. SYSTEM DESIGN
-- Design philosophy: learning is produced by play.
-- Historical hindsight as a design constraint.
-- Three-part contribution: game loop, reactive graph, LLM context.
-- Arc system and day cycle.
-- City as information environment.
+  2. RELATED WORK (~2 pages)
+  - 2.1 Game-based learning theory (Gee's situated cognition, Squire's
+    epistemic games, Prensky's digital game-based learning)
+  - 2.2 Adaptive and personalized learning systems (ITS, knowledge tracing)
+  - 2.3 LLMs in education (tutoring, content generation, assessment)
+  - 2.4 Financial literacy tools and trading simulators
+  - 2.5 Knowledge graphs in pedagogy
 
-4. IMPLEMENTATION
-- Unity client, ASP.NET Core API, SQLite, Claude API.
-- Server-authoritative state.
-- Trading engine and order pipeline.
-- Knowledge graph trigger evaluation.
-- PlayerContextService: unified player profiling as the connective tissue
-  between game loop, knowledge graph, and LLM content generation.
-- DynamicNodeContentService: personalized knowledge explanations generated
-  on trigger, referencing the player's actual portfolio and trades.
-- LLM generation, caching, and fallback strategies.
+  3. SYSTEM DESIGN (~3 pages)
+  - 3.1 Design philosophy — learning IS the gameplay, not a layer on top
+  - 3.2 Three-layer architecture (gamification / LLM adaptivity / server)
+  - 3.3 Reactive knowledge graph — node types, triggers, prerequisite chains
+  - 3.4 LLM content pipeline — newspaper, NPC dialogue, contextual prompts
+  - 3.5 Game loop and arc system — day phases, seasonal progression, grading
 
-5. DISCUSSION
-- Adaptive triggers versus linear curriculum.
-- Failure-biased vs dual-path triggers: current system assumes failure as
-  entry point for learning. Designed extension supports positive triggers
-  (recognizing good behavior) and time-based fallbacks (curriculum
-  completeness). Same architecture, different trigger descriptions.
-- Hindsight as advantage and trap.
-- LLM reliability and factual grounding.
-- Server authority and academic integrity.
-- Pacing tension: historical fidelity vs player time. 148 trading days
-  at 5 minutes each exceeds reasonable session length. Weekend review
-  (compressed weekly summaries) and adaptive day pacing (interestingness-
-  driven compression) as designed solutions.
-- AI-assisted development methodology.
+  4. IMPLEMENTATION (~2 pages)
+  - 4.1 Technology stack — Unity 6, ASP.NET Core 10, SQLite, Claude API
+  - 4.2 Server-authoritative state management — why and how
+  - 4.3 Trading engine — FIFO lots, ACID transactions, order pipeline
+  - 4.4 LLM integration — prompt engineering, caching, rendering
+  - 4.5 Development methodology — AI-assisted development with Claude Code
 
-6. LIMITATIONS AND FUTURE WORK
-- No formal user study yet.
-- Single-player prototype.
-- Limited historical period and limited authored narrative.
-- Triggers are currently failure-biased; dual-path (positive/negative/time)
-  triggers designed but not implemented.
-- No skip-week or adaptive pacing; each day requires full play-through.
-- Ticker symbols use modern names (GOOGL not GOOG); prices are correct but
-  display names break period immersion. Fixable via a small override table.
-- Future classroom dashboard, multi-student deployment, learning outcome
-  measurement, procedural historical arcs.
+  5. DISCUSSION (~1.5 pages)
+  - 5.1 Adaptive triggers vs. linear curricula — design tradeoffs
+  - 5.2 LLM reliability and content quality considerations
+  - 5.3 Server authority for academic integrity
+  - 5.4 The meta-observation: AI-built AI-education
 
-7. CONCLUSION
-- Hindsight Financial demonstrates how a trading game can turn player behavior
-  into teachable moments through a reactive knowledge graph and contextual LLM
-  feedback.
+  6. LIMITATIONS AND FUTURE WORK (~1 page)
+  - No formal user study (planned future work)
+  - Single-player only; classroom deployment architecture designed but not
+    built
+  - Limited to 2007-2009 historical period
+  - Future: professor dashboard, multi-student auth, procedural arcs,
+    learning outcome measurement, mobile/web client
+
+  7. CONCLUSION (~0.5 page)
+  - Restate contribution
+  - The intersection of game design, adaptive learning, and generative AI
+    is underexplored; this system demonstrates one approach
+
+
+KEY REFERENCES TO FIND
+-----------------------
+Game-based learning:
+  - Gee, J.P. (2003). What Video Games Have to Teach Us About Learning
+  - Squire, K. (2011). Video Games and Learning
+  - Prensky, M. (2001). Digital Game-Based Learning
+
+Adaptive learning:
+  - VanLehn, K. (2011). The Relative Effectiveness of Human Tutoring,
+    Intelligent Tutoring Systems, and Other Tutoring Systems
+  - Corbett, A. & Anderson, J. (1994). Knowledge Tracing
+
+LLMs in education:
+  - Kasneci et al. (2023). ChatGPT for Good? On Opportunities and Challenges
+    of LLMs in Education
+  - Baidoo-Anu & Owusu Ansah (2023). Education in the Era of Generative AI
+
+Financial literacy:
+  - Lusardi, A. & Mitchell, O. (2014). The Economic Importance of Financial
+    Literacy
+  - Huang, Hsu & Chen (2015). Gamification in financial literacy education
+
+Knowledge graphs:
+  - Ehrlinger & Woess (2016). Towards a Definition of Knowledge Graphs
+  - Chen et al. (2018). Knowledge Graph-Based Education
 
 
 WHY THIS MATTERS
-----------------
-The argument is not simply "games are better than textbooks." The stronger
-argument is: "What happens when a game creates financial experiences, a
-knowledge graph identifies their pedagogical meaning, and generative AI
-contextualizes them inside a responsive world?"
-
-Hindsight Financial sits at that intersection. The game creates the experience.
-The knowledge graph decides why it matters. The LLM helps the experience teach.
+-----------------
+The argument is not "games are better than textbooks" — that's been made.
+The argument is: "What happens when you combine game-based experiential
+learning with generative AI that makes every experience pedagogically
+unique?" That intersection is underexplored. Most educational games have
+static content. Most LLM education tools lack embodied experience. hindsight
+Financial sits at the intersection: the game creates the experience, and the
+AI makes the experience teach.

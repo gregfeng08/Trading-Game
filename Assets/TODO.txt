@@ -1,0 +1,247 @@
+HINDSIGHT FINANCIAL — CENTRALIZED TODO
+Last updated: 2026-06-08
+======================================
+
+Legend:
+  [x] Done
+  [!] Demo-critical — must verify/fix before June 10
+  [ ] Not started
+  [-] In progress / partially done
+  [~] Deferred / shelved
+
+
+══════════════════════════════════════
+  DEMO CRITICAL (June 10 — 2 days)
+══════════════════════════════════════
+
+Golden path must be bulletproof:
+  Main Menu → New Game → Onboarding/Tutorial → Room → City →
+  Trading Terminal → Trade → Knowledge trigger fires →
+  Completion overlay with personalized content → NPC references
+  player state → Arc grade display
+
+[!] End-to-end playtest of golden path after recent tutorial/KG fixes
+[!] Verify ANTHROPIC_API_KEY is set in environment — without it, no
+    dynamic content, Casey comments, or NPC dialogue (graceful fallback
+    to static content exists, but demo loses its thesis moment)
+[!] API error UX in PostMarket order flow — ConfirmPostMarketOrders()
+    in GamePhaseManager iterates orders without per-order error handling;
+    if one trade API call fails mid-loop, it silently fails with no
+    player-facing feedback. Trades vanish without explanation.
+[!] Week skip failure leaves player stuck — if AdvanceWeek() fails in
+    DailySummaryOverlay, player is locked in CUTSCENE state with overlay
+    dismissed. Needs finally-block state restore.
+[!] Casey comment fetch timeout — DailySummaryOverlay fire-and-forgets
+    FetchCaseyCommentAsync; if API times out, Casey section stays empty
+    during a key story moment. Needs timeout + fallback text.
+[!] Shift+F9 debug hotkey — KnowledgeGraphManager.Update() has
+    LeftShift+F9 completing ALL nodes instantly. Could accidentally
+    trigger during demo. Disable or gate behind #if UNITY_EDITOR.
+[!] Recorded backup demo video (in case of live demo issues)
+[-] Tutorial spatial polish — tutorial tells player what to do but
+    doesn't show where to go. No waypoints or arrows. Another agent
+    is actively improving this.
+
+
+══════════════════════════════════════
+  CORE SYSTEMS
+══════════════════════════════════════
+
+[x] Three-phase day cycle (Pre-Market / Day / Post-Market)
+[x] Server-authoritative trade execution (market orders)
+[x] FIFO lot-based portfolio system
+[x] Knowledge graph — 36 nodes across 8 categories, 18 trigger evaluators
+[x] Dual-path triggers (negative / positive / time fallback) — 3 nodes
+    (diversification, first_loss, cash_management) have multi-path triggers;
+    first-wins evaluation against frontier nodes only
+[x] Progression gates — 10 gates mapping node completion to UI features
+    (net worth, candlesticks, price change, wicks, cost basis, portfolio
+    chart, limit orders, extended arc info, cash breakdown, all timeframes)
+[x] Arc system (Bull Market / Unraveling / Meltdown) with grading
+[x] Day advance with forced liquidation of delisted tickers
+[x] Week skip with compressed daily summaries (WeekReviewOverlay)
+[x] Daily summary overlay with staggered reveal + Casey AI comment
+[x] Arc transition overlay with grade display + arc intro/objectives
+[x] Player event recording (newspaper_read, npc_interaction)
+[x] Limit/stop/stop-limit orders — full pipeline: UI dropdown with 4
+    order types, price input, GamePhaseManager queue, backend OHLC-based
+    fill logic. Gated behind limit_buy_sell knowledge node.
+[x] NewGame resets all per-game state — portfolio, trades, orders, arcs,
+    newspaper, dialogue, knowledge_node_progress, player_events,
+    dynamic_node_content, npc_quest_progress, casey_daily_comments
+
+
+══════════════════════════════════════
+  LLM / AI CONTENT
+══════════════════════════════════════
+
+[x] Dynamic node content — personalized explanations via Claude API on
+    KG unlock, cached in dynamic_node_content table, static fallback
+[x] NPC dialogue generation — 4 archetypes with interestingness scoring,
+    player knowledge section in fact sheets
+[x] Newspaper generation — daily AI newspaper with arc tone, 52 real
+    historical events, player portfolio sidebar (deterministic)
+[x] Casey daily comment — 1-2 sentence mentor feedback at end of day,
+    cached per (entity, date), graceful fallback if API unavailable
+[~] Casey persistent context profile — accumulate notable moments across
+    days into Casey's prompt for continuity. Shelved; post-defense.
+[~] Casey personalization tiers — per-node hint (high/low) controlling
+    trade-specificity of dynamic content. Shelved; post-defense.
+[~] Adaptive day pacing — low-interestingness days auto-compress.
+    Interestingness scoring exists in NpcDialogueService. Post-defense.
+
+
+══════════════════════════════════════
+  NPC SYSTEM
+══════════════════════════════════════
+
+[x] NPC spawner with 4 categories (persistent, leyline, commuter, pedestrian)
+[x] Phase-based population scaling (0.6x / 1.0x / 0.3x)
+[x] Archetype-based barks (analyst, broker, trader, anchor)
+[x] NPCBark proximity speech bubbles with hint dots
+[x] NPCInteraction — click to open dialogue UI (4 types: analyst, broker,
+    trader, historian)
+[x] NPCDialogueUI — displays dialogue line + records npc_interaction event
+[~] NPC quest system — backend tables + endpoints exist, frontend not
+    built. Deferred.
+[~] Named recurring NPCs — currently random spawns, no persistent
+    characters. Post-defense.
+
+
+══════════════════════════════════════
+  ONBOARDING / TUTORIAL
+══════════════════════════════════════
+
+[x] TutorialController — 5-step guided flow:
+    1. Narrative intro (Casey explains Hindsight, 2007 setting)
+    2. Knowledge graph step (player manually completes foundational node)
+    3. First trade tutorial (TutorialMode guides stock pick → qty → buy)
+    4. Adaptive node reveal (shows newly unlocked adaptive nodes)
+    5. Closing (Casey explains arcs, seasons, transitions to Room)
+[x] First trade guidance in TradingUI (TutorialMode=true, hints at AAPL
+    qty=10, Casey messages for invalid actions)
+[x] First trade completion — only completes market_buy_sell node (not
+    the prerequisite chain; player must manually complete foundational
+    nodes in the KG step)
+[-] Spatial guidance — tutorial tells player what to do but doesn't show
+    where to go. No waypoints, arrows, or "walk here" prompts. In
+    progress — another agent working on improvements.
+[~] Principal briefing scene — narrative scene establishing the 2007
+    premise. Design TBD. Post-defense.
+
+
+══════════════════════════════════════
+  KNOWLEDGE GRAPH UI
+══════════════════════════════════════
+
+[x] Pannable/zoomable interactive graph viewer with color-coded nodes
+[x] Detail sidebar with category label, content, reward display
+[x] Centered completion overlay — modal appears on "Complete" action,
+    shows full lesson content (trigger explanation, correct action,
+    description, feature unlock info) before marking node done.
+    ScrollRect for long content, "Got it" button, Escape to dismiss
+    without completing. Keyboard shortcuts (Enter/Space).
+[x] Casey's Take — "What happened?" button for adaptive nodes fetches
+    LLM-personalized content, routes through completion overlay
+[x] Objectives HUD integration — high-priority unlocks appear in side
+    objectives panel with highlight animation
+
+
+══════════════════════════════════════
+  UI / POLISH
+══════════════════════════════════════
+
+[x] DayCycleHUD — date, phase, timer, arc info
+[x] ExhaustionOverlay — fade-in message when day timer expires
+[x] PlayerObjectivesUI — side panel tracking objectives with event hooks
+    to KnowledgeGraphManager, auto-adds high-priority unlocks
+[x] OptionsMenuUI — pause menu with resume/main menu (Escape key)
+[x] AdaptationHistoryUI — tab-toggleable history panel (Tab key) with
+    active insights / completed sections, rich text formatting
+[x] NewspaperUI — scrollable newspaper image viewer with caching +
+    read event recording
+[x] WeekReviewOverlay — weekly net worth breakdown with daily summaries
+[x] Minimap — MinimapController wired in Player UI Canvas prefab with
+    orthographic camera, RenderTexture, player icon. Auto-initializes
+    missing references at runtime.
+[x] Missing textures — Ocean_Floor material and cloud prefab GUIDs fixed
+[x] Ticker symbol historical mapping — resolved
+
+
+══════════════════════════════════════
+  CODE QUALITY / ROBUSTNESS
+══════════════════════════════════════
+
+[x] CheckConcentration uses current market price (was using purchase price)
+[x] Week skip stuck state — RunWeekSkip passes restore callback
+[x] async void HandleFirstTradeCompletion — changed to async Task
+[x] @nid parameter bug in CompleteNpcQuest — added AddWithValue
+[x] HandleFirstTradeCompletion no longer auto-completes prerequisite chain
+[x] OnOpenMarkets no longer redundantly completes market_buy_sell
+[x] NewGame resets knowledge_node_progress (was missing from table list)
+[x] ArcTransitionOverlay smart quote contamination fixed
+[ ] NewspaperAPI creates its own HttpClient instead of reusing APIClient
+    (minor; functional but inconsistent)
+[ ] No HttpClient timeout configured on APIClient (relies on .NET default
+    100s). Could cause long hangs if backend is slow.
+[ ] ShowFullTickerUniverse progression gate wired to "diversification"
+    node but no UI reads it. Marked "kept for future" in code.
+[ ] CloseMarketsAndGoHome doesn't null-check SceneTransitionManager.Inst
+    before use — NullReferenceException if scene manager destroyed
+[ ] TradingUIController LoadInitialData() fire-and-forget — if market
+    data fails to load, status shows error but player can still trade
+    on stale/empty data. No data-validity gate on Buy/Sell buttons.
+[ ] MainMenuController bootstrap retry has no max count or timeout
+    indicator — presenter could sit in "Connecting..." indefinitely
+    with no feedback on what's wrong
+[ ] TradingUIController ~1,771 LOC — could split into sub-controllers.
+    Low priority unless extending.
+
+
+══════════════════════════════════════
+  PRESENTATION (June 10)
+══════════════════════════════════════
+
+[ ] 15-20 slides following structure in thesis_narrative.txt
+[ ] Architecture diagrams (reusable in paper)
+[ ] Recorded backup demo video
+
+
+══════════════════════════════════════
+  PAPER (post-presentation)
+══════════════════════════════════════
+
+[ ] ACM SIG format, ~10-12 pages
+[ ] See thesis_narrative.txt for full paper outline
+[ ] Claude Code methodology section
+
+
+══════════════════════════════════════
+  POST-DEFENSE / FUTURE WORK
+══════════════════════════════════════
+
+[ ] Classroom deployment — teacher dashboard, per-student progress
+[ ] Procedural arcs — generate from any historical period
+[ ] Mobile/web client — backend is REST-ready
+[ ] User studies measuring learning outcomes
+[ ] Hypertext glossary — inline term definitions (HCI audit TODO)
+[ ] Mock tutorial data layer — tutorial should run off fake price feed
+    and fake cash display with no backend writes, eliminating the
+    cleanup endpoint and state-reset bugs. Thin ITradeDataSource
+    abstraction that TradingUIController swaps in TutorialMode.
+[ ] Recurring Casey beyond onboarding — in-world Casey NPC during gameplay
+[ ] Arc-reactive city ambience — lighting/skybox/NPC mood by arc
+[ ] Final cycle review — grades process as well as return %
+
+
+══════════════════════════════════════
+  SYSTEM INVENTORY (updated 2026-06-08)
+══════════════════════════════════════
+
+~70 C# scripts (Unity), 55 API endpoints (11 endpoint groups),
+16 DB tables, 36 knowledge nodes, 18 trigger evaluators, 10 progression
+gates, 4 NPC archetypes, 3 story arcs, 5 scenes.
+
+Backend: ASP.NET Core (.NET 10), SQLite (WAL), Claude API (Anthropic SDK).
+Frontend: Unity 6 (URP, new Input System).
+Backend repo: C:\Users\gregf\OneDrive\Desktop\VSCode\Trading-Game\Trading-Game-DOTNET

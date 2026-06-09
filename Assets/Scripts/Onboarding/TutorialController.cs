@@ -54,15 +54,15 @@ public class TutorialController : MonoBehaviour
 
     private static readonly DialogueLine[] TradingIntro =
     {
-        new("Casey", "Nice work. Now let's put that knowledge to use."),
-        new("Casey", "I'm opening the trading terminal. Pick a stock, set how many shares you want, and hit Buy. Then hit Confirm Trades to send it to the market."),
+        new("Casey", "Nice work. Now let's do a practice trade so you know how the terminal works."),
+        new("Casey", "This one's just a demo — it won't affect your portfolio. Pick a stock, set how many shares you want, and hit Buy. Then hit Confirm Trades."),
     };
 
     private static readonly DialogueLine[] AdaptiveTriggered =
     {
         new("Casey", "Wait — did you see that? Your Knowledge Graph just updated."),
         new("Casey", "Your trade just triggered an adaptive node. See the orange one? Those unlock based on what you actually do in the market."),
-        new("Casey", "Let me open the graph. Click the orange node and try \"Casey's Take\" — that's where I break down what just happened. Close the graph when you're done."),
+        new("Casey", "Let me open the graph. Click the orange node and hit \"What Happened?\" — that's where I break down what just happened. Close the graph when you're done."),
     };
 
     private static readonly DialogueLine[] AdaptiveCompleted =
@@ -385,17 +385,14 @@ public class TutorialController : MonoBehaviour
 
         yield return new WaitUntil(() => tradingUI.TutorialTradeConfirmed || skipRequested);
 
-        // Record tutorial_first_trade event — triggers market_buy_sell adaptive node unlock
-        if (KnowledgeGraphManager.Inst != null)
-        {
-            var task = RecordFirstTradeEvent();
-            yield return new WaitUntil(() => task.IsCompleted);
-        }
-
-        yield return new WaitForSeconds(0.5f);
-
         tradingUI.Close();
         tradingUI.TutorialMode = false;
+
+        // Fire-and-forget: record event and refresh graph without blocking UI
+        if (KnowledgeGraphManager.Inst != null)
+            _ = RecordFirstTradeEvent();
+
+        yield return new WaitForSeconds(0.3f);
 
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.SetState(PlayerState.CUTSCENE);

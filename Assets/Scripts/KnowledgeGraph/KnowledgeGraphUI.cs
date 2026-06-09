@@ -986,7 +986,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         labelRT.offsetMin = Vector2.zero;
         labelRT.offsetMax = Vector2.zero;
         var label = labelGO.AddComponent<TextMeshProUGUI>();
-        label.text = "Casey's Take";
+        label.text = "What Happened?";
         label.fontSize = UIConfig.Inst != null ? UIConfig.Inst.Scale(UIConfig.Inst.caseyButtonSize) : 16f;
         label.alignment = TextAlignmentOptions.Center;
         label.color = new Color(0.4f, 0.85f, 0.7f);
@@ -1087,54 +1087,50 @@ public class KnowledgeGraphUI : MonoBehaviour
         if (selectedNode == null) return;
         int entityId = APIBootstrapper.EntityDbId;
 
-        bool isUnlocked = selectedNode.status == "unlocked";
+        // Build static content immediately
+        var staticBody = BuildUnlockedContent(selectedNode);
+        string loadingBody = staticBody
+            + "\n\n<color=#555555>─────────────────────────</color>"
+            + "\n<color=#4AD9A4><b>Casey's Take</b></color>\n<color=#888888>Loading...</color>";
 
-        ShowCompletionOverlay(selectedNode, "<color=#4AD9A4><b>Casey's Take</b></color>\n\nThinking...");
-        if (completionGotItButton != null)
-            completionGotItButton.interactable = false;
-
-        string body;
+        ShowCompletionOverlay(selectedNode, loadingBody);
 
         if (entityId <= 0 || selectedNode.type != "adaptive")
         {
-            body = BuildUnlockedContent(selectedNode);
-        }
-        else
-        {
-            try
-            {
-                var resp = await KnowledgeGraphAPI.GetNodeContent(entityId, selectedNode.id);
-                var content = resp != null && !string.IsNullOrEmpty(resp.content)
-                    ? resp.content
-                    : selectedNode.content ?? selectedNode.description;
-
-                body = "<color=#4AD9A4><b>Casey's Take</b></color>\n\n";
-                if (!string.IsNullOrEmpty(selectedNode.trigger_explanation))
-                    body += $"<color=#E8A838>{selectedNode.trigger_explanation}</color>\n\n";
-                if (!string.IsNullOrEmpty(selectedNode.correct_action))
-                    body += $"<color=#6BC9D9>{selectedNode.correct_action}</color>\n\n";
-                body += content;
-
-                var featureLabel = ProgressionGates.GetFeatureLabel(selectedNode.id);
-                if (featureLabel != null)
-                    body += $"\n\n<color=#D4A0FF>Unlocks: {featureLabel}</color>";
-                else if (!string.IsNullOrEmpty(selectedNode.reward_mechanic))
-                    body += $"\n\n<color=#6BC96B>Unlocks: {FormatMechanic(selectedNode.reward_mechanic)}</color>";
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogWarning($"[KnowledgeGraphUI] Casey's Take failed: {ex.Message}");
-                body = BuildUnlockedContent(selectedNode);
-            }
+            if (completionGotItButton != null)
+                completionGotItButton.interactable = true;
+            return;
         }
 
-        if (!completionOverlayActive) return;
-
-        completionBodyText.text = body;
-        if (completionScrollRect != null)
-            completionScrollRect.verticalNormalizedPosition = 1f;
         if (completionGotItButton != null)
             completionGotItButton.interactable = true;
+
+        try
+        {
+            var resp = await KnowledgeGraphAPI.GetNodeContent(entityId, selectedNode.id);
+            if (!completionOverlayActive) return;
+
+            if (resp != null && !string.IsNullOrEmpty(resp.content))
+            {
+                completionBodyText.text = staticBody
+                    + "\n\n<color=#555555>─────────────────────────</color>"
+                    + "\n<color=#4AD9A4><b>Casey's Take</b></color>\n\n"
+                    + resp.content;
+            }
+            else
+            {
+                completionBodyText.text = staticBody;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[KnowledgeGraphUI] Casey's Take failed: {ex.Message}");
+            if (completionOverlayActive)
+                completionBodyText.text = staticBody;
+        }
+
+        if (completionScrollRect != null)
+            completionScrollRect.verticalNormalizedPosition = 1f;
     }
 
     private void HandleCaseyInput()
