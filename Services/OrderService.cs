@@ -36,15 +36,17 @@ public class OrderService
         if (req.Quantity <= 0)
             return Results.Json(new ErrorResponse("error", "quantity must be positive"), statusCode: 400);
 
-        var orderType = (req.OrderType ?? "market").Trim().ToLowerInvariant();
-        if (orderType is not "market" and not "limit" and not "stop" and not "stop_limit")
-            return Results.Json(new ErrorResponse("error", "order_type must be 'market', 'limit', 'stop', or 'stop_limit'"), statusCode: 400);
-        if (orderType == "limit" && (req.LimitPrice is null || req.LimitPrice <= 0))
-            return Results.Json(new ErrorResponse("error", "limit orders require a positive limit_price"), statusCode: 400);
-        if (orderType == "stop" && (req.StopPrice is null || req.StopPrice <= 0))
-            return Results.Json(new ErrorResponse("error", "stop orders require a positive stop_price"), statusCode: 400);
-        if (orderType == "stop_limit" && ((req.StopPrice is null || req.StopPrice <= 0) || (req.LimitPrice is null || req.LimitPrice <= 0)))
-            return Results.Json(new ErrorResponse("error", "stop_limit orders require both stop_price and limit_price"), statusCode: 400);
+        // DISABLED: limit/stop/stop_limit order validation commented out — only market orders accepted
+        var orderType = "market";
+        // var orderType = (req.OrderType ?? "market").Trim().ToLowerInvariant();
+        // if (orderType is not "market" and not "limit" and not "stop" and not "stop_limit")
+        //     return Results.Json(new ErrorResponse("error", "order_type must be 'market', 'limit', 'stop', or 'stop_limit'"), statusCode: 400);
+        // if (orderType == "limit" && (req.LimitPrice is null || req.LimitPrice <= 0))
+        //     return Results.Json(new ErrorResponse("error", "limit orders require a positive limit_price"), statusCode: 400);
+        // if (orderType == "stop" && (req.StopPrice is null || req.StopPrice <= 0))
+        //     return Results.Json(new ErrorResponse("error", "stop orders require a positive stop_price"), statusCode: 400);
+        // if (orderType == "stop_limit" && ((req.StopPrice is null || req.StopPrice <= 0) || (req.LimitPrice is null || req.LimitPrice <= 0)))
+        //     return Results.Json(new ErrorResponse("error", "stop_limit orders require both stop_price and limit_price"), statusCode: 400);
 
         using var conn = _db.Open();
 
@@ -58,12 +60,13 @@ public class OrderService
 
         var gameDate = _gameState.GetSaveValue(conn, "current_date");
 
+        // DISABLED: limit order price estimation commented out — always use market price
         double estimatedPrice;
-        if (orderType == "limit")
-        {
-            estimatedPrice = req.LimitPrice!.Value;
-        }
-        else
+        // if (orderType == "limit")
+        // {
+        //     estimatedPrice = req.LimitPrice!.Value;
+        // }
+        // else
         {
             var ohlc = TradingDbOps.GetOHLC(conn, ticker, gameDate!, null);
             if (ohlc is not null)
@@ -261,10 +264,11 @@ public class OrderService
 
             _gameState.SetSaveValue(conn, "game_phase", "day", tx);
 
-            List<PendingOrderRecord> orders;
+            var orders = LoadPendingOrders(conn, entityDbId.Value, tx);
+
             if (req.Orders is { Count: > 0 })
             {
-                orders = req.Orders.Select((o, i) => new PendingOrderRecord(
+                var inlineOrders = req.Orders.Select((o, i) => new PendingOrderRecord(
                     -i - 1,
                     o.Ticker.ToUpperInvariant().Trim(),
                     o.Side.Trim().ToLowerInvariant(),
@@ -273,23 +277,28 @@ public class OrderService
                     o.LimitPrice,
                     o.StopPrice
                 )).ToList();
-            }
-            else
-            {
-                orders = LoadPendingOrders(conn, entityDbId.Value, tx);
+                orders.AddRange(inlineOrders);
             }
 
             SnapshotNetWorth(conn, tx, entityDbId.Value, gameDate, "open");
 
             var results = new List<TradeResultDto>();
+            // DISABLED: unfilled limit/stop re-queue commented out
+            // var unfilled = new List<PendingOrderRecord>();
 
             foreach (var order in orders)
             {
                 var result = ExecuteOrder(conn, tx, entityDbId.Value, order, gameDate);
                 results.Add(result);
+
+                // if (result.Status == "not_filled" && order.OrderType != "market")
+                //     unfilled.Add(order);
             }
 
             DeletePendingOrders(conn, entityDbId.Value, tx);
+
+            // foreach (var uf in unfilled)
+            //     InsertPendingOrder(conn, entityDbId.Value, uf, tx);
 
             tx.Commit();
 
@@ -409,40 +418,41 @@ public class OrderService
         if (ohlc is null)
             return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "error", $"No price data for {order.TickerId} on {gameDate}");
 
+        // DISABLED: limit/stop/stop_limit execution commented out — always use market (open) price
         double price;
-        if (order.OrderType == "limit")
-        {
-            double limitPrice = order.LimitPrice!.Value;
-            if (order.Side == "buy" && ohlc.Value.Low > limitPrice)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Buy limit {limitPrice:F2} not reached. Day low was {ohlc.Value.Low:F2}");
-            if (order.Side == "sell" && ohlc.Value.High < limitPrice)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Sell limit {limitPrice:F2} not reached. Day high was {ohlc.Value.High:F2}");
-            price = limitPrice;
-        }
-        else if (order.OrderType == "stop")
-        {
-            double stopPrice = order.StopPrice!.Value;
-            if (order.Side == "sell" && ohlc.Value.Low > stopPrice)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Sell stop {stopPrice:F2} not triggered. Day low was {ohlc.Value.Low:F2}");
-            if (order.Side == "buy" && ohlc.Value.High < stopPrice)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Buy stop {stopPrice:F2} not triggered. Day high was {ohlc.Value.High:F2}");
-            price = stopPrice;
-        }
-        else if (order.OrderType == "stop_limit")
-        {
-            double stopPrice = order.StopPrice!.Value;
-            double limitPrice = order.LimitPrice!.Value;
-            if (order.Side == "sell" && ohlc.Value.Low > stopPrice)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Sell stop {stopPrice:F2} not triggered. Day low was {ohlc.Value.Low:F2}");
-            if (order.Side == "buy" && ohlc.Value.High < stopPrice)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Buy stop {stopPrice:F2} not triggered. Day high was {ohlc.Value.High:F2}");
-            if (order.Side == "buy" && ohlc.Value.Low > limitPrice)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Stop triggered but limit {limitPrice:F2} not reached. Day low was {ohlc.Value.Low:F2}");
-            if (order.Side == "sell" && ohlc.Value.High < limitPrice)
-                return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Stop triggered but limit {limitPrice:F2} not reached. Day high was {ohlc.Value.High:F2}");
-            price = limitPrice;
-        }
-        else
+        // if (order.OrderType == "limit")
+        // {
+        //     double limitPrice = order.LimitPrice!.Value;
+        //     if (order.Side == "buy" && ohlc.Value.Low > limitPrice)
+        //         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Buy limit {limitPrice:F2} not reached. Day low was {ohlc.Value.Low:F2}");
+        //     if (order.Side == "sell" && ohlc.Value.High < limitPrice)
+        //         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Sell limit {limitPrice:F2} not reached. Day high was {ohlc.Value.High:F2}");
+        //     price = limitPrice;
+        // }
+        // else if (order.OrderType == "stop")
+        // {
+        //     double stopPrice = order.StopPrice!.Value;
+        //     if (order.Side == "sell" && ohlc.Value.Low > stopPrice)
+        //         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Sell stop {stopPrice:F2} not triggered. Day low was {ohlc.Value.Low:F2}");
+        //     if (order.Side == "buy" && ohlc.Value.High < stopPrice)
+        //         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Buy stop {stopPrice:F2} not triggered. Day high was {ohlc.Value.High:F2}");
+        //     price = stopPrice;
+        // }
+        // else if (order.OrderType == "stop_limit")
+        // {
+        //     double stopPrice = order.StopPrice!.Value;
+        //     double limitPrice = order.LimitPrice!.Value;
+        //     if (order.Side == "sell" && ohlc.Value.Low > stopPrice)
+        //         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Sell stop {stopPrice:F2} not triggered. Day low was {ohlc.Value.Low:F2}");
+        //     if (order.Side == "buy" && ohlc.Value.High < stopPrice)
+        //         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Buy stop {stopPrice:F2} not triggered. Day high was {ohlc.Value.High:F2}");
+        //     if (order.Side == "buy" && ohlc.Value.Low > limitPrice)
+        //         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Stop triggered but limit {limitPrice:F2} not reached. Day low was {ohlc.Value.Low:F2}");
+        //     if (order.Side == "sell" && ohlc.Value.High < limitPrice)
+        //         return new TradeResultDto(order.TickerId, order.Side, order.Quantity, 0, null, null, "not_filled", $"Stop triggered but limit {limitPrice:F2} not reached. Day high was {ohlc.Value.High:F2}");
+        //     price = limitPrice;
+        // }
+        // else
         {
             price = ohlc.Value.Open;
         }
@@ -523,6 +533,25 @@ public class OrderService
             ));
         }
         return orders;
+    }
+
+    private void InsertPendingOrder(SqliteConnection conn, int entityDbId, PendingOrderRecord order, SqliteTransaction tx)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = """
+            INSERT INTO pending_orders (entity_id, ticker_id, side, quantity, order_type, limit_price, stop_price, queued_at)
+            VALUES (@eid, @tid, @side, @qty, @ot, @lp, @sp, @qa);
+            """;
+        cmd.Parameters.AddWithValue("@eid", entityDbId);
+        cmd.Parameters.AddWithValue("@tid", order.TickerId);
+        cmd.Parameters.AddWithValue("@side", order.Side);
+        cmd.Parameters.AddWithValue("@qty", order.Quantity);
+        cmd.Parameters.AddWithValue("@ot", order.OrderType);
+        cmd.Parameters.AddWithValue("@lp", (object?)order.LimitPrice ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@sp", (object?)order.StopPrice ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@qa", DateTime.UtcNow.ToString("o"));
+        cmd.ExecuteNonQuery();
     }
 
     private void DeletePendingOrders(SqliteConnection conn, int entityDbId, SqliteTransaction tx)

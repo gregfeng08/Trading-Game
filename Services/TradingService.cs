@@ -31,8 +31,9 @@ public class TradingService
         if (req.Quantity <= 0)
             return Results.Json(new ErrorResponse("error", "quantity must be positive"), statusCode: 400);
 
-        if (orderType == "limit" && req.Price <= 0)
-            return Results.Json(new ErrorResponse("error", "limit orders require a positive price"), statusCode: 400);
+        // DISABLED: limit order validation commented out
+        // if (orderType == "limit" && req.Price <= 0)
+        //     return Results.Json(new ErrorResponse("error", "limit orders require a positive price"), statusCode: 400);
 
         using var conn = _db.Open();
         using var tx = conn.BeginTransaction();
@@ -55,30 +56,31 @@ public class TradingService
                 return Results.Json(new ErrorResponse("error", $"No price data for {tickerId} on {gameDate}"), statusCode: 400);
             }
 
+            // DISABLED: limit order execution commented out — always use market price
             double price;
-            if (orderType == "limit")
-            {
-                double limitPrice = req.Price;
-                if (side == "buy")
-                {
-                    if (ohlc.Value.Low > limitPrice)
-                    {
-                        tx.Rollback();
-                        return Results.Ok(new PostTradeResponse("not_filled", $"Buy limit {limitPrice:F2} not reached. Day low was {ohlc.Value.Low:F2}", 0, orderType));
-                    }
-                    price = limitPrice;
-                }
-                else
-                {
-                    if (ohlc.Value.High < limitPrice)
-                    {
-                        tx.Rollback();
-                        return Results.Ok(new PostTradeResponse("not_filled", $"Sell limit {limitPrice:F2} not reached. Day high was {ohlc.Value.High:F2}", 0, orderType));
-                    }
-                    price = limitPrice;
-                }
-            }
-            else
+            // if (orderType == "limit")
+            // {
+            //     double limitPrice = req.Price;
+            //     if (side == "buy")
+            //     {
+            //         if (ohlc.Value.Low > limitPrice)
+            //         {
+            //             tx.Rollback();
+            //             return Results.Ok(new PostTradeResponse("not_filled", $"Buy limit {limitPrice:F2} not reached. Day low was {ohlc.Value.Low:F2}", 0, orderType));
+            //         }
+            //         price = limitPrice;
+            //     }
+            //     else
+            //     {
+            //         if (ohlc.Value.High < limitPrice)
+            //         {
+            //             tx.Rollback();
+            //             return Results.Ok(new PostTradeResponse("not_filled", $"Sell limit {limitPrice:F2} not reached. Day high was {ohlc.Value.High:F2}", 0, orderType));
+            //         }
+            //         price = limitPrice;
+            //     }
+            // }
+            // else
             {
                 if (gamePhase == "post_market")
                     price = ohlc.Value.Close;

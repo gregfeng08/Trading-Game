@@ -22,12 +22,17 @@ builder.Services.AddSingleton<GameStateService>();
 builder.Services.AddSingleton<TradingService>();
 builder.Services.AddSingleton<MarketDataService>();
 builder.Services.AddSingleton(sp => new KnowledgeGraphService(sp.GetRequiredService<Database>(), knowledgeGraphPath));
+builder.Services.AddSingleton(sp => new InterestingnessService(
+    sp.GetRequiredService<Database>(),
+    sp.GetRequiredService<PlayerContextService>(),
+    sp.GetRequiredService<KnowledgeGraphService>()));
 if (File.Exists(historicalEventsPath))
 {
     builder.Services.AddSingleton(sp => new NewspaperService(
         sp.GetRequiredService<Database>(),
         sp.GetRequiredService<GameStateService>(),
         sp.GetRequiredService<PlayerContextService>(),
+        sp.GetRequiredService<InterestingnessService>(),
         historicalEventsPath,
         sp.GetService<ArcService>()));
 
@@ -62,6 +67,7 @@ builder.Services.AddSingleton(sp => new NpcDialogueService(
     sp.GetRequiredService<GameStateService>(),
     sp.GetRequiredService<KnowledgeGraphService>(),
     sp.GetRequiredService<PlayerContextService>(),
+    sp.GetRequiredService<InterestingnessService>(),
     sp.GetService<ArcService>()));
 builder.Services.AddSingleton(sp => new OrderService(
     sp.GetRequiredService<Database>(),

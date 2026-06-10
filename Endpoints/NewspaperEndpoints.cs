@@ -22,14 +22,14 @@ public static class NewspaperEndpoints
             }
         });
 
-        app.MapGet("/newspaper/image", async (string? date, NewspaperRendererService? renderer) =>
+        app.MapGet("/newspaper/image", async (string? date, int? entityId, NewspaperRendererService? renderer) =>
         {
             if (renderer is null)
                 return Results.Json(new ErrorResponse("error", "Newspaper renderer unavailable"), statusCode: 503);
 
             try
             {
-                var png = await renderer.GetNewspaperImage(date);
+                var png = await renderer.GetNewspaperImage(date, entityId);
                 return Results.File(png, "image/png", $"tribune_{date ?? "today"}.png");
             }
             catch (InvalidOperationException ex)

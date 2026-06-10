@@ -23,14 +23,15 @@ public class NewspaperRendererService : IAsyncDisposable
         Directory.CreateDirectory(_cachePath);
     }
 
-    public async Task<byte[]> GetNewspaperImage(string? date)
+    public async Task<byte[]> GetNewspaperImage(string? date, int? entityId = null)
     {
-        var paper = await _newspaper.GetNewspaper(date);
-        var cacheFile = Path.Combine(_cachePath, $"{paper.Date}.png");
+        var resolvedDate = date ?? _newspaper.ResolveCurrentDate();
+        var cacheFile = Path.Combine(_cachePath, $"{resolvedDate}.png");
 
         if (File.Exists(cacheFile))
             return await File.ReadAllBytesAsync(cacheFile);
 
+        var paper = await _newspaper.GetNewspaper(date, entityId);
         var html = BuildHtml(paper);
         var png = await RenderHtmlToPng(html);
 
@@ -85,6 +86,8 @@ public class NewspaperRendererService : IAsyncDisposable
 
         html = html.Replace("{{GAINERS_ROWS}}", BuildMoverRows(gainers, positive: true));
         html = html.Replace("{{LOSERS_ROWS}}", BuildMoverRows(losers, positive: false));
+
+        html = html.Replace("{{PLAYER_SIDEBAR}}", "");
 
         return html;
     }

@@ -12,6 +12,7 @@ public class NewspaperService
     private readonly Database _db;
     private readonly GameStateService _gameState;
     private readonly PlayerContextService _playerContext;
+    private readonly InterestingnessService _interestingness;
     private readonly HttpClient _httpClient;
     private readonly List<HistoricalEvent> _events;
     private readonly string? _apiKey;
@@ -20,11 +21,13 @@ public class NewspaperService
     private readonly ArcService? _arcService;
 
     public NewspaperService(Database db, GameStateService gameState,
-        PlayerContextService playerContext, string eventsPath, ArcService? arcService = null)
+        PlayerContextService playerContext, InterestingnessService interestingness,
+        string eventsPath, ArcService? arcService = null)
     {
         _db = db;
         _gameState = gameState;
         _playerContext = playerContext;
+        _interestingness = interestingness;
         _arcService = arcService;
         _httpClient = new HttpClient();
         _apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
@@ -32,6 +35,13 @@ public class NewspaperService
 
         var json = File.ReadAllText(eventsPath);
         _events = JsonSerializer.Deserialize<List<HistoricalEvent>>(json) ?? [];
+    }
+
+    public string ResolveCurrentDate()
+    {
+        using var conn = _db.Open();
+        return _gameState.GetSaveValue(conn, "current_date")
+            ?? throw new InvalidOperationException("No active game. Call /new_game first.");
     }
 
     public async Task<NewspaperResponse> GetNewspaper(string? date, int? entityId = null)
@@ -47,8 +57,10 @@ public class NewspaperService
         if (entityId.HasValue)
             playerCtx = _playerContext.BuildContext(entityId.Value, date, "pre_market");
 
+        var (marketScore, _) = _interestingness.Evaluate(date, "pre_market", null, InterestSignals.MarketOnly);
+
         var context = BuildContext(conn, date);
-        var newspaper = await GenerateNewspaper(date, context, playerCtx);
+        var newspaper = await GenerateNewspaper(date, context, playerCtx, marketScore);
 
         if (entityId.HasValue)
             newspaper = newspaper with { PlayerSidebar = BuildPlayerSidebar(playerCtx!) };
@@ -148,7 +160,7 @@ public class NewspaperService
         return result is not null and not DBNull ? (string)result : null;
     }
 
-    private async Task<NewspaperResponse> GenerateNewspaper(string date, NewspaperContext ctx, PlayerContext? playerCtx = null)
+    private async Task<NewspaperResponse> GenerateNewspaper(string date, NewspaperContext ctx, PlayerContext? playerCtx = null, double marketInterestingness = 0)
     {
         var dateDisplay = ctx.GameDate.ToString("dddd, MMMM d, yyyy");
 
@@ -229,9 +241,13 @@ public class NewspaperService
             userPrompt.AppendLine();
         }
 
-        if (playerCtx is not null && playerCtx.Portfolio.Holdings.Count > 0)
+        if (playerCtx is not null && playerCtx.Portfolio.Holdings.Count > 0 && marketInterestingness < 0.4)
         {
-            userPrompt.AppendLine("The reader's current portfolio (for subtle editorial emphasis — do NOT address the reader directly or mention \"your portfolio\", but naturally give slightly more coverage to sectors and tickers the reader holds):");
+            var emphasisLevel = marketInterestingness >= 0.2
+                ? "subtly — give slightly more coverage to sectors and tickers the reader holds, but keep the market story primary"
+                : "noticeably — today's market is quiet, so lean into sectors and tickers the reader holds to make the paper feel personally relevant";
+
+            userPrompt.AppendLine($"The reader's current portfolio (for editorial emphasis: {emphasisLevel}. Do NOT address the reader directly or mention \"your portfolio\"):");
             foreach (var h in playerCtx.Portfolio.Holdings)
             {
                 var weight = playerCtx.Portfolio.TotalHoldingsValue > 0
