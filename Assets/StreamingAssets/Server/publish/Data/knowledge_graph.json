@@ -1,0 +1,704 @@
+{
+  "version": 2,
+  "metadata": {
+    "description": "Trading Game knowledge graph definition. Both Unity and the .NET backend consume this file.",
+    "note": "Positions are in graph-space units. The visual editor will read/write these.",
+    "tiers": "Tier 0: Foundations, Tier 1: First Experiences, Tier 2: Deepening, Tier 3: Strategic Thinking, Tier 4: Crisis Mastery"
+  },
+  "nodes": [
+    {
+      "id": "what_is_a_company",
+      "title": "What is a Company",
+      "type": "knowledge",
+      "description": "Learn what companies are and why they exist.",
+      "content": "A company is an organization created by people to build and sell products or services. Companies earn money — called revenue — by selling what they make. A company can be owned by one person, a few partners, or many people. When a company lets the public buy small pieces of ownership, those pieces are called shares.",
+      "prerequisites": [],
+      "priority": "normal",
+      "position": { "x": 0, "y": 0 },
+      "category": "fundamentals"
+    },
+    {
+      "id": "what_is_a_stock",
+      "title": "What is a Stock",
+      "type": "knowledge",
+      "description": "Understand stocks as ownership slices of a company.",
+      "content": "A stock represents a share of ownership in a company. When you buy a stock, you own a small piece of that company. If the company grows and earns more, your share becomes more valuable. If it shrinks, your share loses value.",
+      "prerequisites": ["what_is_a_company"],
+      "priority": "normal",
+      "position": { "x": 200, "y": 0 },
+      "category": "fundamentals"
+    },
+    {
+      "id": "market_buy_sell",
+      "title": "Market Buy / Sell",
+      "type": "adaptive",
+      "description": "Execute your first trade at the current market price.",
+      "content": "A market order buys or sells a stock immediately at the best available price. You're saying 'I want this stock now, whatever the current price is.' It's the simplest and fastest way to trade.",
+      "prerequisites": ["what_is_a_company"],
+      "triggers": [
+        { "path": "tutorial", "type": "player_event", "params": { "event_type": "tutorial_first_trade", "min_count": 1 } },
+        { "path": "normal", "type": "trade_count", "params": { "min_trades": 1 } }
+      ],
+      "trigger_explanation": "You just executed your first trade — buying stock at the current market price.",
+      "correct_action": "Market orders are the simplest way to trade. As you gain experience, you'll learn when speed matters more than price control.",
+      "priority": "high",
+      "position": { "x": 400, "y": 0 },
+      "category": "fundamentals"
+    },
+
+    {
+      "id": "market_hours",
+      "title": "Market Hours & Price Gaps",
+      "type": "adaptive",
+      "description": "Why prices can change while the market is closed.",
+      "content": "Stock exchanges have set trading hours. After the market closes, trading still happens in smaller sessions — called 'after-hours' and 'pre-market' trading. News or global events overnight can shift prices. This means a stock that closed at $100 might open at $95 or $105 the next day — this jump is called a 'gap.' The total value of all the stocks you own — your portfolio — changes even while you sleep, because the market adjusts to new information as soon as trading resumes.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "held_overnight_gap",
+        "params": { "gap_pct": 1.0 }
+      },
+      "trigger_explanation": "A stock you held overnight opened at a different price than yesterday's close.",
+      "correct_action": "This is normal — prices gap between sessions due to after-hours trading and overnight news. Factor in overnight risk when holding positions.",
+      "priority": "high",
+      "position": { "x": 400, "y": -100 },
+      "category": "fundamentals"
+    },
+    {
+      "id": "limit_buy_sell",
+      "title": "Limit Buy / Sell",
+      "type": "adaptive",
+      "description": "Set your own price instead of accepting the market's.",
+      "content": "A limit order lets you specify the price you're willing to pay (or accept). A buy limit says 'only buy if the price drops to X.' A sell limit says 'only sell if the price rises to X.' The trade only happens if the market reaches your price.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "trade_count",
+        "params": { "min_trades": 3, "order_type": "market" }
+      },
+      "trigger_explanation": "You've placed several market orders, always accepting whatever price the market gives you.",
+      "correct_action": "Use limit orders to set the exact price you're willing to pay or accept, giving you more control over your trades.",
+      "reward": { "mechanic": "limit_orders" },
+      "priority": "normal",
+      "position": { "x": 600, "y": -100 },
+      "category": "order_types"
+    },
+    {
+      "id": "volatility",
+      "title": "Volatility",
+      "type": "adaptive",
+      "description": "A stock you hold just moved sharply. Here's why.",
+      "content": "Volatility measures how much a stock's price swings. High volatility means big moves up and down. Low volatility means steady prices. Volatile stocks offer bigger potential gains — but also bigger losses.",
+      "prerequisites": ["what_is_a_stock"],
+      "trigger": {
+        "type": "held_stock_daily_change",
+        "params": { "change_pct": 5.0 }
+      },
+      "trigger_explanation": "A stock you're holding just moved more than 5% in a single day.",
+      "correct_action": "Expect volatility when holding individual stocks. Consider whether the amount of money you have in that stock matches your comfort with big daily swings.",
+      "priority": "high",
+      "position": { "x": 400, "y": 200 },
+      "category": "risk"
+    },
+    {
+      "id": "diversification",
+      "title": "Diversification",
+      "type": "adaptive",
+      "description": "Your portfolio is concentrated. Spreading risk matters.",
+      "content": "Diversification means owning multiple different stocks so that one bad performer doesn't sink your whole portfolio. If all your money is in one company and it drops 30%, your whole portfolio drops 30%. Spread across five companies, that same drop only hits 6% of your total.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "portfolio_concentration",
+        "params": { "max_single_ticker_pct": 80.0 }
+      },
+      "triggers": [
+        {
+          "path": "negative",
+          "type": "portfolio_concentration",
+          "params": { "max_single_ticker_pct": 80.0 },
+          "trigger_explanation": "Over 80% of your portfolio is in a single stock. If that company has a bad day, your whole portfolio takes the hit."
+        },
+        {
+          "path": "positive",
+          "type": "maintained_diversification",
+          "params": { "min_tickers": 4, "min_days": 5 },
+          "trigger_explanation": "You've maintained a balanced portfolio across 4+ stocks for 5 trading days — good instincts on diversification."
+        },
+        {
+          "path": "time",
+          "type": "trading_days_elapsed",
+          "params": { "min_days": 15 },
+          "trigger_explanation": "You've been trading for a while. Time to understand one of the most important concepts in risk management."
+        }
+      ],
+      "trigger_explanation": "Over 80% of your portfolio is in a single stock. If that company has a bad day, your whole portfolio takes the hit.",
+      "correct_action": "Spread your investments across multiple stocks so one bad performer doesn't sink everything.",
+      "priority": "high",
+      "position": { "x": 600, "y": 100 },
+      "category": "risk"
+    },
+    {
+      "id": "first_profit",
+      "title": "Locking in Gains",
+      "type": "adaptive",
+      "description": "You just made your first profitable trade.",
+      "content": "Congratulations — you sold a stock for more than you paid for it. That's called a realized gain — 'realized' because you locked in the profit by actually selling. Until you sell, any increase in your stock's value is just 'on paper' — it looks good, but it's not real money in your account yet. Knowing when to sell and secure your profits is one of the hardest skills in trading.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "first_profitable_sell",
+        "params": {}
+      },
+      "trigger_explanation": "You sold a stock for more than you paid — your first realized profit.",
+      "correct_action": "Nice work. Now the question becomes: when do you take profits versus holding for more? Develop a plan for when to sell winners.",
+      "priority": "high",
+      "position": { "x": 600, "y": 300 },
+      "category": "psychology"
+    },
+    {
+      "id": "first_loss",
+      "title": "Taking a Loss",
+      "type": "adaptive",
+      "description": "You sold for less than you paid. Every trader does.",
+      "content": "You sold a stock for less than you paid — that's called a realized loss. This is completely normal. Even the best professional traders lose money on individual trades. What matters isn't winning every trade — it's making sure your profitable trades outweigh your losing ones over time. The hardest part is deciding when to sell a losing position instead of holding on and hoping it recovers.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "first_losing_sell",
+        "params": {}
+      },
+      "triggers": [
+        {
+          "path": "negative",
+          "type": "first_losing_sell",
+          "params": {},
+          "trigger_explanation": "You sold a stock for less than you paid — your first realized loss."
+        },
+        {
+          "path": "time",
+          "type": "trading_days_elapsed",
+          "params": { "min_days": 25 },
+          "trigger_explanation": "You've traded for 25 days without realizing a loss. Understanding losses is essential — even if you've avoided them so far."
+        }
+      ],
+      "trigger_explanation": "You sold a stock for less than you paid — your first realized loss.",
+      "correct_action": "Losses are part of trading. The key is recognizing when a trade isn't working and being willing to sell rather than hoping it comes back. Before you buy, ask yourself: 'At what point would I admit this trade was a mistake?'",
+      "priority": "high",
+      "position": { "x": 800, "y": 300 },
+      "category": "psychology"
+    },
+    {
+      "id": "cost_basis",
+      "title": "Cost Basis",
+      "type": "adaptive",
+      "description": "You bought the same stock at different prices.",
+      "content": "When you buy the same stock more than once, you need a way to figure out your average purchase price — this is called your cost basis. For example, if you buy 10 shares at $50 and then 10 more at $60, your average cost basis is $55 per share. This average is what determines whether your overall position is 'up' or 'down.' When you sell, the system uses FIFO — 'first in, first out' — meaning the shares you bought earliest are sold first.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "same_ticker_multiple_buys",
+        "params": { "min_buys": 2 }
+      },
+      "trigger_explanation": "You bought the same stock more than once, at different prices.",
+      "correct_action": "Track your average cost basis — it determines whether you're actually up or down on the position, not just your latest purchase price.",
+      "priority": "normal",
+      "position": { "x": 800, "y": -100 },
+      "category": "mechanics"
+    },
+    {
+      "id": "paper_gains",
+      "title": "Paper Gains vs Realized Gains",
+      "type": "adaptive",
+      "description": "A position is up big — but you haven't sold yet.",
+      "content": "One of your stocks is worth more than you paid for it — but you haven't sold yet. This is called an unrealized gain, or 'paper profit.' It's not real money in your account — it's a number on a screen that can shrink or disappear if the price drops tomorrow. A realized gain, by contrast, is profit you've actually locked in by selling. The constant tension in trading: do you hold and hope for more, or sell now and secure what you've got?",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "unrealized_gain_pct",
+        "params": { "gain_pct": 20.0 }
+      },
+      "trigger_explanation": "One of your positions is up over 20%, but you haven't sold yet — that's paper profit, not real profit.",
+      "correct_action": "Decide whether to lock in your gains or hold for more. Paper profits can vanish. Consider selling part of the position to secure some profit.",
+      "priority": "normal",
+      "position": { "x": 1000, "y": 100 },
+      "category": "psychology"
+    },
+    {
+      "id": "buying_the_dip",
+      "title": "Buying the Dip",
+      "type": "adaptive",
+      "description": "You bought a stock after a significant drop.",
+      "content": "Buying the dip means purchasing a stock after its price has dropped, betting it will bounce back. This can be smart if the company's fundamentals — its actual business health, like revenue, profits, and growth — haven't changed. In that case, you're getting the same business at a cheaper price. But it's risky if the price is dropping because something about the business actually got worse.",
+      "prerequisites": ["what_is_a_stock"],
+      "trigger": {
+        "type": "bought_after_decline",
+        "params": { "decline_pct": 5.0, "lookback_days": 5 }
+      },
+      "trigger_explanation": "You bought a stock after it dropped over 5% recently — that's called 'buying the dip.'",
+      "correct_action": "Before buying a dip, ask why the price fell. If the company is still strong, it could be a bargain. If something fundamental changed, you might be catching a falling knife.",
+      "priority": "normal",
+      "position": { "x": 400, "y": -200 },
+      "category": "strategies"
+    },
+    {
+      "id": "cash_management",
+      "title": "Cash Reserves",
+      "type": "adaptive",
+      "description": "You're almost fully invested. Flexibility matters.",
+      "content": "Keeping some cash in reserve means you can buy opportunities when they appear — a stock drops to a great price, or a market crash creates bargains. If you're 100% invested, you can only buy more by selling something else, possibly at a bad time.",
+      "prerequisites": ["market_buy_sell"],
+      "trigger": {
+        "type": "low_cash_ratio",
+        "params": { "cash_pct_below": 10.0 }
+      },
+      "triggers": [
+        {
+          "path": "negative",
+          "type": "low_cash_ratio",
+          "params": { "cash_pct_below": 10.0 },
+          "trigger_explanation": "Your cash reserves dropped below 10% of your total portfolio. You're almost fully invested with little flexibility."
+        },
+        {
+          "path": "positive",
+          "type": "maintained_cash_reserves",
+          "params": { "min_cash_pct": 20.0, "min_days": 5 },
+          "trigger_explanation": "You've kept at least 20% cash reserves for 5 trading days — smart discipline that leaves you ready for opportunities."
+        },
+        {
+          "path": "time",
+          "type": "trading_days_elapsed",
+          "params": { "min_days": 20 },
+          "trigger_explanation": "After 20 trading days, understanding cash management is essential regardless of your current balance."
+        }
+      ],
+      "trigger_explanation": "Your cash reserves dropped below 10% of your total portfolio. You're almost fully invested with little flexibility.",
+      "correct_action": "Keep some cash on hand so you can act on opportunities. Being 100% invested means you can only buy by selling something else, possibly at a bad time.",
+      "priority": "normal",
+      "position": { "x": 800, "y": 100 },
+      "category": "risk"
+    },
+    {
+      "id": "market_crash",
+      "title": "Market Downturns",
+      "type": "adaptive",
+      "description": "The whole market just dropped. Here's what happened.",
+      "content": "A broad market decline means most stocks are falling at the same time. This can happen because of economic fears, changes in interest rates — the cost of borrowing money — or unexpected events that shake investor confidence. During a crash, it doesn't matter how good an individual company is — even strong businesses get dragged down when everyone is selling. Historically, markets have always recovered from crashes, but figuring out exactly when the decline will stop is nearly impossible.",
+      "prerequisites": ["what_is_a_stock"],
+      "trigger": {
+        "type": "market_wide_decline",
+        "params": { "avg_decline_pct": 3.0 }
+      },
+      "trigger_explanation": "The overall market just dropped significantly — most stocks fell together.",
+      "correct_action": "Don't panic sell during a broad market decline. Historically, markets recover. Focus on whether the companies you own are still healthy businesses — if the fundamentals (revenue, profits, leadership) are intact, the stock price will likely recover too.",
+      "priority": "high",
+      "position": { "x": 200, "y": 300 },
+      "category": "market_events"
+    },
+    {
+      "id": "market_timing",
+      "title": "Trading Phases",
+      "type": "adaptive",
+      "description": "You've traded in multiple phases of the market day.",
+      "content": "Pre-market and day orders execute at today's opening price — the price the market starts at each morning. Post-market orders execute at today's closing price — you've seen how the day played out. The tradeoff: acting early means committing before you know how the day ends, while waiting gives you more information but you can't undo what already happened.",
+      "prerequisites": ["market_buy_sell", "market_hours"],
+      "trigger": {
+        "type": "traded_both_phases",
+        "params": {}
+      },
+      "trigger_explanation": "You've traded in different phases of the market day — experiencing both open and close pricing.",
+      "correct_action": "Pay attention to when you place orders. Pre-market and day orders use the opening price; post-market orders use the close. Each has tradeoffs — information vs. speed.",
+      "priority": "normal",
+      "position": { "x": 600, "y": -300 },
+      "category": "mechanics"
+    },
+
+
+    {
+      "id": "risk_reward",
+      "title": "Risk and Reward",
+      "type": "adaptive",
+      "description": "You've won and lost. Now understand the tradeoff.",
+      "content": "Every trade has two sides: how much you could gain, and how much you could lose. Professional traders think in terms of risk-reward ratios — risking $1 to potentially make $3 is different from risking $3 to make $1, even if the total amount is the same. Before entering any trade, ask: 'How much am I willing to lose, and is the potential gain worth that risk?'",
+      "prerequisites": ["first_profit", "first_loss"],
+      "trigger": {
+        "type": "trade_count",
+        "params": { "min_trades": 6 }
+      },
+      "trigger_explanation": "You've made several trades now — some winners, some losers. Time to think about the pattern.",
+      "correct_action": "Before every trade, define your risk: 'I'll sell if it drops X%.' Then ask if the potential upside justifies that risk.",
+      "priority": "high",
+      "position": { "x": 1050, "y": 300 },
+      "category": "psychology"
+    },
+    {
+      "id": "stop_loss_thinking",
+      "title": "Setting Exit Points",
+      "type": "adaptive",
+      "description": "A position is deep in the red. When do you cut?",
+      "content": "A stock you own is down significantly — you're sitting on an unrealized loss, a loss that exists on paper even though you haven't sold yet. Professional traders handle this by setting 'stop-loss' levels before they enter a trade — a specific price at which they'll sell, no questions asked. Without an exit plan decided in advance, it's easy to keep holding a losing position hoping it recovers, watching small losses grow into big ones. The best time to decide when to sell is before you buy.",
+      "prerequisites": ["first_loss"],
+      "trigger": {
+        "type": "unrealized_loss_pct",
+        "params": { "loss_pct": 15.0 }
+      },
+      "trigger_explanation": "One of your positions is down over 15%. You're holding a significant unrealized loss.",
+      "correct_action": "Set exit rules before you enter trades. 'If this drops X%, I sell.' Having a plan prevents small losses from becoming catastrophic ones.",
+      "priority": "high",
+      "position": { "x": 1050, "y": 400 },
+      "category": "risk"
+    },
+    {
+      "id": "averaging_down",
+      "title": "Averaging Down",
+      "type": "adaptive",
+      "description": "You keep buying the same stock. Strategy or denial?",
+      "content": "You've bought the same stock multiple times as its price fell. This is called 'averaging down' — lowering your average cost basis by buying more shares at cheaper prices. It can be a smart move if the company is still healthy and simply undervalued — meaning the stock price is lower than what the business is actually worth. But if the price is falling because the business is genuinely getting worse, you're just adding more money to a bad bet. Ask yourself: 'Would I buy this stock today if I didn't already own it?'",
+      "prerequisites": ["cost_basis", "first_loss"],
+      "trigger": {
+        "type": "same_ticker_multiple_buys",
+        "params": { "min_buys": 3 }
+      },
+      "trigger_explanation": "You've bought the same stock three or more times — your cost basis keeps shifting.",
+      "correct_action": "Ask: 'Would I buy this stock today if I didn't already own it?' If not, you may be averaging down out of denial, not conviction.",
+      "priority": "normal",
+      "position": { "x": 1050, "y": -150 },
+      "category": "strategies"
+    },
+    {
+      "id": "position_sizing",
+      "title": "Position Sizing",
+      "type": "adaptive",
+      "description": "How much you allocate matters as much as what you buy.",
+      "content": "How much you put into each trade matters as much as what you buy. Even a great stock can hurt your portfolio if you put too much in it. A common rule: no single position should be large enough that a bad day in that stock ruins your week. Sizing your positions relative to your total portfolio is the foundation of risk management.",
+      "prerequisites": ["diversification", "cash_management"],
+      "trigger": {
+        "type": "portfolio_concentration",
+        "params": { "max_single_ticker_pct": 50.0 }
+      },
+      "trigger_explanation": "Over half your portfolio is in a single stock. Even moderate concentration carries outsized risk.",
+      "correct_action": "Size each position so that no single stock can make or break your portfolio. Think in percentages, not dollar amounts.",
+      "priority": "normal",
+      "position": { "x": 1050, "y": 50 },
+      "category": "risk"
+    },
+    {
+      "id": "extreme_volatility",
+      "title": "Extreme Volatility",
+      "type": "adaptive",
+      "description": "A 10%+ daily swing. Welcome to crisis markets.",
+      "content": "A stock you hold just moved more than 10% in a single day. This kind of extreme volatility — unusually large price swings — is rare in normal markets but becomes common during financial crises. In September 2008, daily swings of 5-10% became routine. Extreme volatility usually signals deep uncertainty about the economy or the health of major companies — and when uncertainty is this high, prices can swing just as hard in either direction.",
+      "prerequisites": ["volatility"],
+      "trigger": {
+        "type": "held_stock_daily_change",
+        "params": { "change_pct": 10.0 }
+      },
+      "trigger_explanation": "A stock you hold just moved over 10% in a single day — extreme volatility.",
+      "correct_action": "Extreme moves signal deep uncertainty. Consider reducing position size in highly volatile stocks, or accept the risk with eyes open.",
+      "priority": "high",
+      "position": { "x": 650, "y": 250 },
+      "category": "market_events"
+    },
+    {
+      "id": "market_correlation",
+      "title": "Correlation in a Crisis",
+      "type": "adaptive",
+      "description": "Everything is falling together. Diversification has limits.",
+      "content": "During calm markets, different stocks move independently — one goes up while another goes down. But in a crisis, something changes: stocks that normally have nothing in common suddenly start falling together. This is called correlation — when different investments move in the same direction at the same time. In a severe crisis, correlation spikes, meaning diversification provides much less protection than it normally would. The 2008 crisis proved that in true panic, almost everything drops together.",
+      "prerequisites": ["diversification", "market_crash"],
+      "trigger": {
+        "type": "market_wide_decline",
+        "params": { "avg_decline_pct": 5.0 }
+      },
+      "trigger_explanation": "The market just dropped severely — even your diversified holdings fell together.",
+      "correct_action": "In a severe crash, diversification dampens losses but doesn't prevent them. The real protection is position sizing and cash reserves.",
+      "priority": "high",
+      "position": { "x": 1050, "y": 200 },
+      "category": "market_events"
+    },
+
+
+    {
+      "id": "emotional_discipline",
+      "title": "Emotional Discipline",
+      "type": "adaptive",
+      "description": "Fear and greed: the two forces that move markets.",
+      "content": "You've experienced gains and losses. You've watched profits evaporate and recoveries you didn't expect. The pattern behind most trading mistakes is emotional: selling in fear at the bottom, buying in greed at the top. The traders who survive long-term are the ones who develop rules and follow them — especially when every instinct says not to.",
+      "prerequisites": ["risk_reward", "paper_gains"],
+      "trigger": {
+        "type": "trade_count",
+        "params": { "min_trades": 12 }
+      },
+      "trigger_explanation": "You've made enough trades to have felt the pull of fear and greed. Time to build a framework.",
+      "correct_action": "Write down your trading rules. Follow them mechanically. The best trades often feel uncomfortable; the worst trades often feel exciting.",
+      "priority": "normal",
+      "position": { "x": 1300, "y": 200 },
+      "category": "psychology"
+    },
+    {
+      "id": "market_cycles",
+      "title": "Market Cycles",
+      "type": "adaptive",
+      "description": "Bull runs end. Bear markets end. The cycle repeats.",
+      "content": "Markets move in cycles. A bull market is a period of rising prices and optimism — it can last years, making everyone feel like a genius. Then the cycle turns into a bear market — a prolonged period of falling prices and growing fear that destroys gains and tests conviction. The 2007-2009 period you're living through is a complete cycle: exuberance, denial, panic, and eventually, recovery. Recognizing where you are in the cycle is often more valuable than picking the right stock.",
+      "prerequisites": ["market_crash", "buying_the_dip", "historical_crashes"],
+      "trigger": {
+        "type": "trade_count",
+        "params": { "min_trades": 10 }
+      },
+      "trigger_explanation": "You've traded through market ups and downs — you're ready to see the bigger pattern.",
+      "correct_action": "Ask yourself: where are we in the cycle right now? Exuberance? Denial? Panic? Your answer should shape how aggressively you trade.",
+      "priority": "normal",
+      "position": { "x": 1300, "y": -100 },
+      "category": "market_events"
+    },
+    {
+      "id": "cutting_losses",
+      "title": "Cutting Losses",
+      "type": "adaptive",
+      "description": "The hardest skill: admitting you were wrong.",
+      "content": "Cutting a losing position — selling a stock at a loss on purpose — is the hardest skill in trading. Your brain treats selling at a loss as 'making it real,' but the loss was already real the moment the price dropped. What you're actually doing is freeing up your money for better opportunities. The question isn't 'will this stock recover?' It's 'is my money working harder for me here, or would it do better somewhere else?'",
+      "prerequisites": ["stop_loss_thinking", "risk_reward"],
+      "trigger": {
+        "type": "trading_days_elapsed",
+        "params": { "min_days": 30 }
+      },
+      "trigger_explanation": "You've been trading for a month and learned about exit points and risk-reward. Time for the hardest part: applying them consistently.",
+      "correct_action": "When you're holding a loser, reframe the question. Don't ask 'will it come back?' Ask 'if I had this cash right now, would I buy this stock at this price?' If not, sell.",
+      "priority": "normal",
+      "position": { "x": 1300, "y": 350 },
+      "category": "psychology"
+    },
+    {
+      "id": "contrarian_thinking",
+      "title": "Contrarian Thinking",
+      "type": "adaptive",
+      "description": "Buying when everyone else is selling.",
+      "content": "You just bought a stock after a steep, prolonged decline. Most investors sell in fear during downturns. Contrarians do the opposite — they buy when others panic, betting that the fear is overdone. Warren Buffett's advice: 'Be fearful when others are greedy, and greedy when others are fearful.' But contrarian thinking only works if the fundamentals support recovery. Buying a falling stock without analysis isn't contrarian — it's gambling.",
+      "prerequisites": ["market_cycles", "buying_the_dip"],
+      "trigger": {
+        "type": "bought_after_decline",
+        "params": { "decline_pct": 10.0, "lookback_days": 10 }
+      },
+      "trigger_explanation": "You bought into a steep, sustained decline — a deeper dip than a casual pullback.",
+      "correct_action": "Contrarian bets require conviction backed by analysis. Ask: is the market overreacting, or is this decline justified by fundamentals?",
+      "priority": "normal",
+      "position": { "x": 1300, "y": -250 },
+      "category": "strategies"
+    },
+
+
+    {
+      "id": "surviving_the_crisis",
+      "title": "Surviving the Crisis",
+      "type": "adaptive",
+      "description": "2008 is here. Everything you've learned is being tested.",
+      "content": "This is 2008. Markets are in freefall, portfolios are bleeding, and every headline is worse than the last. Everything you've learned — diversification, position sizing, emotional discipline — is being tested at once. History shows that markets have always recovered from crashes. The question is: can you stay solvent — meaning you have enough cash to keep going and aren't forced to sell at the worst possible moment — long enough to benefit from that recovery?",
+      "prerequisites": ["market_correlation", "emotional_discipline"],
+      "trigger": {
+        "type": "market_wide_decline",
+        "params": { "avg_decline_pct": 5.0 }
+      },
+      "trigger_explanation": "The market is in freefall. This is the crisis. Everything you've built is being tested.",
+      "correct_action": "Survive. Don't panic sell everything. Preserve capital. Look for the strongest companies at crisis prices. The recovery will come — be positioned to benefit.",
+      "priority": "high",
+      "position": { "x": 1550, "y": 200 },
+      "category": "market_events"
+    },
+    {
+      "id": "hindsight_and_foresight",
+      "title": "Hindsight and Foresight",
+      "type": "adaptive",
+      "description": "You've lived through the crisis. What patterns will you recognize next time?",
+      "content": "You've traded through the 2007-2009 financial crisis. You've felt the overconfidence of a bull market, the denial as cracks appeared, and the panic when everything collapsed. These patterns repeat — different triggers, same human psychology. The housing crisis of 2008, the dot-com crash of 2000, the 1987 Black Monday — each followed the same emotional arc. What you've built isn't just trading skill. It's pattern recognition for the next crisis.",
+      "prerequisites": ["surviving_the_crisis", "market_cycles"],
+      "trigger": {
+        "type": "trade_count",
+        "params": { "min_trades": 20 }
+      },
+      "trigger_explanation": "You've traded through the full crisis cycle. Time to see the big picture.",
+      "correct_action": "The patterns you've learned — euphoria, denial, panic, recovery — will repeat in your lifetime. The next crisis will feel different but follow the same emotional arc. You'll be ready.",
+      "priority": "high",
+      "position": { "x": 1550, "y": 0 },
+      "category": "psychology"
+    },
+
+
+    {
+      "id": "what_is_a_market",
+      "title": "What is a Market",
+      "type": "knowledge",
+      "description": "Understand where stocks are traded and how prices form.",
+      "content": "A stock market is a place where people buy and sell shares of companies. Prices aren't set by anyone — they're driven by supply and demand. That means: when more people want to buy a stock than sell it, the price goes up; when more people want to sell than buy, the price drops. Stock exchanges like the NYSE and NASDAQ are the organized marketplaces where this trading happens — they set the rules and make sure trades are fair and transparent.",
+      "prerequisites": ["what_is_a_stock"],
+      "priority": "normal",
+      "position": { "x": 0, "y": 0 },
+      "category": "fundamentals"
+    },
+    {
+      "id": "historical_crashes",
+      "title": "Crashes Through History",
+      "type": "knowledge",
+      "description": "Markets have crashed before. They will again.",
+      "content": "Market crashes aren't rare — they're a repeating pattern throughout history. The 1929 crash led to the Great Depression. In 1987, a day called Black Monday saw the Dow — a stock market index that tracks 30 large U.S. companies — fall 22% in a single day. In 2000, the dot-com bubble burst when internet company stocks collapsed after years of hype. A 'bubble' happens when prices rise far beyond what companies are actually worth, driven by excitement rather than reality. Each time, the pattern repeats: widespread excitement, prices climbing too high, a sudden trigger event, panic selling, and eventually a slow recovery.",
+      "prerequisites": ["what_is_a_market"],
+      "priority": "normal",
+      "position": { "x": 0, "y": 0 },
+      "category": "history"
+    },
+    {
+      "id": "housing_boom",
+      "title": "The Housing Boom",
+      "type": "knowledge",
+      "description": "The setup for 2008: easy credit and the belief that housing never falls.",
+      "content": "Between 2003 and 2006, U.S. housing prices soared. Interest rates — the cost banks charge to lend money — were low, making it cheap to borrow. Mortgages, the loans people take out to buy homes, were easy to get, even for people who couldn't comfortably afford them. Everyone believed housing was a safe bet. Banks took thousands of these mortgages, bundled them together, and sold them to investors around the world as financial products. The whole system rested on one assumption: housing prices only go up. When that assumption broke, so did the financial system.",
+      "prerequisites": ["historical_crashes"],
+      "priority": "normal",
+      "position": { "x": 0, "y": 0 },
+      "category": "history"
+    },
+    {
+      "id": "subprime_crisis",
+      "title": "The Subprime Crisis",
+      "type": "adaptive",
+      "description": "The market is dropping. Here's what's happening behind the headlines.",
+      "content": "The word 'subprime' refers to borrowers with poor credit — people who were risky to lend to. During the housing boom, banks gave these borrowers mortgages anyway, betting that rising home prices would cover the risk. Then banks bundled thousands of these risky loans into packages called CDOs — collateralized debt obligations — which were essentially bundles of mortgages sold to investors as if they were safe. When homeowners started defaulting — failing to make their loan payments — the value of these bundles collapsed. Banks and investors worldwide who had bought them took massive losses. What started as a housing problem became a banking crisis, then a full stock market crash.",
+      "prerequisites": ["housing_boom", "market_crash"],
+      "trigger": {
+        "type": "market_wide_decline",
+        "params": { "avg_decline_pct": 2.0 }
+      },
+      "trigger_explanation": "The market just dropped. Behind the numbers, the subprime mortgage crisis is unfolding.",
+      "correct_action": "Pay attention to what's driving the decline. When the cause is systemic — not just one company — the effects ripple through everything.",
+      "priority": "high",
+      "position": { "x": 0, "y": 0 },
+      "category": "history"
+    },
+    {
+      "id": "contagion",
+      "title": "Contagion",
+      "type": "adaptive",
+      "description": "Bear Stearns, Lehman Brothers. When one domino falls, they all do.",
+      "content": "In March 2008, Bear Stearns — one of America's largest investment banks — collapsed and was bought out in an emergency deal. Six months later, Lehman Brothers filed for the largest bankruptcy in American history. The failure of these major institutions triggered panic across the global financial system. Banks stopped lending to each other because nobody knew which banks were holding worthless mortgage bundles. The credit markets — the system through which banks and businesses borrow and lend money — froze completely. The stock market went into freefall. A housing problem had become a global financial crisis because the entire system was connected in ways nobody fully understood.",
+      "prerequisites": ["subprime_crisis"],
+      "trigger": {
+        "type": "market_wide_decline",
+        "params": { "avg_decline_pct": 4.0 }
+      },
+      "trigger_explanation": "Major financial institutions are failing. The crisis is spreading.",
+      "correct_action": "In a contagion, even strong companies fall because the financial system itself is under stress. Focus on preserving capital, not finding bargains — yet.",
+      "priority": "high",
+      "position": { "x": 0, "y": 0 },
+      "category": "history"
+    },
+    {
+      "id": "government_response",
+      "title": "Government Response",
+      "type": "adaptive",
+      "description": "TARP, bailouts, and rate cuts. When governments step in.",
+      "content": "As the crisis deepened, governments intervened on a scale never seen before. The U.S. passed the $700 billion TARP — the Troubled Asset Relief Program — to buy 'toxic assets' from banks. Toxic assets were the now-worthless mortgage bundles and other bad investments sitting on bank balance sheets. The Federal Reserve — the central bank of the United States — cut interest rates to near zero and began 'quantitative easing': essentially creating new money to buy bonds (loans that governments and companies issue to raise cash) in order to push money back into the economy. The question economists still debate: was bailing out the banks necessary to prevent total collapse, or did it reward reckless behavior and set the stage for the next crisis?",
+      "prerequisites": ["contagion"],
+      "trigger": {
+        "type": "market_wide_decline",
+        "params": { "avg_decline_pct": 5.0 }
+      },
+      "trigger_explanation": "The crisis has forced government intervention. Markets are in uncharted territory.",
+      "correct_action": "Government intervention can stabilize markets, but it takes time. The bottom often comes when fear is at its peak — not when the news gets better.",
+      "priority": "high",
+      "position": { "x": 0, "y": 0 },
+      "category": "history"
+    },
+    {
+      "id": "anatomy_of_recovery",
+      "title": "Anatomy of a Recovery",
+      "type": "adaptive",
+      "description": "March 2009: the bottom nobody recognized at the time.",
+      "content": "On March 9, 2009, the S&P 500 — an index that tracks 500 of the largest U.S. companies and serves as a barometer for the overall market — hit its crisis low of 676, down 57% from its peak. Headlines were apocalyptic. Nobody rang a bell at the bottom. The recovery started quietly, driven by investors who bought when fear was at its maximum. Within a year, the market had recovered over 60%. Within five years, it had set new all-time highs. The lesson: the best time to invest is often when it feels the worst. But recognizing the exact bottom in real time is nearly impossible.",
+      "prerequisites": ["government_response", "buying_the_dip"],
+      "trigger": {
+        "type": "bought_after_decline",
+        "params": { "decline_pct": 15.0, "lookback_days": 10 }
+      },
+      "trigger_explanation": "You bought into a severe decline. In March 2009, the bravest investors did exactly this.",
+      "correct_action": "You can't time the exact bottom. But buying quality assets during maximum fear, with money you don't need immediately, has historically been rewarded.",
+      "priority": "high",
+      "position": { "x": 0, "y": 0 },
+      "category": "history"
+    },
+
+    {
+      "id": "bear_market_rally",
+      "title": "Bear Market Rallies",
+      "type": "adaptive",
+      "description": "The dip kept dipping. Not every decline is a buying opportunity.",
+      "content": "You bought a stock after it fell, expecting a recovery — but it kept falling. During bear markets — prolonged periods of falling prices — temporary bounces of 5-15% are common before the decline resumes. These 'bear market rallies' trap buyers who mistake a short bounce for the real bottom. In the 2008 crisis, the S&P 500 — an index tracking 500 major U.S. companies — had multiple rallies of 10% or more on its way to losing 57% total. The lesson: in a crisis, the first bounce is rarely the last drop. Buy gradually rather than going all-in on the first sign of recovery.",
+      "prerequisites": ["buying_the_dip", "market_crash"],
+      "trigger": {
+        "type": "unrealized_loss_pct",
+        "params": { "loss_pct": 12.0 }
+      },
+      "trigger_explanation": "A stock you bought after a dip has fallen even further. The dip turned out to be a false bottom.",
+      "correct_action": "In bear markets, patience beats conviction. Scale into positions gradually rather than going all-in on the first drop. The bottom will be obvious only in hindsight.",
+      "priority": "normal",
+      "position": { "x": 800, "y": -250 },
+      "category": "strategies"
+    },
+    {
+      "id": "information_diet",
+      "title": "Your Information Diet",
+      "type": "adaptive",
+      "description": "You've been reading the news. Here's how to read critically.",
+      "content": "Financial news is designed to provoke reactions — fear sells, hype sells, certainty sells. The same market drop can be reported as 'Investors panic' or 'Markets find new value.' Professional traders learn to read the news critically, asking: who benefits from this story? What information is being left out? And am I drawn to this article because it confirms what I already believe? That last one is called confirmation bias — the tendency to seek out news that supports your existing views while ignoring information that challenges them. Your information diet shapes your trading decisions more than you realize.",
+      "prerequisites": ["what_is_a_market"],
+      "trigger": {
+        "type": "newspaper_read",
+        "params": { "min_reads": 5 }
+      },
+      "trigger_explanation": "You've been reading the newspaper regularly. Time to think about how financial media shapes your decisions.",
+      "correct_action": "Read critically. Ask what narrative is being pushed, what's omitted, and whether the story confirms your existing beliefs. The news tells you what happened — not what to do about it.",
+      "priority": "normal",
+      "position": { "x": 200, "y": -200 },
+      "category": "psychology"
+    }
+  ],
+  "categories": {
+    "fundamentals": { "color": "#4A90D9", "label": "Fundamentals" },
+    "order_types": { "color": "#7B68EE", "label": "Order Types" },
+    "risk": { "color": "#E74C3C", "label": "Risk Management" },
+    "psychology": { "color": "#F39C12", "label": "Trading Psychology" },
+    "mechanics": { "color": "#27AE60", "label": "Game Mechanics" },
+    "strategies": { "color": "#16A085", "label": "Strategies" },
+    "market_events": { "color": "#8E44AD", "label": "Market Events" },
+    "history": { "color": "#D4A574", "label": "Financial History" }
+  },
+  "npc_quests": [
+    {
+      "npc_type": "analyst",
+      "name": "The Analyst",
+      "description": "Careful, data-driven. Explains numbers and fundamentals.",
+      "unlocks_nodes": ["volatility", "paper_gains", "position_sizing"],
+      "quest_dialogue_hint": "Talk to the Analyst about what's moving today."
+    },
+    {
+      "npc_type": "broker",
+      "name": "The Broker",
+      "description": "Sentiment-focused, persuasive. Thinks in client psychology.",
+      "unlocks_nodes": ["buying_the_dip", "cash_management", "emotional_discipline"],
+      "quest_dialogue_hint": "The Broker has thoughts on market sentiment."
+    },
+    {
+      "npc_type": "trader",
+      "name": "The Floor Trader",
+      "description": "Short, direct, practical. Emotionally honest about price action.",
+      "unlocks_nodes": ["limit_buy_sell", "market_timing", "cost_basis"],
+      "quest_dialogue_hint": "The Floor Trader can teach you about order mechanics."
+    },
+    {
+      "npc_type": "historian",
+      "name": "The Historian",
+      "description": "Sees patterns across decades. Connects current events to past crises.",
+      "unlocks_nodes": ["historical_crashes", "housing_boom", "market_cycles"],
+      "quest_dialogue_hint": "The Historian knows what happened before — and what's coming."
+    }
+  ],
+  "tutorial": {
+    "foundational_nodes": ["what_is_a_company", "what_is_a_stock"]
+  },
+  "settings": {
+    "unlock_all_knowledge_first": true,
+    "max_popups_per_day": 2
+  }
+}

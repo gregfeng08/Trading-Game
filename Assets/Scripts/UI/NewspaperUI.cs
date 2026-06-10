@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -20,6 +21,7 @@ public class NewspaperUI : MonoBehaviour
     private Texture2D currentTexture;
     private bool isLoading;
     private string loadedDate;
+    private Coroutine loadingAnimCoroutine;
 
     void Awake()
     {
@@ -104,7 +106,7 @@ public class NewspaperUI : MonoBehaviour
 
         try
         {
-            var tex = await NewspaperAPI.GetNewspaperImage(date);
+            var tex = await NewspaperAPI.GetNewspaperImage(date, APIBootstrapper.EntityDbId);
             if (tex == null)
             {
                 Debug.LogWarning("[NewspaperUI] Failed to load newspaper image");
@@ -128,11 +130,33 @@ public class NewspaperUI : MonoBehaviour
 
     private void SetLoading(bool loading, string message = null)
     {
+        if (loadingAnimCoroutine != null)
+        {
+            StopCoroutine(loadingAnimCoroutine);
+            loadingAnimCoroutine = null;
+        }
+
         loadingText.gameObject.SetActive(loading || message != null);
-        loadingText.text = message ?? "Loading newspaper...";
+
+        if (loading && message == null)
+            loadingAnimCoroutine = StartCoroutine(AnimateLoadingDots());
+        else
+            loadingText.text = message ?? "";
 
         if (!loading && message == null)
             newspaperImage.enabled = true;
+    }
+
+    private IEnumerator AnimateLoadingDots()
+    {
+        string[] frames = { "Loading newspaper.", "Loading newspaper..", "Loading newspaper..." };
+        int i = 0;
+        while (true)
+        {
+            loadingText.text = frames[i % frames.Length];
+            i++;
+            yield return new WaitForSeconds(0.4f);
+        }
     }
 
     private void ApplyTexture()

@@ -54,6 +54,10 @@ public class SpeechBubble : MonoBehaviour
         if (followTarget != null)
             transform.position = followTarget.position + offset;
 
+        var cam = Camera.main;
+        if (cam != null)
+            transform.rotation = Quaternion.LookRotation(transform.position - cam.transform.position);
+
         if (isTyping)
         {
             charAccumulator += Time.deltaTime * charsPerSecond;

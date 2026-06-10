@@ -10,7 +10,13 @@ public static class ProgressionGates
     public static bool ShowCostBasis { get; private set; }
     public static bool ShowFullTickerUniverse { get; private set; } // unused, kept for future
     public static bool ShowPortfolioChart { get; private set; }
-    public static bool ShowLimitOrders { get; private set; }
+    // DISABLED: limit/stop order UI commented out
+    // public static bool ShowLimitOrders { get; private set; }
+    // public static bool ShowStopOrders { get; private set; }
+    // public static bool ShowStopLimitOrders { get; private set; }
+    public static bool ShowLimitOrders => false;
+    public static bool ShowStopOrders => false;
+    public static bool ShowStopLimitOrders => false;
     public static bool ShowExtendedArcInfo { get; private set; }
     public static bool ShowCashBreakdown { get; private set; }
     public static bool ShowAllTimeframes { get; private set; }
@@ -26,7 +32,10 @@ public static class ProgressionGates
         { "cost_basis",       v => ShowCostBasis = v },
         { "diversification",  v => ShowFullTickerUniverse = v },
         { "paper_gains",      v => ShowPortfolioChart = v },
-        { "limit_buy_sell",   v => ShowLimitOrders = v },
+        // DISABLED: limit/stop order gates commented out
+        // { "limit_buy_sell",   v => ShowLimitOrders = v },
+        // { "stop_orders",      v => ShowStopOrders = v },
+        // { "stop_limit_orders", v => ShowStopLimitOrders = v },
         { "market_cycles",    v => ShowExtendedArcInfo = v },
         { "cash_management",  v => ShowCashBreakdown = v },
         { "market_timing",    v => ShowAllTimeframes = v },
@@ -83,7 +92,10 @@ public static class ProgressionGates
         { "volatility",       "Candlestick wicks (high/low price range)" },
         { "cost_basis",       "Portfolio cost basis and gain/loss" },
         { "paper_gains",      "Portfolio value chart" },
-        { "limit_buy_sell",   "Limit & stop orders" },
+        // DISABLED: limit/stop order feature labels commented out
+        // { "limit_buy_sell",   "Limit orders" },
+        // { "stop_orders",      "Stop orders" },
+        // { "stop_limit_orders", "Stop-limit orders" },
         { "market_cycles",    "Arc details (days remaining, grade, return %)" },
         { "cash_management",  "Net worth breakdown (holdings value)" },
         { "market_timing",    "All chart timeframes (1W, 3M, 1Y, 5Y)" },
@@ -104,7 +116,10 @@ public static class ProgressionGates
             "cost_basis"       => ShowCostBasis,
             "diversification"  => ShowFullTickerUniverse,
             "paper_gains"      => ShowPortfolioChart,
-            "limit_buy_sell"   => ShowLimitOrders,
+            // DISABLED: limit/stop order flags commented out
+            // "limit_buy_sell"   => ShowLimitOrders,
+            // "stop_orders"      => ShowStopOrders,
+            // "stop_limit_orders" => ShowStopLimitOrders,
             "market_cycles"    => ShowExtendedArcInfo,
             "cash_management"  => ShowCashBreakdown,
             "market_timing"    => ShowAllTimeframes,

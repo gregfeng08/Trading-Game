@@ -64,24 +64,6 @@
       "category": "fundamentals"
     },
     {
-      "id": "limit_buy_sell",
-      "title": "Limit Buy / Sell",
-      "type": "adaptive",
-      "description": "Set your own price instead of accepting the market's.",
-      "content": "A limit order lets you specify the price you're willing to pay (or accept). A buy limit says 'only buy if the price drops to X.' A sell limit says 'only sell if the price rises to X.' The trade only happens if the market reaches your price.",
-      "prerequisites": ["market_buy_sell"],
-      "trigger": {
-        "type": "trade_count",
-        "params": { "min_trades": 3, "order_type": "market" }
-      },
-      "trigger_explanation": "You've placed several market orders, always accepting whatever price the market gives you.",
-      "correct_action": "Use limit orders to set the exact price you're willing to pay or accept, giving you more control over your trades.",
-      "reward": { "mechanic": "limit_orders" },
-      "priority": "normal",
-      "position": { "x": 600, "y": -100 },
-      "category": "order_types"
-    },
-    {
       "id": "volatility",
       "title": "Volatility",
       "type": "adaptive",
@@ -534,7 +516,7 @@
       "type": "knowledge",
       "description": "Markets have crashed before. They will again.",
       "content": "Market crashes aren't rare — they're a repeating pattern throughout history. The 1929 crash led to the Great Depression. In 1987, a day called Black Monday saw the Dow — a stock market index that tracks 30 large U.S. companies — fall 22% in a single day. In 2000, the dot-com bubble burst when internet company stocks collapsed after years of hype. A 'bubble' happens when prices rise far beyond what companies are actually worth, driven by excitement rather than reality. Each time, the pattern repeats: widespread excitement, prices climbing too high, a sudden trigger event, panic selling, and eventually a slow recovery.",
-      "prerequisites": ["what_is_a_market"],
+      "prerequisites": ["what_is_a_market", "market_buy_sell"],
       "priority": "normal",
       "position": { "x": 0, "y": 0 },
       "category": "history"
@@ -545,7 +527,7 @@
       "type": "knowledge",
       "description": "The setup for 2008: easy credit and the belief that housing never falls.",
       "content": "Between 2003 and 2006, U.S. housing prices soared. Interest rates — the cost banks charge to lend money — were low, making it cheap to borrow. Mortgages, the loans people take out to buy homes, were easy to get, even for people who couldn't comfortably afford them. Everyone believed housing was a safe bet. Banks took thousands of these mortgages, bundled them together, and sold them to investors around the world as financial products. The whole system rested on one assumption: housing prices only go up. When that assumption broke, so did the financial system.",
-      "prerequisites": ["historical_crashes"],
+      "prerequisites": ["historical_crashes", "market_crash"],
       "priority": "normal",
       "position": { "x": 0, "y": 0 },
       "category": "history"
@@ -683,7 +665,7 @@
       "npc_type": "trader",
       "name": "The Floor Trader",
       "description": "Short, direct, practical. Emotionally honest about price action.",
-      "unlocks_nodes": ["limit_buy_sell", "market_timing", "cost_basis"],
+      "unlocks_nodes": ["market_timing", "cost_basis"],
       "quest_dialogue_hint": "The Floor Trader can teach you about order mechanics."
     },
     {

@@ -184,6 +184,13 @@ public class NPCBark : MonoBehaviour
 
         if (hintGroup != null)
             hintGroup.alpha = Mathf.MoveTowards(hintGroup.alpha, hintAlphaTarget, Time.deltaTime * HintFadeSpeed);
+
+        if (hintRoot != null)
+        {
+            var cam = Camera.main;
+            if (cam != null)
+                hintRoot.rotation = Quaternion.LookRotation(hintRoot.position - cam.transform.position);
+        }
     }
 
     private void TriggerBark()

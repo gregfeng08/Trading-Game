@@ -34,9 +34,11 @@ public class MainMenuController : MonoBehaviour
 
     private void OnEnable()
     {
-        playButtonObj.SetActive(false);
-        newGameButtonObj.SetActive(false);
-        resetButtonObj.SetActive(false);
+        playButton.interactable = false;
+        newGameButton.interactable = false;
+        resetButton.interactable = false;
+        if (quitButton != null)
+            quitButton.interactable = false;
 
         bootstrapper.TryStart();
         _poll = StartCoroutine(PollBootstrap());
@@ -86,24 +88,25 @@ public class MainMenuController : MonoBehaviour
         yield return new WaitUntil(() => task.IsCompleted);
 
         bool hasSave = false;
-        if (task.IsCompletedSuccessfully && task.Result.current_date != null)
+        if (task.IsCompletedSuccessfully && !string.IsNullOrEmpty(task.Result.current_date))
             hasSave = true;
 
-        if (hasSave)
-        {
-            playButtonObj.SetActive(true);
-            playButton.onClick.AddListener(OnPlay);
-        }
+        playButton.interactable = hasSave;
+        playButton.onClick.RemoveAllListeners();
+        playButton.onClick.AddListener(OnPlay);
 
-        newGameButtonObj.SetActive(true);
+        newGameButton.interactable = true;
+        newGameButton.onClick.RemoveAllListeners();
         newGameButton.onClick.AddListener(OnNewGame);
 
-        resetButtonObj.SetActive(true);
+        resetButton.interactable = true;
+        resetButton.onClick.RemoveAllListeners();
         resetButton.onClick.AddListener(OnReset);
 
-        if (quitButtonObj != null)
+        if (quitButton != null)
         {
-            quitButtonObj.SetActive(true);
+            quitButton.interactable = true;
+            quitButton.onClick.RemoveAllListeners();
             quitButton.onClick.AddListener(OnQuit);
         }
 
@@ -276,8 +279,8 @@ public class MainMenuController : MonoBehaviour
         }
 
         statusText.text = "Reset complete!";
-        playButtonObj.SetActive(false);
         SetAllButtonsInteractable(true);
+        playButton.interactable = false;
     }
 
     private void SetAllButtonsInteractable(bool interactable)
@@ -285,6 +288,8 @@ public class MainMenuController : MonoBehaviour
         playButton.interactable = interactable;
         newGameButton.interactable = interactable;
         resetButton.interactable = interactable;
+        if (quitButton != null)
+            quitButton.interactable = interactable;
     }
 
     private void LoadRoom()

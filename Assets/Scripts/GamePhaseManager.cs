@@ -132,9 +132,13 @@ public class GamePhaseManager : MonoBehaviour
             DayTimerActive = true;
         }
 
-        await RefreshArcStatus();
-        _ = NPCBark.RefreshDialogue(CurrentDate);
-        await FetchInitialPortfolio();
+        if (!string.IsNullOrEmpty(CurrentDate))
+        {
+            await RefreshArcStatus();
+            await FetchServerPendingOrders();
+            _ = NPCBark.RefreshDialogue(CurrentDate);
+            await FetchInitialPortfolio();
+        }
     }
 
     private async Task FetchInitialPortfolio()
@@ -251,6 +255,31 @@ public class GamePhaseManager : MonoBehaviour
 
     public void ClearLocalOrders() => localOrders.Clear();
 
+    private async Task FetchServerPendingOrders()
+    {
+        try
+        {
+            var resp = await OrderAPI.GetPendingOrders(APIBootstrapper.EntityExternalId);
+            if (resp?.orders == null) return;
+            foreach (var o in resp.orders)
+            {
+                localOrders.Add(new LocalPendingOrder
+                {
+                    ticker = o.ticker_id,
+                    side = o.side,
+                    quantity = o.quantity,
+                    orderType = o.order_type,
+                    limitPrice = o.limit_price,
+                    stopPrice = o.stop_price
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[GamePhaseManager] FetchServerPendingOrders failed: {ex.Message}");
+        }
+    }
+
     public void PauseForMenu()
     {
         DayTimerActive = false;
@@ -318,6 +347,7 @@ public class GamePhaseManager : MonoBehaviour
             DayTimerActive = true;
             PostMarketReady = false;
 
+            _ = FetchInitialPortfolio();
             OnPhaseChanged?.Invoke(CurrentPhase);
             CheckKnowledgeTriggers();
             return new List<TradeResult>(todayResults);
@@ -373,6 +403,7 @@ public class GamePhaseManager : MonoBehaviour
             CurrentDate = resp.current_date;
             CurrentPhase = GamePhase.PostMarket;
             PostMarketReady = true;
+            _ = FetchInitialPortfolio();
             OnPhaseChanged?.Invoke(CurrentPhase);
             CheckKnowledgeTriggers();
         }
@@ -403,6 +434,31 @@ public class GamePhaseManager : MonoBehaviour
 
             foreach (var order in localOrders)
             {
+                // DISABLED: limit/stop order server-side queueing commented out
+                // if (order.orderType != "market")
+                // {
+                //     var qReq = new QueueOrderRequestDTO
+                //     {
+                //         entity_id = APIBootstrapper.EntityExternalId,
+                //         ticker = order.ticker,
+                //         side = order.side,
+                //         quantity = order.quantity,
+                //         order_type = order.orderType,
+                //         limit_price = order.limitPrice,
+                //         stop_price = order.stopPrice
+                //     };
+                //     await OrderAPI.QueueOrder(qReq);
+                //     postMarketResults.Add(new TradeResult
+                //     {
+                //         ticker = order.ticker,
+                //         side = order.side,
+                //         quantity = order.quantity,
+                //         status = "queued",
+                //         message = $"Queued {order.orderType} for next open"
+                //     });
+                //     continue;
+                // }
+
                 var req = new TradeRequestDTO
                 {
                     entity_id = APIBootstrapper.EntityExternalId,
@@ -463,7 +519,10 @@ public class GamePhaseManager : MonoBehaviour
 
             await CheckArcAdvance();
             await RefreshArcStatus();
+            await FetchServerPendingOrders();
             _ = NPCBark.RefreshDialogue(CurrentDate);
+            _ = NewspaperAPI.PreGenerate(CurrentDate, APIBootstrapper.EntityDbId);
+            _ = FetchInitialPortfolio();
 
             CurrentPhase = GamePhase.PreMarket;
             OnPhaseChanged?.Invoke(CurrentPhase);
@@ -500,7 +559,10 @@ public class GamePhaseManager : MonoBehaviour
 
             await CheckArcAdvance();
             await RefreshArcStatus();
+            await FetchServerPendingOrders();
             _ = NPCBark.RefreshDialogue(CurrentDate);
+            _ = NewspaperAPI.PreGenerate(CurrentDate, APIBootstrapper.EntityDbId);
+            _ = FetchInitialPortfolio();
 
             CurrentPhase = GamePhase.PreMarket;
             OnPhaseChanged?.Invoke(CurrentPhase);

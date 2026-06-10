@@ -72,6 +72,7 @@ public class TradingUIController : MonoBehaviour
     [SerializeField] private TMP_InputField priceInput;
     [SerializeField] private TMP_Text priceInputLabel;
     private string selectedOrderType = "market";
+    private readonly System.Collections.Generic.List<string> orderTypeKeys = new();
 
     [Header("Portfolio Tab")]
     [SerializeField] private TMP_Text holdingsText;
@@ -166,7 +167,10 @@ public class TradingUIController : MonoBehaviour
         if (portfolioChart != null) portfolioChart.gameObject.SetActive(false);
         ProgressionGates.OnGatesChanged += ApplyProgressionGates;
         if (orderTypeDropdown != null)
+        {
+            RebuildOrderTypeDropdown();
             orderTypeDropdown.onValueChanged.AddListener(OnOrderTypeChanged);
+        }
         UpdateOrderTypeUI();
 
         _ = LoadInitialData();
@@ -360,32 +364,63 @@ public class TradingUIController : MonoBehaviour
 
     private void OnOrderTypeChanged(int index)
     {
-        selectedOrderType = index switch
-        {
-            1 => "limit",
-            2 => "stop",
-            3 => "stop_limit",
-            _ => "market"
-        };
+        selectedOrderType = index >= 0 && index < orderTypeKeys.Count ? orderTypeKeys[index] : "market";
         UpdateOrderTypeUI();
+    }
+
+    private void RebuildOrderTypeDropdown()
+    {
+        orderTypeKeys.Clear();
+        orderTypeKeys.Add("market");
+
+        var labels = new System.Collections.Generic.List<string> { "Market" };
+
+        // DISABLED: limit/stop order types commented out
+        // if (ProgressionGates.ShowLimitOrders)
+        // {
+        //     orderTypeKeys.Add("limit");
+        //     labels.Add("Limit");
+        // }
+        // if (ProgressionGates.ShowStopOrders)
+        // {
+        //     orderTypeKeys.Add("stop");
+        //     labels.Add("Stop");
+        // }
+        // if (ProgressionGates.ShowStopLimitOrders)
+        // {
+        //     orderTypeKeys.Add("stop_limit");
+        //     labels.Add("Stop-Limit");
+        // }
+
+        orderTypeDropdown.ClearOptions();
+        orderTypeDropdown.AddOptions(labels);
+
+        int idx = orderTypeKeys.IndexOf(selectedOrderType);
+        if (idx < 0) { selectedOrderType = "market"; idx = 0; }
+        orderTypeDropdown.SetValueWithoutNotify(idx);
     }
 
     private void UpdateOrderTypeUI()
     {
-        bool needsPrice = selectedOrderType != "market";
+        // DISABLED: limit/stop order UI — always hide price input
         if (priceInput != null)
-            priceInput.gameObject.SetActive(needsPrice);
+            priceInput.gameObject.SetActive(false);
         if (priceInputLabel != null)
-        {
-            priceInputLabel.gameObject.SetActive(needsPrice);
-            priceInputLabel.text = selectedOrderType switch
-            {
-                "limit" => "Limit Price",
-                "stop" => "Stop Price",
-                "stop_limit" => "Stop / Limit Price",
-                _ => "Price"
-            };
-        }
+            priceInputLabel.gameObject.SetActive(false);
+        // bool needsPrice = selectedOrderType != "market";
+        // if (priceInput != null)
+        //     priceInput.gameObject.SetActive(needsPrice);
+        // if (priceInputLabel != null)
+        // {
+        //     priceInputLabel.gameObject.SetActive(needsPrice);
+        //     priceInputLabel.text = selectedOrderType switch
+        //     {
+        //         "limit" => "Limit Price",
+        //         "stop" => "Stop Price",
+        //         "stop_limit" => "Stop, Limit (e.g. 150,148)",
+        //         _ => "Price"
+        //     };
+        // }
     }
 
     // ── Data Loading ──
@@ -836,14 +871,23 @@ public class TradingUIController : MonoBehaviour
             SetChartVisibility();
         }
 
-        bool showOrders = ProgressionGates.ShowLimitOrders;
+        // DISABLED: limit/stop order dropdown always hidden
         if (orderTypeDropdown != null)
-            orderTypeDropdown.gameObject.SetActive(showOrders);
-        if (!showOrders)
-        {
-            selectedOrderType = "market";
-            UpdateOrderTypeUI();
-        }
+            orderTypeDropdown.gameObject.SetActive(false);
+        selectedOrderType = "market";
+        UpdateOrderTypeUI();
+        // bool showOrders = ProgressionGates.ShowLimitOrders && currentPhase != GamePhase.Day;
+        // if (orderTypeDropdown != null)
+        // {
+        //     orderTypeDropdown.gameObject.SetActive(showOrders);
+        //     if (showOrders)
+        //         RebuildOrderTypeDropdown();
+        // }
+        // if (!showOrders)
+        // {
+        //     selectedOrderType = "market";
+        //     UpdateOrderTypeUI();
+        // }
 
         ApplyTimeframeGates();
     }
@@ -917,84 +961,24 @@ public class TradingUIController : MonoBehaviour
             case GamePhase.PostMarket:
                 if (GamePhaseManager.Inst != null)
                 {
-                    var pmResults = GamePhaseManager.Inst.TodayResults;
-                    if (pmResults.Count > 0)
-                    {
-                        double totalPnl = 0;
-                        foreach (var r in pmResults)
-                        {
-                            if (r.status != "ok")
-                            {
-                                sb.AppendLine($"{r.side.ToUpper()} {r.quantity} {r.ticker} — <color=#D93838>FAILED</color>");
-                                continue;
-                            }
-                            string sideColor = r.side == "buy" ? "#26BF59" : "#D93838";
-                            string pnlColor = r.pnl >= 0 ? "#26BF59" : "#D93838";
-                            string pnlSign = r.pnl >= 0 ? "+" : "";
-                            sb.AppendLine($"<color={sideColor}>{r.side.ToUpper()}</color>  {r.quantity} {r.ticker}");
-                            sb.AppendLine($"  Open ${FmtPrice(r.fillPrice)}  →  Close ${FmtPrice(r.closePrice)}  <color={pnlColor}>{pnlSign}${FmtPrice(r.pnl)}</color>");
-                            totalPnl += r.pnl;
-                        }
-                        sb.AppendLine();
-                        string totalColor = totalPnl >= 0 ? "#26BF59" : "#D93838";
-                        string totalSign = totalPnl >= 0 ? "+" : "";
-                        sb.AppendLine($"<b>Day P&L:  <color={totalColor}>{totalSign}${FmtPrice(totalPnl)}</color></b>");
-                    }
-
-                    var pmFills = GamePhaseManager.Inst.PostMarketResults;
-                    if (pmFills.Count > 0)
-                    {
-                        sb.AppendLine();
-                        sb.AppendLine("<b>Post-market fills:</b>");
-                        foreach (var r in pmFills)
-                        {
-                            string sideColor = r.side == "buy" ? "#26BF59" : "#D93838";
-                            if (r.status == "ok")
-                                sb.AppendLine($"<color={sideColor}>{r.side.ToUpper()}</color>  {r.quantity} {r.ticker} @ ${FmtPrice(r.fillPrice)}");
-                            else
-                                sb.AppendLine($"<color={sideColor}>{r.side.ToUpper()}</color>  {r.quantity} {r.ticker} — <color=#D93838>{r.message ?? "FAILED"}</color>");
-                        }
-                    }
-
                     var pmOrders = GamePhaseManager.Inst.PendingOrders;
-                    if (pmOrders.Count > 0)
+                    if (pmOrders.Count == 0)
                     {
-                        sb.AppendLine();
-                        sb.AppendLine("<b>Pending orders:</b>");
-                        BuildInteractiveOrderRows(pmOrders);
+                        sb.AppendLine("<color=#888888>No pending orders.</color>");
+                        sb.AppendLine("<color=#888888>Queue orders for tomorrow, or advance day.</color>");
                     }
                 }
                 break;
         }
 
-        if (cachedHoldings != null && cachedHoldings.Length > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine("<color=#666D78>─────────────────────────</color>");
-            sb.AppendLine("<b><color=#666D78>POSITIONS</color></b>");
-            double totalDayPnl = 0;
-            foreach (var h in cachedHoldings)
-            {
-                prevCloseCache.TryGetValue(h.ticker_id, out double prevClose);
-                double dayChange = prevClose > 0 ? h.current_price - prevClose : 0;
-                double dayChangePct = prevClose > 0 ? (dayChange / prevClose) * 100 : 0;
-                double posDayPnl = dayChange * h.shares_held;
-                totalDayPnl += posDayPnl;
-
-                string arrow = dayChange >= 0 ? "▲" : "▼";
-                string changeColor = dayChange >= 0 ? "#26BF59" : "#D93838";
-                string sign = dayChange >= 0 ? "+" : "";
-
-                sb.AppendLine($"<b>{h.ticker_id}</b>  {h.shares_held:F0} shares  ${FmtPrice(h.current_price)}");
-                if (prevClose > 0)
-                    sb.AppendLine($"  <color={changeColor}>{arrow} {sign}{dayChangePct:F1}%  {sign}${FmtPrice(posDayPnl)}</color>");
-            }
-            string ptColor = totalDayPnl >= 0 ? "#26BF59" : "#D93838";
-            string ptSign = totalDayPnl >= 0 ? "+" : "";
-            sb.AppendLine($"\n<b>Positions P&L:  <color={ptColor}>{ptSign}${FmtPrice(totalDayPnl)}</color></b>");
-        }
-
         ordersText.text = sb.ToString().TrimEnd();
+
+        if (currentPhase == GamePhase.PostMarket && GamePhaseManager.Inst != null)
+        {
+            var pmPending = GamePhaseManager.Inst.PendingOrders;
+            if (pmPending.Count > 0)
+                BuildInteractiveOrderRows(pmPending);
+        }
     }
 
     // ── Portfolio Tab: Holdings Display ──
@@ -1148,25 +1132,35 @@ public class TradingUIController : MonoBehaviour
 
         if (GamePhaseManager.Inst == null) return;
 
+        // DISABLED: limit/stop order price parsing commented out
         double limitPrice = 0;
         double stopPrice = 0;
-
-        if (selectedOrderType != "market" && priceInput != null)
-        {
-            if (!double.TryParse(priceInput.text, out double enteredPrice) || enteredPrice <= 0)
-            {
-                SetStatus("Enter a valid price.");
-                return;
-            }
-
-            if (selectedOrderType == "limit") limitPrice = enteredPrice;
-            else if (selectedOrderType == "stop") stopPrice = enteredPrice;
-            else if (selectedOrderType == "stop_limit")
-            {
-                stopPrice = enteredPrice;
-                limitPrice = enteredPrice;
-            }
-        }
+        // if (selectedOrderType != "market" && priceInput != null)
+        // {
+        //     if (selectedOrderType == "stop_limit")
+        //     {
+        //         var parts = priceInput.text.Split(',');
+        //         if (parts.Length != 2
+        //             || !double.TryParse(parts[0].Trim(), out double sp) || sp <= 0
+        //             || !double.TryParse(parts[1].Trim(), out double lp) || lp <= 0)
+        //         {
+        //             SetStatus("Enter stop,limit prices (e.g. 150,148).");
+        //             return;
+        //         }
+        //         stopPrice = sp;
+        //         limitPrice = lp;
+        //     }
+        //     else
+        //     {
+        //         if (!double.TryParse(priceInput.text, out double enteredPrice) || enteredPrice <= 0)
+        //         {
+        //             SetStatus("Enter a valid price.");
+        //             return;
+        //         }
+        //         if (selectedOrderType == "limit") limitPrice = enteredPrice;
+        //         else if (selectedOrderType == "stop") stopPrice = enteredPrice;
+        //     }
+        // }
 
         double heldShares = 0;
         if (cachedHoldings != null)
@@ -1334,6 +1328,8 @@ public class TradingUIController : MonoBehaviour
 
     private void ClearOrderRows()
     {
+        if (ordersTextOriginalParent != null && ordersText != null)
+            ordersText.transform.SetParent(ordersTextOriginalParent, false);
         foreach (var go in orderRowObjects)
             if (go != null) Destroy(go);
         orderRowObjects.Clear();
@@ -1343,6 +1339,7 @@ public class TradingUIController : MonoBehaviour
 
     private ScrollRect ordersScrollRect;
     private RectTransform ordersContentRT;
+    private Transform ordersTextOriginalParent;
 
     private void EnsureOrdersScroll()
     {
@@ -1351,7 +1348,8 @@ public class TradingUIController : MonoBehaviour
         Transform parent = ordersContainer != null ? ordersContainer : ordersText?.transform.parent;
         if (parent == null) return;
 
-        var parentRT = parent.GetComponent<RectTransform>();
+        if (ordersText != null && ordersTextOriginalParent == null)
+            ordersTextOriginalParent = ordersText.transform.parent;
 
         var viewportGO = new GameObject("OrdersViewport", typeof(RectTransform), typeof(RectMask2D));
         viewportGO.transform.SetParent(parent, false);
@@ -1418,6 +1416,15 @@ public class TradingUIController : MonoBehaviour
 
         orderRowObjects.Add(viewportGO);
         orderRowObjects.Add(scrollbarGO);
+
+        if (ordersText != null)
+        {
+            ordersText.transform.SetParent(ordersContentRT, false);
+            ordersText.transform.SetAsFirstSibling();
+            var textLE = ordersText.GetComponent<LayoutElement>();
+            if (textLE == null) textLE = ordersText.gameObject.AddComponent<LayoutElement>();
+            textLE.flexibleWidth = 1;
+        }
     }
 
     private void BuildInteractiveOrderRows(IReadOnlyList<GamePhaseManager.LocalPendingOrder> orders)

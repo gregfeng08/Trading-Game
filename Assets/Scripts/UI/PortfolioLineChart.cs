@@ -1,11 +1,12 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 using Game.API.DTO;
 using System.Collections.Generic;
 
 [RequireComponent(typeof(CanvasRenderer))]
-public class PortfolioLineChart : MaskableGraphic
+public class PortfolioLineChart : MaskableGraphic, IPointerMoveHandler, IPointerExitHandler
 {
     [Header("Line")]
     [SerializeField] private Color lineColor = new Color(0.4f, 0.7f, 1f);
@@ -45,6 +46,11 @@ public class PortfolioLineChart : MaskableGraphic
     private float minValue;
     private float maxValue;
 
+    private GameObject tooltipGO;
+    private TMP_Text tooltipText;
+    private Image tooltipBg;
+    private RectTransform tooltipRT;
+
     public void SetData(NetWorthPointDTO[] history, double startCash = 10000)
     {
         data = history;
@@ -59,6 +65,7 @@ public class PortfolioLineChart : MaskableGraphic
         data = null;
         SetVerticesDirty();
         HideAllLabels();
+        HideTooltip();
     }
 
     private void ComputeRange()
@@ -164,6 +171,105 @@ public class PortfolioLineChart : MaskableGraphic
         vh.AddVert(new Vector3(a.x - perp.x, a.y - perp.y), c, Vector2.zero);
         vh.AddTriangle(idx, idx + 1, idx + 2);
         vh.AddTriangle(idx, idx + 2, idx + 3);
+    }
+
+    // ── Tooltip ──
+
+    public void OnPointerMove(PointerEventData eventData)
+    {
+        if (data == null || data.Length < 2) return;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            rectTransform, eventData.position, eventData.pressEventCamera, out Vector2 localPos);
+
+        GetChartArea(out float cx0, out float cy0, out float cw, out float ch);
+        if (cw <= 0) return;
+
+        float relX = localPos.x - cx0;
+        if (relX < 0 || relX > cw) { HideTooltip(); return; }
+
+        float step = cw / (data.Length - 1);
+        int idx = Mathf.Clamp(Mathf.RoundToInt(relX / step), 0, data.Length - 1);
+
+        var point = data[idx];
+        double nw = point.net_worth;
+        double change = nw - startingCash;
+        double changePct = startingCash > 0 ? (change / startingCash) * 100 : 0;
+        string sign = change >= 0 ? "+" : "";
+        string changeColor = change >= 0 ? "#26BF59" : "#D93838";
+        string dateStr = FormatDate(point.date);
+
+        EnsureTooltip();
+        tooltipText.text = $"<b>${nw:N2}</b>\n<size=11>{dateStr}  <color={changeColor}>{sign}${change:N2} ({sign}{changePct:F1}%)</color></size>";
+        tooltipText.ForceMeshUpdate();
+
+        float tooltipW = Mathf.Max(140f, tooltipText.preferredWidth + 16f);
+        float tooltipH = tooltipText.preferredHeight + 10f;
+        tooltipRT.sizeDelta = new Vector2(tooltipW, tooltipH);
+
+        float pointX = cx0 + idx * step;
+        float pointY = cy0 + (((float)nw - minValue) / (maxValue - minValue)) * ch;
+
+        float tipX = pointX;
+        float tipY = pointY + 12f;
+
+        Rect rect = GetPixelAdjustedRect();
+        if (tipX + tooltipW * 0.5f > rect.xMax - 5f)
+            tipX = rect.xMax - 5f - tooltipW * 0.5f;
+        if (tipX - tooltipW * 0.5f < rect.xMin + 5f)
+            tipX = rect.xMin + 5f + tooltipW * 0.5f;
+        if (tipY + tooltipH > rect.yMax - 5f)
+            tipY = pointY - tooltipH - 4f;
+
+        tooltipRT.anchoredPosition = new Vector2(tipX, tipY);
+        tooltipGO.SetActive(true);
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        HideTooltip();
+    }
+
+    private void EnsureTooltip()
+    {
+        if (tooltipGO != null) return;
+
+        tooltipGO = new GameObject("ChartTooltip", typeof(RectTransform));
+        tooltipGO.transform.SetParent(transform, false);
+        tooltipRT = tooltipGO.GetComponent<RectTransform>();
+        tooltipRT.anchorMin = new Vector2(0.5f, 0.5f);
+        tooltipRT.anchorMax = new Vector2(0.5f, 0.5f);
+        tooltipRT.pivot = new Vector2(0.5f, 0f);
+        tooltipRT.sizeDelta = new Vector2(150f, 40f);
+
+        tooltipBg = tooltipGO.AddComponent<Image>();
+        tooltipBg.color = new Color(0.08f, 0.08f, 0.12f, 0.94f);
+        tooltipBg.raycastTarget = false;
+
+        var textGO = new GameObject("Text", typeof(RectTransform));
+        textGO.transform.SetParent(tooltipGO.transform, false);
+        var textRT = textGO.GetComponent<RectTransform>();
+        textRT.anchorMin = Vector2.zero;
+        textRT.anchorMax = Vector2.one;
+        textRT.offsetMin = new Vector2(8f, 4f);
+        textRT.offsetMax = new Vector2(-8f, -4f);
+
+        tooltipText = textGO.AddComponent<TextMeshProUGUI>();
+        tooltipText.fontSize = 13f;
+        tooltipText.color = Color.white;
+        tooltipText.alignment = TextAlignmentOptions.Center;
+        tooltipText.enableWordWrapping = false;
+        tooltipText.overflowMode = TextOverflowModes.Overflow;
+        tooltipText.raycastTarget = false;
+        if (labelFont != null) tooltipText.font = labelFont;
+
+        tooltipGO.SetActive(false);
+    }
+
+    private void HideTooltip()
+    {
+        if (tooltipGO != null)
+            tooltipGO.SetActive(false);
     }
 
     // ── Labels ──

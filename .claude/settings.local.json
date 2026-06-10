@@ -93,7 +93,26 @@
       "Bash(Select-Object -ExpandProperty Name)",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\" -Recurse -Directory | Select-Object -First 30 | ForEach-Object { $_.FullName })",
       "Bash(Get-Content \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\Scripts\\\\GamePhaseManager.cs\" -TotalCount 500)",
-      "Bash(Tail -200)"
+      "Bash(Tail -200)",
+      "Bash(git commit -m ' *)",
+      "Bash(Measure-Object)",
+      "Bash(Select-Object -ExpandProperty Count)",
+      "Bash(Head -50)",
+      "Bash(python *)",
+      "Bash(findstr /S /I \"TODO\\\\|FIXME\\\\|HACK\\\\|TEMP\\\\|XXX\\\\|DEPRECATED\\\\|WIP\\\\|BUG\\\\|ISSUE\" Assets\\\\Scripts\\\\*.cs Assets\\\\Scripts\\\\**\\\\*.cs)",
+      "Bash(xargs -0 grep -l \"TODO\\\\|FIXME\\\\|HACK\\\\|TEMP\\\\|XXX\")",
+      "PowerShell(Move-Item *)",
+      "Bash(findstr -i \"trading\")",
+      "Bash(findstr -i \"dotnet\\\\|server\\\\|backend\\\\|api\")",
+      "Bash(dotnet publish *)",
+      "Bash(cp \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\publish\\\\Trading-Game-DOTNET.dll\" \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\StreamingAssets\\\\Server\\\\Trading-Game-DOTNET.dll\")",
+      "Bash(cp \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\\\\publish\\\\Trading-Game-DOTNET.pdb\" \"C:\\\\Users\\\\gregf\\\\Trading-Game\\\\Assets\\\\StreamingAssets\\\\Server\\\\Trading-Game-DOTNET.pdb\")",
+      "Bash(git *)",
+      "PowerShell(dotnet --version)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\gregf\" -Directory | Where-Object { $_.Name -match 'VSCode|vscode|Code' } | Select-Object FullName)",
+      "Bash(Select-String \"^\\\\?\\\\?\")",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\gregf\\\\Trading-Game\"; git status --short | Where-Object { $_ -match '^\\\\?\\\\?' } | ForEach-Object { $_.Substring\\(3\\) })",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\gregf\\\\OneDrive\\\\Desktop\\\\VSCode\\\\Trading-Game\\\\Trading-Game-DOTNET\"; git status --short | Where-Object { $_ -match '^\\\\?\\\\?' } | ForEach-Object { $_.Substring\\(3\\) })"
     ]
   }
 }

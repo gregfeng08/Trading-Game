@@ -64,11 +64,20 @@ public class OptionsMenuUI : MonoBehaviour
     {
         if (panel == null) return;
         panel.SetActive(true);
+        EnsureCanvasOnTop();
 
         if (PlayerStateController.Inst != null)
             PlayerStateController.Inst.SetState(PlayerState.PAUSED);
 
         Time.timeScale = 0f;
+    }
+
+    private void EnsureCanvasOnTop()
+    {
+        var canvas = panel.GetComponentInParent<Canvas>();
+        if (canvas == null) return;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = 100;
     }
 
     public void Close()

@@ -1237,7 +1237,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         dimRT.anchorMin = Vector2.zero;
         dimRT.anchorMax = Vector2.one;
         dimRT.sizeDelta = Vector2.zero;
-        dimGO.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+        dimGO.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.85f);
 
         var cardGO = new GameObject("Card", typeof(RectTransform), typeof(Image));
         cardGO.transform.SetParent(completionOverlay.transform, false);
@@ -1246,7 +1246,7 @@ public class KnowledgeGraphUI : MonoBehaviour
         completionCardRT.anchorMax = new Vector2(0.5f, 0.5f);
         completionCardRT.sizeDelta = new Vector2(cardW, cardH);
         completionCardRT.anchoredPosition = Vector2.zero;
-        cardGO.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f, 0.97f);
+        cardGO.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f, 1f);
 
         // Category — anchored to top, stretches width
         var catGO = new GameObject("Category", typeof(RectTransform));

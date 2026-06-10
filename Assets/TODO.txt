@@ -50,22 +50,24 @@ Golden path must be bulletproof:
 [x] Three-phase day cycle (Pre-Market / Day / Post-Market)
 [x] Server-authoritative trade execution (market orders)
 [x] FIFO lot-based portfolio system
-[x] Knowledge graph — 36 nodes across 8 categories, 18 trigger evaluators
+[x] Knowledge graph — 38 nodes across 8 categories, 18 trigger evaluators
 [x] Dual-path triggers (negative / positive / time fallback) — 3 nodes
     (diversification, first_loss, cash_management) have multi-path triggers;
     first-wins evaluation against frontier nodes only
-[x] Progression gates — 10 gates mapping node completion to UI features
+[x] Progression gates — 12 gates mapping node completion to UI features
     (net worth, candlesticks, price change, wicks, cost basis, portfolio
-    chart, limit orders, extended arc info, cash breakdown, all timeframes)
+    chart, limit orders, stop orders, stop-limit orders, extended arc info,
+    cash breakdown, all timeframes)
 [x] Arc system (Bull Market / Unraveling / Meltdown) with grading
 [x] Day advance with forced liquidation of delisted tickers
 [x] Week skip with compressed daily summaries (WeekReviewOverlay)
 [x] Daily summary overlay with staggered reveal + Casey AI comment
 [x] Arc transition overlay with grade display + arc intro/objectives
 [x] Player event recording (newspaper_read, npc_interaction)
-[x] Limit/stop/stop-limit orders — full pipeline: UI dropdown with 4
-    order types, price input, GamePhaseManager queue, backend OHLC-based
-    fill logic. Gated behind limit_buy_sell knowledge node.
+[x] Limit/stop/stop-limit orders — full pipeline: progressive KG unlock
+    (limit → stop → stop-limit), dropdown filtered by gates, comma-
+    delimited stop-limit input, backend OHLC fill logic. Unfilled
+    non-market orders persist across days via pending_orders table.
 [x] NewGame resets all per-game state — portfolio, trades, orders, arcs,
     newspaper, dialogue, knowledge_node_progress, player_events,
     dynamic_node_content, npc_quest_progress, casey_daily_comments
@@ -89,6 +91,9 @@ Golden path must be bulletproof:
     trade-specificity of dynamic content. Shelved; post-defense.
 [~] Adaptive day pacing — low-interestingness days auto-compress.
     Interestingness scoring exists in NpcDialogueService. Post-defense.
+[x] Newspaper interestingness weighting — market-only interestingness
+    score scales portfolio influence in the prompt. Shared
+    InterestingnessService with flags enum (MarketOnly vs All).
 
 
 ══════════════════════════════════════
@@ -232,6 +237,44 @@ Golden path must be bulletproof:
 [ ] Recurring Casey beyond onboarding — in-world Casey NPC during gameplay
 [ ] Arc-reactive city ambience — lighting/skybox/NPC mood by arc
 [ ] Final cycle review — grades process as well as return %
+[ ] ETFs/Funds as unlockable asset class — gated behind diversification
+    knowledge node. Implementation notes:
+
+    SCHEMA:
+      - Add `asset_type TEXT DEFAULT 'equity'` column to loaded_ticker_list
+      - ALTER TABLE migration in Database.cs InitSchema() or schema.sql
+      - No changes needed to ticker_prices, portfolio, trade_history, or
+        pending_orders — they all reference ticker_id and are type-agnostic
+
+    DATA (both loaders need ETF list):
+      - MarketDataService.cs: add ETF_UNIVERSE array alongside DefaultUniverse
+        Suggested tickers: SPY, QQQ, DIA, IWM, EFA, VTI, VOO, BND, GLD, XLF,
+        XLE, XLK, XLV, XLI, XLP, VWO, TLT, HYG, LQD, AGG
+        (all existed by 2007 and have Yahoo Finance data for 2005-2010)
+      - ticker_download.py: add same list as ETF_UNIVERSE, insert with
+        asset_type='etf' instead of default
+      - LoadTickersAsync(): after equity loop, run same download for ETF
+        symbols with asset_type='etf' in the INSERT
+
+    BACKEND API:
+      - TickerDto (Responses.cs): add AssetType field
+      - GetTickers() in MarketDataService: SELECT asset_type, return it
+      - No trade pipeline changes — orders, FIFO lots, P&L all work as-is
+
+    FRONTEND:
+      - TickerDTO (TickerListResponse.cs): add `public string asset_type;`
+      - TradingUIController.ShowSearchResults(): append [ETF] tag in search
+        results for tickers where asset_type == "etf", e.g.:
+        `$"<b>{t.ticker_id}</b> <color=#5B9BD5>[ETF]</color> <color=#AAA>{t.company_name}</color>"`
+      - Gate: filter out asset_type=="etf" tickers unless
+        ProgressionGates.ShowFullTickerUniverse is true (already wired to
+        diversification node — just needs the read in ShowSearchResults)
+      - ProgressionGates.FeatureLabels: add diversification →
+        "ETFs & full ticker universe"
+
+    IBKR-STYLE UX: no separate tabs — ETFs appear inline in the search
+    bar mixed with equities, distinguished only by the [ETF] tag. Starter
+    tickers list stays equity-only so beginners see stocks first.
 
 
 ══════════════════════════════════════
@@ -239,7 +282,7 @@ Golden path must be bulletproof:
 ══════════════════════════════════════
 
 ~70 C# scripts (Unity), 55 API endpoints (11 endpoint groups),
-16 DB tables, 36 knowledge nodes, 18 trigger evaluators, 10 progression
+16 DB tables, 38 knowledge nodes, 18 trigger evaluators, 12 progression
 gates, 4 NPC archetypes, 3 story arcs, 5 scenes.
 
 Backend: ASP.NET Core (.NET 10), SQLite (WAL), Claude API (Anthropic SDK).

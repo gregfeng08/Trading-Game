@@ -7,11 +7,30 @@ namespace Game.API
 {
     public static class NewspaperAPI
     {
-        public static async Task<Texture2D> GetNewspaperImage(string date = null)
+        public static async Task PreGenerate(string date, int entityId = -1)
         {
-            string path = string.IsNullOrEmpty(date)
-                ? "/newspaper/image"
-                : $"/newspaper/image?date={date}";
+            try
+            {
+                var qs = $"date={date}";
+                if (entityId > 0) qs += $"&entityId={entityId}";
+                var uri = new Uri(APIClient.BaseUrl + $"/newspaper/image?{qs}");
+                var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+                await client.GetAsync(uri);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[NewspaperAPI] Pre-generation failed for {date}: {ex.Message}");
+            }
+        }
+
+        public static async Task<Texture2D> GetNewspaperImage(string date = null, int entityId = -1)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            if (!string.IsNullOrEmpty(date)) parts.Add($"date={date}");
+            if (entityId > 0) parts.Add($"entityId={entityId}");
+            string path = parts.Count > 0
+                ? $"/newspaper/image?{string.Join("&", parts)}"
+                : "/newspaper/image";
 
             var uri = new Uri(APIClient.BaseUrl + path);
             var client = new HttpClient();
